@@ -1,0 +1,21 @@
+{
+  "name": "jotbox",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "dev:web": "npm run dev -w @jotbox/web",
+    "build:web": "npm run build -w @jotbox/web",
+    "preview:web": "npm run preview -w @jotbox/web"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0"
+  },
+  "packageManager": "npm@10.8.0"
+}

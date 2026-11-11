@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@jotbox/api": ["packages/api/src"],
+      "@jotbox/ui": ["packages/ui/src"],
+      "@jotbox/ai": ["packages/ai/src"],
+      "@jotbox/config": ["packages/config/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build"]
+}

@@ -1,0 +1,121 @@
+JotBox Implementation Plan
+Executive Summary
+Timeline: 6-8 weeks
+Team: Solo developer
+Platforms: Web (React) + Mobile (React Native/Expo) - monorepo
+Architecture: Hybrid AI (Whisper self-hosted for transcription, OpenAI/Gemini APIs for generation)
+Backend: Supabase (Auth, PostgreSQL, Edge Functions, Storage)
+File Storage: Amazon S3 (signed URLs via Supabase Edge Functions)
+
+Phase 1: Foundation (Week 1-2)
+1.1 Monorepo Setup
+jotbox/
+├── apps/
+│   ├── mobile/          # Expo React Native
+│   └── web/             # React + Vite + Tailwind
+├── packages/
+│   ├── ui/              # Shared components (React Native Web compatible)
+│   ├── api/             # Shared API client, types
+│   ├── ai/              # Shared AI prompts, utilities
+│   └── config/          # Shared constants, theme, env
+├── supabase/            # Migrations, Edge Functions, seed
+└── package.json         # Root workspace (npm/yarn workspaces)
+Tools: Turborepo or Nx for build orchestration, TypeScript strict mode throughout
+
+1.2 Supabase Schema
+-- Core tables
+users (id, email, name, university, course, subscription_type, created_at)
+lectures (id, user_id, title, audio_url, duration, status, created_at)
+transcripts (id, lecture_id, content, language, created_at)
+notes (id, lecture_id, type, content, created_at)  -- type: summary|detailed|revision
+flashcards (id, lecture_id, question, answer, difficulty, created_at)
+quizzes (id, lecture_id, question, options, answer, type, difficulty, created_at)
+
+-- RLS policies on all tables (user_id = auth.uid())
+1.3 Authentication Flow
+Supabase Auth (email/password + OAuth: Google, Apple)
+Shared auth context across web/mobile
+Protected routes, session persistence
+Phase 2: Core Recording & Transcription (Week 2-3)
+2.1 Mobile Recording
+Expo Audio (expo-audio) for recording with pause/resume
+Waveform visualization (react-native-skia or reanimated)
+Background recording support
+Upload to S3 via presigned URL from Edge Function
+2.2 Transcription Pipeline (Edge Function)
+POST /functions/v1/transcribe
+  Body: { lectureId, audioUrl }
+  → Download audio from S3
+  → Whisper.cpp (self-hosted on Railway/Render/Fly.io) or OpenAI Whisper API
+  → Store transcript in DB
+  → Trigger notes generation
+Hybrid approach: Start with OpenAI Whisper API (faster dev), migrate to self-hosted Whisper.cpp for cost optimization later.
+
+Phase 3: AI Generation Pipeline (Week 3-4)
+3.1 Notes Generation (Edge Function)
+POST /functions/v1/generate-notes
+  Body: { lectureId, transcript, types: ['summary', 'detailed', 'revision'] }
+  → Single LLM call with structured output (JSON schema)
+  → Store each note type in notes table
+Prompt strategy: One comprehensive prompt → structured JSON → parse into 3 note types
+
+3.2 Flashcards & Quizzes (Edge Functions)
+POST /functions/v1/generate-flashcards
+POST /functions/v1/generate-quizzes
+Batch generation (10-20 cards/questions per lecture)
+Difficulty distribution: 40% easy, 40% medium, 20% hard
+Store with lecture_id for retrieval
+AI Provider: OpenAI GPT-4o-mini (cost-effective) with Gemini fallback
+
+Phase 4: Mobile App Screens (Week 4-5)
+Screen	Key Components
+Splash/Loading	Auth check, animate logo
+Auth (Login/Signup)	Form validation, OAuth buttons
+Home Dashboard	Recent lectures list, stats cards, quick actions
+Record Lecture	Record button, timer, waveform, live transcript preview
+Live Transcript	Real-time WebSocket updates (Supabase Realtime)
+AI Notes	Tabbed view (Summary/Detailed/Revision), export buttons
+Flashcards	Swipeable cards (react-native-gesture-handler), mark difficult
+Quiz	Question cards, progress bar, results summary
+Saved Lectures	Grid/list, filter by course/semester, search
+Profile/Settings	Subscription, theme, notifications, account
+State Management: React Query (TanStack Query) for server state, Zustand for UI state
+
+Phase 5: Web Dashboard (Week 5-6)
+5.1 Pages
+Dashboard: Stats overview, recent activity, quick upload
+Lectures List: Table with filters, bulk actions
+Lecture Detail: Full transcript, notes, flashcards, quizzes (read-only or edit)
+Study Mode: Flashcard review, quiz taking (spaced repetition later)
+Settings: Profile, billing, API usage
+5.2 Shared Components
+Build in packages/ui with React Native Web compatibility
+Use react-native-web primitives or gluestack-ui/nativewind
+Phase 6: Polish & Launch Prep (Week 6-8)
+6.1 Exports
+PDF generation: @react-pdf/renderer (works both platforms)
+DOCX: docx library
+Trigger via Edge Function for server-side generation
+6.2 Subscription (Stripe)
+Stripe Checkout portal in web app
+Webhook → update users.subscription_type
+Feature gating middleware
+6.3 Testing & Deploy
+Mobile: EAS Build → TestFlight / Play Console Internal
+Web: Vercel (auto-deploy from main)
+Supabase: Production project, custom domain
+Monitoring: Sentry (both platforms), Supabase logs
+Key Technical Decisions
+Decision	Rationale
+Monorepo (Turborepo)	Shared types, components, API client; single CI
+Expo (not bare RN)	Faster iteration, OTA updates, managed workflow
+Supabase Edge Functions	Colocated with DB, no separate server infra
+Whisper API → self-host	Start fast, optimize cost later
+React Query + Supabase Realtime	Optimistic updates, live transcript
+NativeWind (Tailwind)	Shared styling system across web/mobile
+Risk Mitigation
+Risk	Mitigation
+Audio recording background limits (iOS)	Foreground service, local notification, test extensively
+Transcription accuracy	Post-process with LLM cleanup, user edit capability
+AI cost overruns	Rate limiting, usage tracking, hard caps per tier
+Solo dev burnout	Strict scope, weekly milestones, defer "AI Tutor" to v2

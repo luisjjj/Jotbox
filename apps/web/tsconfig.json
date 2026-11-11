@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@jotbox/config": ["../../packages/config/src/index.ts"],
+      "@jotbox/ui/*": ["../../packages/ui/src/*"],
+      "@jotbox/api/*": ["../../packages/api/src/*"],
+      "@jotbox/ai/*": ["../../packages/ai/src/*"],
+      "@jotbox/config/*": ["../../packages/config/src/*"]
+    }
+  },
+  "include": ["src"]
+}
