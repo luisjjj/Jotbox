@@ -4,6 +4,8 @@
 
 JotBox is a mobile-first, local-first notetaker for meetings, seminars, lectures, and voice notes. It listens through the microphone or a shared call tab, keeps a live transcript, lets you jot a line or two, and writes the summary, key points, actions, and sections when you stop. On a computer it can float above your other apps.
 
+**Live:** [jotbox-eight.vercel.app](https://jotbox-eight.vercel.app) · **Repo:** [github.com/luisjjj/Jotbox](https://github.com/luisjjj/Jotbox)
+
 ![JotBox home](docs/screenshots/home-desktop.png)
 
 ## The product
@@ -84,7 +86,7 @@ The repo includes [`vercel.json`](vercel.json) for the SPA build and route fallb
 vercel --prod
 ```
 
-The Vercel build runs `npm run build:web` from the repository root and serves `apps/web/dist`. The three studio endpoints currently live in the Vite dev/preview middleware; a pure static Vercel deployment runs in **Draft mode** until those endpoints are moved to serverless functions. Add `XAI_API_KEY` to the Vercel project environment when the functions are in place.
+The Vercel build runs `npm run build:web` from the repository root and serves `apps/web/dist`. The project is connected to this GitHub repository, so **pushes to `main` deploy automatically**. The three studio endpoints currently live in the Vite dev/preview middleware; a pure static Vercel deployment runs in **Draft mode** until those endpoints are moved to serverless functions. Add `XAI_API_KEY` to the Vercel project environment when the functions are in place.
 
 ## Screens
 
