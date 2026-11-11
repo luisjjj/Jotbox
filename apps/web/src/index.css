@@ -651,7 +651,7 @@
   }
 
   .ticker {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 0.4rem;
     animation: jot-ticker 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;

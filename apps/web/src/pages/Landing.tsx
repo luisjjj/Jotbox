@@ -301,12 +301,12 @@ export default function Landing() {
       </header>
 
       <main>
-        <section className="mx-auto max-w-[1320px] px-4 pt-5 sm:px-6 sm:pt-8 lg:px-8">
-          <div className="hero-ink relative overflow-hidden rounded-[1.5rem] shadow-float">
-            <div className="hero-grid pointer-events-none absolute inset-0" />
-            <div className="hero-orb absolute -left-24 top-4 h-64 w-64 rounded-full bg-[#2f705b]/35 blur-3xl" />
-            <div className="hero-orb-slow absolute -right-16 bottom-0 h-72 w-72 rounded-full bg-[#d6b97d]/20 blur-3xl" />
-            <div className="relative grid gap-9 p-6 sm:p-10 lg:grid-cols-[1.04fr_0.96fr] lg:items-center lg:p-12">
+        <section className="hero-ink relative overflow-hidden">
+          <div className="hero-grid pointer-events-none absolute inset-0" />
+          <div className="hero-orb absolute -left-24 top-4 h-64 w-64 rounded-full bg-[#2f705b]/35 blur-3xl" />
+          <div className="hero-orb-slow absolute -right-16 bottom-0 h-72 w-72 rounded-full bg-[#d6b97d]/20 blur-3xl" />
+          <div className="relative mx-auto max-w-[1320px] px-4 pb-8 pt-7 sm:px-6 sm:pb-12 sm:pt-10 lg:px-8 lg:pb-16 lg:pt-14">
+            <div className="grid gap-9 lg:grid-cols-[1.04fr_0.96fr] lg:items-center">
               <div className="fade-up flex flex-col items-start">
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e7e2d3]">
                   <span className="live-dot" />
@@ -348,8 +348,10 @@ export default function Landing() {
               </div>
             </div>
           </div>
+        </section>
 
-          <div className="marquee mt-6 border-y border-line py-2.5">
+        <div className="mx-auto mt-6 max-w-[1320px] px-4 sm:px-6 lg:px-8">
+          <div className="marquee border-y border-line py-2.5">
             <div className="marquee-track items-center text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
               {[0, 1].map((copy) => (
                 <div key={copy} className="flex items-center gap-6 pr-6" aria-hidden={copy === 1}>
@@ -363,7 +365,7 @@ export default function Landing() {
               ))}
             </div>
           </div>
-        </section>
+        </div>
 
         <section id="how" className="mx-auto mt-16 max-w-[1320px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:gap-14">
