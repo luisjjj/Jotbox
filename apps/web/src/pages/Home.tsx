@@ -76,7 +76,7 @@ export default function Home() {
           <div>
             <p className="text-[14px] font-medium tracking-[-0.01em] text-ink">Ready when the room is.</p>
             <p className="mt-0.5 max-w-[46ch] text-[12px] leading-5 text-muted">
-              Record a meeting, seminar, or lecture in the room or from a call tab. JotBox keeps the transcript and
+              Record a meeting, seminar, or lecture in the room or from a call tab. JotBox keeps the spoken words and
               writes the notes when you stop.
             </p>
           </div>
@@ -92,8 +92,12 @@ export default function Home() {
           { label: "Sessions", value: stats.count, Icon: FileText },
           { label: "Minutes", value: stats.minutes, Icon: Clock },
           { label: "Open actions", value: stats.actions, Icon: ListChecks },
-        ].map((item) => (
-          <div key={item.label} className="card flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
+        ].map((item, index) => (
+          <div
+            key={item.label}
+            style={{ animationDelay: `${index * 70}ms` }}
+            className="stagger-in card flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4"
+          >
             <span className="hidden h-8 w-8 flex-none place-items-center rounded-lg bg-raised-2 text-muted sm:grid">
               <item.Icon className="h-4 w-4" strokeWidth={1.8} />
             </span>
@@ -113,7 +117,7 @@ export default function Home() {
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Recent notes</h2>
-            <p className="mt-0.5 text-[12px] text-muted">Captured on this device.</p>
+            <p className="mt-0.5 text-[12px] text-muted">Your latest rooms, lectures, and calls.</p>
           </div>
           <Link
             to="/library"
@@ -140,8 +144,10 @@ export default function Home() {
           </EmptyState>
         ) : (
           <div className="card mt-3 divide-y divide-line p-1.5">
-            {recent.map((session) => (
-              <SessionRow key={session.id} session={session} />
+            {recent.map((session, index) => (
+              <div key={session.id} className="stagger-in" style={{ animationDelay: `${index * 55}ms` }}>
+                <SessionRow session={session} />
+              </div>
             ))}
           </div>
         )}
@@ -158,7 +164,7 @@ export default function Home() {
           <div className="min-w-0">
             <p className="text-[13px] font-medium text-ink">Keep JotBox on top</p>
             <p className="mt-0.5 truncate text-[12px] text-muted">
-              Pin the compact window above Meet, Zoom, or your slides while you work.
+              Pin the pill above Meet, Zoom, or your slides while you work.
             </p>
           </div>
         </div>

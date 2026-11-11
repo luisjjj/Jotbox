@@ -96,7 +96,7 @@ function messageFor(error: unknown, source: CaptureSource) {
     return "That share had no audio. Share the call tab again and tick share audio.";
   }
   if (!navigator.mediaDevices?.getUserMedia) {
-    return "This browser cannot record. Use Chrome, or upload a recording.";
+    return "This browser cannot record. Try another browser, or upload a recording.";
   }
   return "The recording could not start.";
 }
@@ -113,7 +113,8 @@ function copyStyles(target: Document) {
   target.documentElement.className = document.documentElement.className;
   target.title = "JotBox";
   const style = target.createElement("style");
-  style.textContent = "html,body{height:100%;margin:0;background:var(--paper);color:var(--ink);}";
+  style.textContent =
+    "html,body{height:100%;margin:0;background:transparent!important;color:var(--ink);overflow:hidden;}";
   target.head.appendChild(style);
 }
 
@@ -607,7 +608,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             notes: null,
             hasAudio: true,
             error:
-              "The recording is saved on this device. Studio transcription needs an XAI_API_KEY on the server. You can paste a transcript below and write the notes from that.",
+              "The recording is saved on this device. JotBox can't write notes from it right now. You can paste the words below and JotBox will write the notes from them.",
           });
           return;
         }
@@ -646,7 +647,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           transcript: [],
           notes: null,
           hasAudio: true,
-          error: caught instanceof Error ? caught.message : "The recording could not be transcribed.",
+          error: caught instanceof Error ? caught.message : "JotBox could not read that recording.",
         });
       } finally {
         setStatusBoth("idle");
@@ -658,14 +659,22 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const pin = useCallback(async () => {
     const host = window as unknown as {
       documentPictureInPicture?: {
-        requestWindow: (options?: { width?: number; height?: number }) => Promise<Window>;
+        requestWindow: (options?: {
+          width?: number;
+          height?: number;
+          preferInitialWindowPlacement?: boolean;
+        }) => Promise<Window>;
       };
     };
     if (!host.documentPictureInPicture) {
-      setError("Pinning above other apps needs Chrome or Edge on a computer. You can still open JotBox in a small window.");
+      setError("The floating pill needs a computer browser. You can still keep JotBox open in a small window.");
       return;
     }
-    const pipWindow = await host.documentPictureInPicture.requestWindow({ width: 390, height: 660 });
+    const pipWindow = await host.documentPictureInPicture.requestWindow({
+      width: 440,
+      height: 92,
+      preferInitialWindowPlacement: true,
+    });
     copyStyles(pipWindow.document);
     pipWindow.addEventListener("pagehide", () => setPip(null));
     pipRef.current = pipWindow;
@@ -708,13 +717,13 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         store.patch(item.id, {
           status: "failed",
           error:
-            "This capture was interrupted when the page closed. The transcript and jottings that survived are still here — write the notes from them.",
+            "This capture was interrupted when the page closed. The spoken words and jottings that survived are still here — write the notes from them.",
         });
       } else if (item.status === "processing") {
         store.patch(item.id, {
           status: "failed",
           error:
-            "The notes were still being written when this page closed. Rewrite them from the transcript, or try the recording again.",
+            "The notes were still being written when this page closed. Rewrite them from the spoken words, or try the recording again.",
         });
       }
     }

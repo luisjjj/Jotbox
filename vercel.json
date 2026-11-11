@@ -4,6 +4,14 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build:web",
   "outputDirectory": "apps/web/dist",
+  "functions": {
+    "api/transcribe.mjs": {
+      "maxDuration": 300
+    },
+    "api/enhance.mjs": {
+      "maxDuration": 120
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",

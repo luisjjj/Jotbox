@@ -30,7 +30,7 @@ export function CaptureDock() {
           type="button"
           onClick={() => navigate("/listen")}
           className="min-w-0 flex-1 rounded-lg py-1 text-left"
-          aria-label="Open the live studio"
+          aria-label="Open the live recording"
         >
           <span className="flex items-baseline gap-1.5">
             <span className="text-[13px] font-semibold tabular-nums tracking-[-0.01em] text-ink">

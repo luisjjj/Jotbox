@@ -25,12 +25,7 @@ export function Brand({ to = "/", compact = false }: { to?: string; compact?: bo
     <Link to={to} className="group inline-flex items-center gap-2.5" aria-label="JotBox home">
       <BrandMark className="h-8 w-8 transition-transform group-hover:-rotate-3" />
       {!compact && (
-        <span className="flex items-baseline gap-1.5">
-          <span className="text-[16px] font-semibold tracking-[-0.035em] text-ink">JotBox</span>
-          <span className="rounded-full border border-line px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.1em] text-faint">
-            beta
-          </span>
-        </span>
+        <span className="text-[16px] font-semibold tracking-[-0.035em] text-ink">JotBox</span>
       )}
     </Link>
   );

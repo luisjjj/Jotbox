@@ -68,7 +68,7 @@ export function notesToMarkdown(session: Session) {
     lines.push("## What you jotted", "", session.scratch.trim(), "");
   }
   if (session.transcript.length) {
-    lines.push("## Transcript", "");
+    lines.push("## Spoken words", "");
     for (const line of session.transcript) {
       const stamp = formatClock(line.at);
       lines.push(line.speaker ? `**${line.speaker}** (${stamp}) ${line.text}` : `(${stamp}) ${line.text}`, "");

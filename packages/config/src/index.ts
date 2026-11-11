@@ -15,8 +15,22 @@ export type SessionKind = (typeof SESSION_KINDS)[number];
 export const AI_CONFIG = {
   notesModel: 'grok-4.7',
   sttModel: 'grok-voice-transcribe-2.0',
-  temperature: 0.2,
+  temperature: 0.25,
   maxTokens: 2500,
+  language: 'en-NG',
+  tone: 'warm-direct',
+  providers: {
+    groq: {
+      sttModel: 'whisper-large-v3-turbo',
+      notesModel: 'llama-3.3-70b-versatile',
+    },
+    worker: {
+      sttModel: 'Systran/faster-whisper-small',
+    },
+    openrouter: {
+      notesModel: 'meta-llama/llama-3.3-70b-instruct:free',
+    },
+  },
 } as const;
 
 export const ROUTES = {

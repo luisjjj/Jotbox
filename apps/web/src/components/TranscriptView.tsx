@@ -18,7 +18,7 @@ export function TranscriptView({
   live = false,
   className,
   onSeek,
-  emptyLabel = "No transcript for this session yet.",
+  emptyLabel = "No spoken words for this session yet.",
 }: TranscriptViewProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const stuckRef = useRef(true);
@@ -50,7 +50,7 @@ export function TranscriptView({
       }}
       className={clsx("scroll-quiet overflow-y-auto", className)}
       aria-live={live ? "polite" : "off"}
-      aria-label="Transcript"
+      aria-label="Spoken words"
     >
       {lines.map((line, index) => {
         const previous = lines[index - 1];

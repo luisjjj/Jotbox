@@ -1,10 +1,12 @@
 import { Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "@/auth/AuthProvider";
+import { RequireAuth } from "@/auth/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { CloudSync } from "@/components/CloudSync";
 import { EngineProvider } from "@/engine/SessionEngine";
 import AccountPage from "@/pages/Account";
+import Auth from "@/pages/Auth";
 import FloatPage from "@/pages/FloatPage";
 import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
@@ -40,7 +42,14 @@ export default function App() {
         />
         <Routes>
           <Route path="/" element={<Landing />} />
-          <Route element={<AppShell />}>
+          <Route path="/auth" element={<Auth />} />
+          <Route
+            element={
+              <RequireAuth>
+                <AppShell />
+              </RequireAuth>
+            }
+          >
             <Route path="app" element={<Home />} />
             <Route path="listen" element={<Listen />} />
             <Route path="library" element={<Library />} />

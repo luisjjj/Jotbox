@@ -11,7 +11,7 @@ function snapshot() {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Cloud sync failed.";
+  return error instanceof Error ? error.message : "Your notes could not be updated.";
 }
 
 function isSample(id: string) {

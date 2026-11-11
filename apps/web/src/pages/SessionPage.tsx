@@ -156,7 +156,7 @@ function Panel({
               data-active={panel === "transcript"}
               onClick={() => setPanel("transcript")}
             >
-              Transcript
+              Spoken words
             </button>
             <button
               type="button"
@@ -176,7 +176,7 @@ function Panel({
               audioRef.current?.seek(seconds);
             }}
             className="max-h-[360px] px-3.5 py-2"
-            emptyLabel="No transcript was captured for this session."
+            emptyLabel="No spoken words were captured for this session."
           />
         ) : (
           <div className="scroll-quiet max-h-[360px] overflow-y-auto px-3.5 py-3">
@@ -188,7 +188,7 @@ function Panel({
         <div className="border-t border-line p-2">
           <button type="button" className="btn btn-ghost btn-sm w-full justify-start" onClick={onEditTranscript}>
             <Plus className="h-3.5 w-3.5" />
-            Add or edit transcript
+            Add or edit spoken words
           </button>
         </div>
       </div>
@@ -282,7 +282,7 @@ export default function SessionPage() {
     const useLines = lines ?? session.transcript;
     const useScratch = scratch ?? session.scratch;
     if (!useLines.length && !useScratch.trim()) {
-      toast.error("Record audio, or add a transcript, before asking for notes.");
+      toast.error("Record audio, or add the spoken words, before asking for notes.");
       return false;
     }
     setRebuilding(true);
@@ -304,7 +304,7 @@ export default function SessionPage() {
         transcript: result.lines,
         title: result.title,
       });
-      toast.success(ai ? "Notes rewritten with studio AI" : "Notes written on this device");
+      toast.success(ai ? "Notes rewritten" : "Notes written on this device");
       return true;
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "The notes could not be written.");
@@ -326,7 +326,7 @@ export default function SessionPage() {
     }
     const ai = await studioAvailable();
     if (!ai) {
-      toast.error("Studio transcription is off. Add or paste a transcript instead.");
+      toast.error("Automatic words are off. Add or paste the spoken words instead.");
       return;
     }
     setRebuilding(true);
@@ -352,9 +352,9 @@ export default function SessionPage() {
         transcript: result.lines,
         title: result.title,
       });
-      toast.success("Transcription and notes are ready");
+      toast.success("Words and notes are ready");
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : "The recording could not be transcribed.");
+      toast.error(caught instanceof Error ? caught.message : "JotBox could not read that recording.");
     } finally {
       setRebuilding(false);
     }
@@ -498,9 +498,9 @@ export default function SessionPage() {
           <span className="inline-flex items-center gap-1.5">
             <Sparkles className="h-3 w-3" />
             {session.notes?.source === "studio"
-              ? "Studio notes · written from the transcript and your jottings"
+              ? "Written from the spoken words and your jottings"
               : session.notes
-                ? "Draft notes · written on this device"
+                ? "Quick notes · written on this device"
                 : "Notes have not been written yet"}
           </span>
           {session.notes && <span className="hidden sm:inline">·</span>}
@@ -519,7 +519,7 @@ export default function SessionPage() {
                 <div>
                   <p className="text-[14px] font-semibold text-ink">Reading the recording</p>
                   <p className="mt-1 text-[12.5px] leading-5 text-muted">
-                    Tidying the transcript and writing the notes. You can leave this page — it keeps working.
+                    Tidying the spoken words and writing the notes. You can leave this page — it keeps working.
                   </p>
                 </div>
               </div>
@@ -553,7 +553,7 @@ export default function SessionPage() {
                 </button>
                 <button type="button" className="btn btn-line btn-sm" onClick={openTranscriptEditor}>
                   <FilePlus2 className="h-3.5 w-3.5" />
-                  Add a transcript
+                  Add spoken words
                 </button>
               </div>
             </div>
@@ -563,7 +563,7 @@ export default function SessionPage() {
             <div className="rounded-xl border border-line bg-accent-soft px-4 py-3">
               <p className="text-[12.5px] font-medium text-ink">This capture is not running right now.</p>
               <p className="mt-1 text-[11.5px] leading-5 text-muted">
-                If the tab closed mid-session, the audio is gone but anything in the transcript survived. Write the
+                If the tab closed mid-session, the audio is gone but the spoken words that made it survive. Write the
                 notes from what is here.
               </p>
               <button type="button" className="btn btn-line btn-sm mt-2.5" onClick={() => void regenerate()}>
@@ -582,13 +582,13 @@ export default function SessionPage() {
                   className="btn btn-ghost btn-sm -mr-2 text-[11px]"
                   onClick={() => void regenerate()}
                   disabled={rebuilding}
-                  title="Rewrite the notes from the current transcript and jottings"
+                  title="Rewrite the notes from the spoken words and jottings"
                 >
                   {rebuilding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                   Rewrite
                 </button>
               </div>
-              <p className="mt-2.5 font-serif text-[19.5px] leading-[1.55] tracking-[0.002em] text-soft sm:text-[21px]">
+              <p className="mt-2.5 text-[19.5px] font-normal leading-[1.55] tracking-[0.002em] text-soft sm:text-[21px]">
                 {session.notes.summary}
               </p>
 
@@ -663,8 +663,8 @@ export default function SessionPage() {
               ))}
 
               <p className="mt-10 border-t border-line pt-3 text-[10.5px] leading-5 text-faint">
-                Notes are a summary of what was said, not a verbatim record. Check names, numbers, and owners before
-                you send them on.
+                Notes are a summary of what was said, not a word-for-word record. Check names, numbers, and owners
+                before you send them on.
               </p>
             </article>
           )}
@@ -676,10 +676,10 @@ export default function SessionPage() {
                 title={failed ? "No notes yet" : "Nothing written down yet"}
                 body={
                   session.hasAudio
-                    ? "The recording is still on this device. Try studio transcription again, or add a transcript by hand."
+                    ? "The recording is still on this device. Try reading it again, or add the spoken words by hand."
                     : session.transcript.length
-                      ? "There is a transcript to work from. Ask JotBox to write the summary, points, and actions."
-                      : "Add a transcript, or jot what you remember, and JotBox can still shape it into notes."
+                      ? "There are spoken words to work from. Ask JotBox to write the summary, points, and actions."
+                      : "Add the spoken words, or jot what you remember, and JotBox can still shape it into notes."
                 }
               >
                 <button
@@ -689,11 +689,11 @@ export default function SessionPage() {
                   disabled={rebuilding || !canRetry}
                 >
                   {rebuilding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                  {session.hasAudio && !session.transcript.length ? "Try transcription again" : "Write the notes"}
+                  {session.hasAudio && !session.transcript.length ? "Try the recording again" : "Write the notes"}
                 </button>
                 <button type="button" className="btn btn-line" onClick={openTranscriptEditor}>
                   <FilePlus2 className="h-4 w-4" />
-                  Add a transcript
+                  Add spoken words
                 </button>
               </EmptyState>
             </div>
@@ -703,9 +703,9 @@ export default function SessionPage() {
             <div className="card mt-6 p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-[14px] font-semibold text-ink">Add a transcript</h2>
+                  <h2 className="text-[14px] font-semibold text-ink">Add the spoken words</h2>
                   <p className="mt-1 text-[11.5px] leading-5 text-muted">
-                    Paste what was said. One line per turn works best. Lines are kept in order.
+                    Paste what was said. One line per turn works best, and the order is kept.
                   </p>
                 </div>
                 <button type="button" className="icon-btn h-7 w-7" onClick={() => setEditing(false)} aria-label="Close">
@@ -719,7 +719,7 @@ export default function SessionPage() {
                 placeholder={"Ada: Friday's volume is still pending.\nChinedu: The bank acknowledged the file late.\nYou: Then we pause the same-day promise."}
               />
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[10.5px] text-faint">Notes will be rewritten from this transcript.</p>
+                <p className="text-[10.5px] text-faint">Notes will be rewritten from these words.</p>
                 <div className="flex gap-2">
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>
                     Cancel
@@ -757,7 +757,7 @@ export default function SessionPage() {
       <ConfirmDialog
         open={confirmDelete}
         title="Delete this session?"
-        description="The notes, transcript, and audio on this device will be removed. This cannot be undone."
+        description="The notes, spoken words, and audio on this device will be removed. This cannot be undone."
         confirmLabel="Delete session"
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}

@@ -1,29 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import clsx from "clsx";
-import {
-  Check,
-  Cloud,
-  Download,
-  HardDrive,
-  Info,
-  Loader2,
-  Monitor,
-  Moon,
-  Plus,
-  RefreshCw,
-  ShieldCheck,
-  Sparkles,
-  Sun,
-  Trash2,
-  User,
-} from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Check, Cloud, Download, HardDrive, Monitor, Moon, Plus, ShieldCheck, Sun } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { APP_CONFIG, AI_CONFIG } from "@jotbox/config";
+import { APP_CONFIG } from "@jotbox/config";
 import { useAuth } from "@/auth/AuthProvider";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { useStudio, refreshStudio } from "@/hooks/useStudio";
-import { deleteAudio } from "@/lib/audioStore";
 import { loadSampleSessions } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
@@ -70,24 +51,12 @@ function Section({
 
 export default function Settings() {
   const theme = useTheme();
-  const studio = useStudio();
   const sessions = useSessions((state) => state.sessions);
   const { user } = useAuth();
   const syncStatus = useSync((state) => state.status);
-  const location = useLocation();
-  const [checking, setChecking] = useState(false);
-  const [studioOverride, setStudioOverride] = useState<boolean | null>(null);
   const [usage, setUsage] = useState<{ used: number; quota: number } | null>(null);
-  const [confirmClear, setConfirmClear] = useState(false);
 
-  const connected = studioOverride ?? studio;
   const audioCount = sessions.filter((session) => session.hasAudio).length;
-
-  useEffect(() => {
-    if (location.hash !== "#studio") return;
-    const element = document.getElementById("studio");
-    if (element) element.scrollIntoView({ block: "start", behavior: "smooth" });
-  }, [location.hash]);
 
   useEffect(() => {
     let alive = true;
@@ -101,19 +70,6 @@ export default function Settings() {
       alive = false;
     };
   }, [sessions.length]);
-
-  const checkStudio = async () => {
-    setChecking(true);
-    try {
-      const value = await refreshStudio();
-      setStudioOverride(value);
-      toast.success(value ? "Studio AI is connected" : "Studio AI is off — draft mode is active");
-    } catch {
-      toast.error("Could not reach the studio endpoint.");
-    } finally {
-      setChecking(false);
-    }
-  };
 
   const exportAll = () => {
     const payload = {
@@ -134,54 +90,34 @@ export default function Settings() {
     toast.success("Export downloaded");
   };
 
-  const clearAll = () => {
-    const state = useSessions.getState();
-    for (const session of state.sessions) {
-      if (session.hasAudio) void deleteAudio(session.id);
-    }
-    state.clear();
-    setConfirmClear(false);
-    toast.success("Sessions and audio cleared from this device");
-  };
-
   return (
     <div className="mx-auto max-w-[760px]">
       <p className="kicker">Settings</p>
       <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[30px]">
         How JotBox behaves.
       </h1>
-      <p className="mt-1 text-[13px] text-muted">Account, appearance, studio connection, and the data kept on this device.</p>
+      <p className="mt-1 text-[13px] text-muted">Account, appearance, and the data kept on this device.</p>
 
       <div className="mt-6 space-y-4">
         <section className="card flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex min-w-0 items-center gap-3">
-            <span
-              className={
-                user
-                  ? "grid h-10 w-10 flex-none place-items-center rounded-full bg-accent text-[12px] font-semibold text-accent-ink"
-                  : "grid h-10 w-10 flex-none place-items-center rounded-full border border-line bg-raised-2 text-muted"
-              }
-            >
-              {user ? (user.name.trim()[0] ?? user.email[0]).toUpperCase() : <User className="h-4 w-4" />}
+            <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-accent text-[12px] font-semibold text-accent-ink">
+              {(user?.name.trim()[0] ?? user?.email[0] ?? "J").toUpperCase()}
             </span>
             <div className="min-w-0">
-              <h2 className="truncate text-[13.5px] font-semibold text-ink">
-                {user ? user.name.trim() || user.email : "No account yet"}
-              </h2>
+              <h2 className="truncate text-[13.5px] font-semibold text-ink">{user?.name.trim() || user?.email}</h2>
               <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
-                {user ? (
-                  <>
-                    <Cloud className="h-3 w-3" />
-                    {syncStatus === "syncing" ? "Syncing your notes…" : "Notes sync to your account"}
-                  </>
-                ) : (
-                  "Notes are stored only in this browser."
-                )}
+                <Cloud className="h-3 w-3" />
+                {syncStatus === "syncing"
+                  ? "Updating your notes…"
+                  : syncStatus === "error"
+                    ? "Couldn't update notes just now"
+                    : "Notes are up to date"}
               </p>
             </div>
           </div>
           <Link to="/account" className="btn btn-line btn-sm">
-            {user ? "Manage account" : "Sign in to sync"}
+            Manage account
           </Link>
         </section>
 
@@ -214,58 +150,8 @@ export default function Settings() {
         </Section>
 
         <Section
-          id="studio"
-          title="Studio AI"
-          description="Studio transcription reads recordings and call tabs, then writes the finished notes. Without it, JotBox still captures live captions and drafts notes on this device."
-          aside={
-            <span
-              className={clsx(
-                "chip border-transparent",
-                connected ? "bg-accent-soft text-accent" : "bg-raised-2 text-muted",
-              )}
-            >
-              <span
-                className={clsx("h-1.5 w-1.5 rounded-full", connected ? "bg-[#3e7a5b]" : "bg-faint")}
-              />
-              {connected === null ? "Checking" : connected ? "Connected" : "Draft mode"}
-            </span>
-          }
-        >
-          <div className="rounded-xl border border-line bg-raised-2 p-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-brass" />
-              <p className="text-[12.5px] font-medium text-ink">
-                {connected === null
-                  ? "Looking for the studio endpoint…"
-                  : connected
-                    ? "Studio transcription is on."
-                    : "Studio transcription is off."}
-              </p>
-            </div>
-            <p className="mt-1.5 text-[11.5px] leading-5 text-muted">
-              {connected
-                ? `Audio is sent to ${AI_CONFIG.sttModel} for transcription, then ${AI_CONFIG.notesModel} writes the notes. Audio still lives on this device first.`
-                : "Add an XAI_API_KEY to the server environment to turn on uploads, tab transcription, and studio-written notes. Live captions and draft notes keep working without it."}
-            </p>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <code className="rounded-md border border-line bg-raised px-2 py-1 text-[10.5px] text-muted">
-                XAI_API_KEY
-              </code>
-              <button type="button" className="btn btn-line btn-sm" onClick={() => void checkStudio()} disabled={checking}>
-                {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                Check again
-              </button>
-            </div>
-          </div>
-        </Section>
-
-        <Section
           title="Data on this device"
-          description={
-            user
-              ? "Audio stays in this browser. Notes and transcripts are also saved to your account."
-              : "Sessions, notes, and audio are kept in this browser. Sign in to sync notes across devices."
-          }
+          description="Audio stays in this browser. Notes and jottings follow you to your account."
           aside={
             <span className="chip">
               <HardDrive className="h-3 w-3" />
@@ -306,22 +192,10 @@ export default function Settings() {
               <Plus className="h-3.5 w-3.5" />
               Add examples
             </button>
-            {!user && (
-              <button
-                type="button"
-                className="btn btn-sm ml-auto text-rec hover:bg-rec-soft"
-                onClick={() => setConfirmClear(true)}
-                disabled={!sessions.length && audioCount === 0}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Clear everything
-              </button>
-            )}
           </div>
           <p className="mt-2.5 text-[10.5px] leading-4 text-faint">
-            {user
-              ? "Signing out removes the local copy from this device. Your notes remain in your account."
-              : "Exports include notes and transcripts as JSON. Audio stays in this browser and is not part of the export."}
+            Exports include notes and spoken words as a file. Audio stays in this browser and is not part of the export.
+            Signing out removes this device’s copy; your notes remain in your account.
           </p>
         </Section>
 
@@ -333,31 +207,18 @@ export default function Settings() {
             <div>
               <h2 className="text-[13.5px] font-semibold text-ink">What leaves this device</h2>
               <p className="mt-1.5 text-[11.5px] leading-5 text-muted">
-                {user
-                  ? "Your notes, jottings, and transcripts sync to your JotBox account on Neon. Audio stays on this device. If studio transcription is on, audio is sent to the model provider for that one session."
-                  : "Nothing, unless studio transcription is on. When it is, audio is sent to the model provider for that one session. Live captions are handled by your browser's speech engine. As a guest, nothing syncs to an account."}
+                Your notes and jottings follow you to your JotBox account. Recordings stay on this device. When you ask
+                JotBox to write notes, that recording is sent for writing and nothing else.
               </p>
             </div>
           </div>
         </section>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-2 text-[10.5px] text-faint">
-          <span className="flex items-center gap-1.5">
-            <Info className="h-3 w-3" />
-            {APP_CONFIG.name} v{APP_CONFIG.version} · {APP_CONFIG.description}
-          </span>
-          <span>Local only</span>
-        </div>
+        <p className="flex items-center gap-1.5 px-1 pb-2 text-[10.5px] text-faint">
+          <ShieldCheck className="h-3 w-3" />
+          Recordings stay on this device. Notes follow you only when you sign in.
+        </p>
       </div>
-
-      <ConfirmDialog
-        open={confirmClear}
-        title="Clear this device?"
-        description="Every session, note, transcript, and audio file in this browser will be deleted. Export first if you want a copy. This cannot be undone."
-        confirmLabel="Clear everything"
-        onConfirm={clearAll}
-        onCancel={() => setConfirmClear(false)}
-      />
     </div>
   );
 }

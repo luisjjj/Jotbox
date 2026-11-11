@@ -89,6 +89,7 @@ async function studioNotes(input: {
         title: input.title,
         scratch: input.scratch,
         transcript: transcriptText(input.lines).slice(0, 80_000),
+        tone: "warm-direct",
       }),
     },
     90_000,

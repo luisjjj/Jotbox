@@ -16,23 +16,22 @@ import {
 } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { APP_CONFIG } from "@jotbox/config";
 import { useAuth } from "@/auth/AuthProvider";
 import { useEngine } from "@/engine/SessionEngine";
-import { useStudio } from "@/hooks/useStudio";
 import { loadSampleSessions } from "@/lib/seed";
-import { useIsDark, setTheme } from "@/lib/theme";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
+import { setTheme, useIsDark } from "@/lib/theme";
 import { Brand } from "./Brand";
 import { CaptureDock } from "./CaptureDock";
 import { FloatWindow } from "./FloatWindow";
+import { ScrollProgress } from "./ScrollProgress";
 import { SessionRow } from "./SessionRow";
 
 const NAV = [
   { to: "/app", label: "Home", Icon: Home, end: true },
   { to: "/library", label: "Library", Icon: Library, end: false },
-  { to: "/float", label: "Float mode", Icon: Layers, end: false },
+  { to: "/float", label: "Keep on top", Icon: Layers, end: false },
   { to: "/settings", label: "Settings", Icon: Settings, end: false },
 ];
 
@@ -42,33 +41,12 @@ function isNavActive(pathname: string, item: (typeof NAV)[number]) {
   return pathname.startsWith(item.to);
 }
 
-function StudioLine() {
-  const studio = useStudio();
-  return (
-    <Link
-      to="/settings#studio"
-      className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-[11.5px] text-muted transition-colors hover:bg-raised-2"
-      title="Transcription and studio notes run on the server when an API key is configured."
-    >
-      <span
-        className={clsx(
-          "h-1.5 w-1.5 flex-none rounded-full",
-          studio === null ? "bg-faint" : studio ? "bg-[#3e7a5b]" : "bg-faint",
-        )}
-      />
-      <span className="truncate">
-        {studio === null ? "Checking studio…" : studio ? "Studio AI connected" : "Draft mode · on this device"}
-      </span>
-    </Link>
-  );
-}
-
 function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const sessions = useSessions((state) => state.sessions);
   const { status } = useEngine();
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const syncStatus = useSync((state) => state.status);
   const isDark = useIsDark();
 
@@ -77,18 +55,9 @@ function Sidebar() {
     [sessions],
   );
 
-  const accountLabel = authLoading
-    ? "Checking account…"
-    : user
-      ? user.name.trim() || user.email
-      : "Sign in to sync";
-  const accountDetail = !user
-    ? "Only on this device"
-    : syncStatus === "syncing"
-      ? "Syncing now…"
-      : syncStatus === "error"
-        ? "Sync needs attention"
-        : "Cloud sync on";
+  const accountLabel = user?.name.trim() || user?.email || "Your account";
+  const accountDetail =
+    syncStatus === "syncing" ? "Updating your notes…" : syncStatus === "error" ? "Couldn't update notes" : "Notes up to date";
   const initials = user
     ? (user.name.trim().split(/\s+/)[0]?.[0] ?? user.email[0]).toUpperCase() +
       (user.name.trim().split(/\s+/)[1]?.[0] ?? "").toUpperCase()
@@ -117,7 +86,7 @@ function Sidebar() {
             ) : (
               <Plus className="h-4 w-4" />
             )}
-            {status === "recording" || status === "paused" ? "Back to studio" : "New capture"}
+            {status === "recording" || status === "paused" ? "Back to recording" : "New capture"}
           </span>
           <span
             className={clsx(
@@ -208,7 +177,6 @@ function Sidebar() {
           </span>
           <ChevronRight className="h-3.5 w-3.5 flex-none text-faint" />
         </Link>
-        <StudioLine />
         <div className="mt-1 flex items-center justify-between">
           <div className="flex items-center gap-1">
             <button
@@ -222,10 +190,9 @@ function Sidebar() {
             </button>
             <span className="flex items-center gap-1 px-1 text-[10.5px] text-faint">
               <ShieldCheck className="h-3 w-3" />
-              {user ? "Synced notes" : "On device"}
+              Private
             </span>
           </div>
-          <span className="pr-1 text-[10px] tabular-nums text-faint">v{APP_CONFIG.version}</span>
         </div>
       </div>
     </aside>
@@ -291,7 +258,7 @@ function MobileNav() {
         aria-current={active ? "page" : undefined}
       >
         <item.Icon className="h-[19px] w-[19px]" strokeWidth={active ? 2.1 : 1.8} />
-        {item.label === "Float mode" ? "Float" : item.label}
+        {item.label === "Keep on top" ? "On top" : item.label}
       </NavLink>
     );
   };
@@ -313,7 +280,7 @@ function MobileNav() {
             <Mic className="h-[19px] w-[19px]" strokeWidth={2} />
           </span>
           <span className={clsx("text-[10px] font-semibold", recording ? "text-rec" : "text-accent")}>
-            {recording ? "Studio" : "Capture"}
+            {recording ? "Recording" : "Capture"}
           </span>
         </Link>
         {right.map(renderItem)}
@@ -331,14 +298,18 @@ function ScrollToTop() {
 }
 
 export function AppShell() {
+  const location = useLocation();
   return (
     <div className="min-h-dvh bg-paper">
+      <ScrollProgress />
       <ScrollToTop />
       <Sidebar />
       <div className="lg:pl-[272px]">
         <MobileHeader />
         <main className="mx-auto w-full max-w-[1200px] px-4 pb-32 pt-5 sm:px-6 lg:px-10 lg:pb-20 lg:pt-9">
-          <Outlet />
+          <div key={location.pathname} className="page-enter">
+            <Outlet />
+          </div>
         </main>
       </div>
       <CaptureDock />

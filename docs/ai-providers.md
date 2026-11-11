@@ -1,17 +1,24 @@
 # AI providers: Groq and a self-hosted Whisper worker
 
-This guide is the recommended rollout for JotBox's studio features:
+This guide covers the provider chain already wired into `/api/transcribe` and
+`/api/enhance`:
 
 | Path | Use it for | Cost | Limits |
 | --- | --- | --- | --- |
-| Browser Web Speech + local notes | Live captions and draft notes | Free | Mic only, no tab/upload transcription, no diarisation |
+| Browser Web Speech + on-device notes | Live words and notes with no provider | Free | Mic only, no upload transcription, no speaker separation |
 | Groq Whisper | Short recordings and calls | Free tier, then paid | 25 MB per file on the free tier |
 | Speaches + faster-whisper | Long lectures, offline/low-bandwidth setups | Your compute | Model size and CPU/GPU decide speed |
-| xAI | One-key premium STT + notes | Paid | Provider pricing and rate limits |
+| OpenRouter free model | Notes when Groq is unavailable | Free tier, rate-limited | Shared capacity and model availability |
+| xAI | One-key premium speech and notes | Paid | Provider pricing and rate limits |
 
-The app currently runs in **Draft mode** in production. The steps below prepare the
-providers; wiring them into `/api/transcribe` and `/api/enhance` is the next code
-step.
+Routing is free first: Groq for speech and notes, the self-hosted worker for long
+audio, an OpenRouter free model for notes fallback, then xAI. With no keys the app
+still records, keeps live browser words, and writes notes on the device.
+
+The prompts preserve Nigerian Pidgin and tone: Pidgin lines stay as they were said
+and are quoted inside otherwise clear English notes; names, amounts, dates, and
+decisions stay exact. Whisper has no Nigerian Pidgin language token, so the request
+uses `language=en` with a Pidgin-aware prompt for context.
 
 ---
 
@@ -32,7 +39,7 @@ step.
    GROQ_NOTES_MODEL=llama-3.3-70b-versatile
    ```
 
-6. Add it to Vercel when the endpoints are ready:
+6. Add it to Vercel for the deployed functions:
 
    ```bash
    vercel env add GROQ_API_KEY production --sensitive
@@ -151,33 +158,51 @@ is on the same host.
 
 ---
 
-## 4. Wire it into JotBox
+## 4. Environment and routing
 
-The intended environment shape:
+The gateway reads this environment shape:
 
 ```env
-# Short clips
+# Short clips and free notes
 GROQ_API_KEY=gsk_...
 GROQ_STT_MODEL=whisper-large-v3-turbo
+GROQ_NOTES_MODEL=llama-3.3-70b-versatile
 
 # Long recordings
 WHISPER_BASE_URL=https://your-worker.example.com/v1
 WHISPER_API_KEY=choose-a-long-random-token
 WHISPER_MODEL=Systran/faster-whisper-small
 
-# Notes
-GROQ_NOTES_MODEL=llama-3.3-70b-versatile
+# Optional fallbacks
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_NOTES_MODEL=meta-llama/llama-3.3-70b-instruct:free
+XAI_API_KEY=...
+XAI_STT_MODEL=grok-voice-transcribe-2.0
+XAI_NOTES_MODEL=grok-4.7
 ```
 
-Routing rule:
+Routing:
 
-1. Audio under 20 MB → Groq (`/openai/v1/audio/transcriptions`).
-2. Larger audio → Speaches worker (`/v1/audio/transcriptions`).
-3. Notes → Groq chat completions or the existing xAI prompt.
+1. Speech → Groq (`/openai/v1/audio/transcriptions`) for clips within the free
+   limit; larger files go to the Speaches worker first. If a provider is not
+   configured or fails, the gateway tries the next one, then xAI.
+2. Notes → Groq chat completions, then an OpenRouter free model, then xAI. If none
+   are configured, the app writes notes on the device from the spoken words and
+   jottings.
+3. `JOTBOX_AI_MOCK=1` runs the deterministic demo provider locally. It is ignored
+   on Vercel so demo content cannot reach production.
+
+Check the active chain at any time:
+
+```bash
+npm run ai:check   # configured providers
+npm run ai:test    # real transcription + notes against the sample
+npm run ai:demo    # same flow, local demo, no network
+```
 
 **Important Vercel limit:** a normal Vercel Function request is capped around
-4.5 MB, so simply porting `/api/transcribe` will still reject long recordings.
-For production, choose one of:
+4.5 MB, so `/api/transcribe` accepts short clips only. For long recordings, choose
+one of:
 
 - browser uploads the audio directly to the worker using a short-lived signed
   token issued by a Vercel function; or

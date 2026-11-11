@@ -79,7 +79,7 @@ export function printSession(session: Session) {
 
   if (session.transcript.length) {
     parts.push(
-      `<h2 class="break">Transcript</h2><div class="transcript">${session.transcript
+      `<h2 class="break">Spoken words</h2><div class="transcript">${session.transcript
         .map(
           (line) =>
             `<p><span class="time">${escapeHtml(
@@ -116,7 +116,7 @@ export function printSession(session: Session) {
     footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #e6e4dc; color: #91978f; font-size: 8.5pt; }
   </style></head><body>
   ${parts.join("\n")}
-  <footer>Written with JotBox. Notes are a summary of the recording, not a verbatim court record.</footer>
+  <footer>Written with JotBox. Notes are a summary of the recording, not a word-for-word court record.</footer>
   </body></html>`;
 
   const win = window.open("", "_blank", "width=880,height=1000");

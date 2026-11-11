@@ -82,8 +82,8 @@ export default function Library() {
           </h1>
           <p className="mt-1 text-[13px] text-muted">
             {sessions.length === 0
-              ? "Sessions you capture show up here, with the transcript and the written notes."
-              : `${sessions.length} session${sessions.length === 1 ? "" : "s"} on this device.`}
+              ? "What you capture shows up here, with the spoken words and the written notes."
+              : `${sessions.length} session${sessions.length === 1 ? "" : "s"} in your library.`}
           </p>
         </div>
         <Link to="/listen" className="btn btn-primary hidden sm:inline-flex">
@@ -97,7 +97,7 @@ export default function Library() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
           <input
             className="field pl-9 pr-9"
-            placeholder="Search titles, notes, and transcripts"
+            placeholder="Search titles, notes, and spoken words"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             aria-label="Search sessions"
@@ -182,8 +182,10 @@ export default function Library() {
                 <span className="text-[10.5px] tabular-nums text-faint">{items.length}</span>
               </div>
               <div className="card divide-y divide-line p-1.5">
-                {items.map((session) => (
-                  <SessionRow key={session.id} session={session} />
+                {items.map((session, index) => (
+                  <div key={session.id} className="stagger-in" style={{ animationDelay: `${index * 45}ms` }}>
+                    <SessionRow session={session} />
+                  </div>
                 ))}
               </div>
             </section>
@@ -191,7 +193,7 @@ export default function Library() {
           {query && (
             <p className="flex items-center gap-1.5 px-1 text-[11px] text-faint">
               <Inbox className="h-3.5 w-3.5" />
-              Searching titles, summaries, jottings, and transcripts.
+              Searching titles, summaries, jottings, and spoken words.
             </p>
           )}
         </div>

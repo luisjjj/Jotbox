@@ -6,10 +6,11 @@ interface WaveformProps {
   active: boolean;
   bars?: number;
   className?: string;
+  barClassName?: string;
   tone?: "accent" | "light";
 }
 
-export function Waveform({ active, bars = 36, className, tone = "accent" }: WaveformProps) {
+export function Waveform({ active, bars = 36, className, barClassName, tone = "accent" }: WaveformProps) {
   const { getLevel } = useEngine();
   const levelRef = useRef(getLevel);
   levelRef.current = getLevel;
@@ -48,6 +49,7 @@ export function Waveform({ active, bars = 36, className, tone = "accent" }: Wave
           }}
           className={clsx(
             "h-11 w-[2px] origin-center rounded-full will-change-transform",
+            barClassName,
             tone === "light" ? "bg-[#dfe9dc]" : "bg-accent",
             !active && "opacity-25",
           )}

@@ -42,8 +42,9 @@ function KindSelector({ kind, onChange }: { kind: SessionKind; onChange: (kind: 
             type="button"
             onClick={() => onChange(item)}
             aria-pressed={active}
+            style={{ animationDelay: `${KINDS.indexOf(item) * 60}ms` }}
             className={clsx(
-              "flex items-start gap-2.5 rounded-xl border p-3 text-left transition-all",
+              "stagger-in flex items-start gap-2.5 rounded-xl border p-3 text-left transition-all",
               active
                 ? "border-accent bg-accent-soft shadow-sm"
                 : "border-line bg-raised hover:border-line-strong hover:bg-raised-2",
@@ -155,7 +156,7 @@ function Setup() {
         What are you listening to?
       </h1>
       <p className="mt-1.5 max-w-[46ch] text-[13.5px] leading-6 text-muted">
-        Pick the shape of the session. JotBox listens, keeps the transcript, and writes the notes in that shape.
+        Pick the shape of the session. JotBox listens, keeps the spoken words, and writes the notes in that shape.
       </p>
 
       {error && (
@@ -206,8 +207,8 @@ function Setup() {
               Icon={MonitorUp}
               title="On a call or a tab"
               body="Share a Meet, Zoom, or Teams tab. JotBox records the tab's audio and mixes in your microphone when you speak."
-              action={canShare ? "Share a tab" : "Desktop Chrome or Edge"}
-              note="Tab + mic"
+              action={canShare ? "Share a tab" : "Use a computer"}
+              note="Call audio"
               onClick={() => void launch("tab")}
               busy={busy === "tab"}
               disabled={!canShare || Boolean(busy) || uploading}
@@ -215,13 +216,13 @@ function Setup() {
           </div>
           {!canShare && (
             <p className="mt-2 text-[11px] leading-5 text-faint">
-              Tab audio capture needs a desktop browser that supports screen sharing. On a phone, use the microphone.
+              Sharing a call tab needs a computer. On a phone, use the microphone.
             </p>
           )}
           {studio === false && (
             <p className="mt-2 text-[11px] leading-5 text-faint">
-              Studio transcription is off, so call and upload audio is saved but not transcribed. The microphone still
-              gets live captions, and you can paste a transcript after the session.
+              Automatic words are not turned on for this workspace, so call and uploaded audio is saved but not written
+              out. The microphone still shows live words, and you can paste the words after the session.
             </p>
           )}
         </div>
@@ -235,7 +236,7 @@ function Setup() {
               <p className="text-[13px] font-medium text-ink">Already have a recording?</p>
               <p className="mt-0.5 text-[11.5px] leading-5 text-muted">
                 {APP_CONFIG.supportedAudioExtensions.join(" ").toUpperCase()} · up to 80 MB.{" "}
-                {studio === false ? "Studio transcription is off — you can paste a transcript afterwards." : ""}
+                {studio === false ? "Automatic words are off — you can paste them afterwards." : ""}
               </p>
             </div>
           </div>
@@ -262,9 +263,10 @@ function Setup() {
           <p className="text-[11.5px] leading-5 text-muted">
             Need to keep working? Start here, then{" "}
             <Link to="/float" className="font-medium text-ink underline decoration-line-strong underline-offset-2">
-              pin the compact window
+              pin the pill
             </Link>{" "}
-            above your other apps. Audio is stored on this device unless studio transcription is enabled.
+            above your other apps. Audio is stored on this device. When JotBox writes the words for you, the recording
+            is sent only for that session.
           </p>
         </div>
       </div>
@@ -292,6 +294,7 @@ function Studio() {
     error,
     clearError,
   } = useEngine();
+  const studio = useStudio();
   const [pane, setPane] = useState<"notes" | "transcript">("notes");
   const paused = status === "paused";
   const words = useMemo(() => (scratch.trim() ? scratch.trim().split(/\s+/).length : 0), [scratch]);
@@ -312,7 +315,7 @@ function Studio() {
     try {
       await pin();
     } catch {
-      toast.error("The floating window was blocked. Allow pop-ups for JotBox and try again.");
+      toast.error("The floating pill was blocked. Allow pop-ups for JotBox and try again.");
     } finally {
       setBusy(false);
     }
@@ -364,7 +367,7 @@ function Studio() {
             <Link
               to="/float"
               className="btn btn-line flex-1 sm:flex-none"
-              title="Floating needs Chrome or Edge on a computer"
+              title="Floating needs a computer browser"
             >
               <Pin className="h-4 w-4" />
               Float
@@ -412,7 +415,7 @@ function Studio() {
             data-active={pane === "transcript"}
             onClick={() => setPane("transcript")}
           >
-            Transcript
+            Spoken words
             <span className="text-[10px] text-faint">{lines.length}</span>
           </button>
         </div>
@@ -453,31 +456,32 @@ function Studio() {
               "min-h-[54vh] flex-col lg:flex lg:min-h-[calc(100dvh-19rem)]",
               pane === "transcript" ? "flex" : "hidden",
             )}
-            aria-label="Live transcript"
+            aria-label="Live words"
           >
             <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-5">
               <div className="flex items-center gap-2">
                 <AudioLines className="h-3.5 w-3.5 text-muted" />
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
-                  Live transcript
+                  Spoken words
                 </h2>
               </div>
               <span className="flex items-center gap-1.5 text-[10.5px] text-faint">
                 {captions ? (
                   <>
                     <span className="h-1.5 w-1.5 rounded-full bg-[#3e7a5b]" />
-                    Captions on
+                    Live words on
                   </>
                 ) : (
-                  "Captions unavailable"
+                  "Live words unavailable"
                 )}
               </span>
             </div>
             {!captions && (
               <div className="flex items-start gap-2 border-b border-line bg-raised-2 px-4 py-2.5 text-[11px] leading-5 text-muted sm:px-5">
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-brass" />
-                This browser has no live captions. Audio is still recording, and studio transcription runs after you
-                stop.
+                {studio === false
+                  ? "This browser can't show live words. Audio is still recording, and you can paste the words after the session."
+                  : "This browser can't show live words. Audio is still recording, and JotBox will write the words when you stop."}
               </div>
             )}
             <TranscriptView
@@ -488,14 +492,14 @@ function Studio() {
               emptyLabel="Speak, or play the meeting. Words will appear here as you listen."
             />
             <p className="border-t border-line px-4 py-2.5 text-[10.5px] leading-4 text-faint sm:px-5">
-              Captions are provisional. The final transcript is cleaned up when the session ends.
+              Live words are a first pass. They are tidied up when the session ends.
             </p>
           </section>
         </div>
       </div>
 
       <p className="mt-3 text-center text-[10.5px] text-faint">
-        Keep this tab open for live captions. You can switch apps — the audio keeps recording.
+        Keep this tab open for live words. You can switch apps — the audio keeps recording.
       </p>
     </div>
   );
@@ -517,7 +521,7 @@ function Processing() {
       </span>
       <h1 className="mt-5 text-[22px] font-semibold tracking-[-0.03em] text-ink">Writing the notes</h1>
       <p className="mt-2 max-w-[34ch] text-[13px] leading-6 text-muted">
-        Reading the recording, tidying the transcript, and shaping the summary and actions. This page will move on its
+        Reading the recording, tidying the spoken words, and writing the summary and actions. This page will move on its
         own.
       </p>
       <div className="writing-track mt-6 w-48">

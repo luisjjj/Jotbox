@@ -29,7 +29,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       },
     });
   } catch {
-    throw new ApiError("Could not reach the JotBox server. Check your connection.", 0);
+    throw new ApiError("Could not reach JotBox. Check your connection.", 0);
   }
 
   if (response.status === 204) return undefined as T;

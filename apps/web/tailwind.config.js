@@ -25,8 +25,25 @@ export default {
         highlight: "var(--highlight)",
       },
       fontFamily: {
-        sans: ['"Inter"', '"Instrument Sans"', "Segoe UI", "sans-serif"],
-        serif: ['"Instrument Serif"', "Georgia", "serif"],
+        sans: [
+          '"SF Pro Display"',
+          '"SF Pro Text"',
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"SF Pro Icons"',
+          '"Helvetica Neue"',
+          '"Segoe UI"',
+          "sans-serif",
+        ],
+        serif: [
+          '"SF Pro Display"',
+          '"SF Pro Text"',
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Helvetica Neue"',
+          '"Segoe UI"',
+          "sans-serif",
+        ],
       },
       boxShadow: {
         dock: "var(--shadow-md)",
