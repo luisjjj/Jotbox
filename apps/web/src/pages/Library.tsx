@@ -73,7 +73,7 @@ export default function Library() {
   };
 
   return (
-    <div className="mx-auto max-w-[900px]">
+    <div className="w-full">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="kicker">Library</p>

@@ -306,7 +306,7 @@ export function AppShell() {
       <Sidebar />
       <div className="lg:pl-[272px]">
         <MobileHeader />
-        <main className="mx-auto w-full max-w-[1200px] px-4 pb-32 pt-5 sm:px-6 lg:px-10 lg:pb-20 lg:pt-9">
+        <main className="mx-auto w-full max-w-[1560px] px-4 pb-32 pt-5 sm:px-6 lg:px-10 lg:pb-20 lg:pt-9 xl:px-12 2xl:max-w-[1760px] 2xl:px-16">
           <div key={location.pathname} className="page-enter">
             <Outlet />
           </div>

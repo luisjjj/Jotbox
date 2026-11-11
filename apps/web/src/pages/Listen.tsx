@@ -150,26 +150,30 @@ function Setup() {
   };
 
   return (
-    <div className="mx-auto max-w-[900px]">
-      <p className="kicker">New capture</p>
-      <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[32px]">
-        What are you listening to?
-      </h1>
-      <p className="mt-1.5 max-w-[46ch] text-[13.5px] leading-6 text-muted">
-        Pick the shape of the session. JotBox listens, keeps the spoken words, and writes the notes in that shape.
-      </p>
-
-      {error && (
-        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-rec-line bg-rec-soft p-3">
-          <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
-          <p className="flex-1 text-[12.5px] leading-5 text-soft">{error}</p>
-          <button type="button" className="icon-btn h-6 w-6" onClick={clearError} aria-label="Dismiss">
-            <X className="h-3.5 w-3.5" />
-          </button>
+    <div className="w-full">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] xl:items-start xl:gap-10">
+        <div className="xl:sticky xl:top-9">
+          <p className="kicker">New capture</p>
+          <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[32px]">
+            What are you listening to?
+          </h1>
+          <p className="mt-1.5 max-w-[46ch] text-[13.5px] leading-6 text-muted">
+            Pick the shape of the session. JotBox listens, keeps the spoken words, and writes the notes in that shape.
+          </p>
         </div>
-      )}
 
-      <div className="mt-6 space-y-5">
+        <div className="min-w-0">
+          {error && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-rec-line bg-rec-soft p-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
+              <p className="flex-1 text-[12.5px] leading-5 text-soft">{error}</p>
+              <button type="button" className="icon-btn h-6 w-6" onClick={clearError} aria-label="Dismiss">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-5">
         <div>
           <p className="label">Session type</p>
           <KindSelector kind={kind} onChange={setKind} />
@@ -269,6 +273,8 @@ function Setup() {
             is sent only for that session.
           </p>
         </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -322,7 +328,7 @@ function Studio() {
   };
 
   return (
-    <div className="mx-auto max-w-[1080px]">
+    <div className="w-full">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">

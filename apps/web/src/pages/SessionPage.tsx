@@ -407,7 +407,7 @@ export default function SessionPage() {
   const showNotes = session.notes && !notesEmpty;
 
   return (
-    <div className="mx-auto max-w-[1120px]">
+    <div className="w-full">
       <div className="flex items-center justify-between gap-2">
         <Link to="/library" className="btn btn-ghost -ml-2">
           <ArrowLeft className="h-4 w-4" />
@@ -508,7 +508,7 @@ export default function SessionPage() {
         </div>
       </header>
 
-      <div className="mt-6 grid gap-7 xl:grid-cols-[minmax(0,1fr)_310px]">
+      <div className="mt-6 grid gap-7 xl:grid-cols-[minmax(0,1fr)_330px] 2xl:grid-cols-[minmax(0,1fr)_370px] xl:gap-8">
         <div className="min-w-0">
           {processing && (
             <div className="card p-5 sm:p-6">
@@ -588,7 +588,7 @@ export default function SessionPage() {
                   Rewrite
                 </button>
               </div>
-              <p className="mt-2.5 text-[19.5px] font-normal leading-[1.55] tracking-[0.002em] text-soft sm:text-[21px]">
+              <p className="mt-2.5 max-w-[70ch] text-[19.5px] font-normal leading-[1.55] tracking-[0.002em] text-soft sm:text-[21px]">
                 {session.notes.summary}
               </p>
 

@@ -225,7 +225,7 @@ export default function Landing() {
     <div className="min-h-dvh bg-paper text-ink">
       <ScrollProgress />
       <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <Brand />
           <nav className="hidden items-center gap-6 text-[12px] font-medium text-muted md:flex">
             <a href="#how" className="nav-link transition-colors hover:text-ink">
@@ -301,7 +301,7 @@ export default function Landing() {
       </header>
 
       <main>
-        <section className="mx-auto max-w-[1180px] px-4 pt-5 sm:px-6 sm:pt-8 lg:px-8">
+        <section className="mx-auto max-w-[1320px] px-4 pt-5 sm:px-6 sm:pt-8 lg:px-8">
           <div className="hero-ink relative overflow-hidden rounded-[1.5rem] shadow-float">
             <div className="hero-grid pointer-events-none absolute inset-0" />
             <div className="hero-orb absolute -left-24 top-4 h-64 w-64 rounded-full bg-[#2f705b]/35 blur-3xl" />
@@ -365,7 +365,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="how" className="mx-auto mt-16 max-w-[1180px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
+        <section id="how" className="mx-auto mt-16 max-w-[1320px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:gap-14">
             <Reveal>
               <div>
@@ -413,7 +413,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="pidgin" className="mx-auto mt-16 max-w-[1180px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
+        <section id="pidgin" className="mx-auto mt-16 max-w-[1320px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-14">
             <Reveal>
               <div>
@@ -501,7 +501,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="result" className="mx-auto mt-16 max-w-[1180px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
+        <section id="result" className="mx-auto mt-16 max-w-[1320px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
           <Reveal>
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -542,7 +542,7 @@ export default function Landing() {
           </Reveal>
         </section>
 
-        <section className="mx-auto mt-16 max-w-[1180px] px-4 sm:mt-24 sm:px-6 lg:px-8">
+        <section className="mx-auto mt-16 max-w-[1320px] px-4 sm:mt-24 sm:px-6 lg:px-8">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((feature, index) => (
               <Reveal key={feature.title} delay={index * 70}>
@@ -558,7 +558,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="pricing" className="mx-auto mt-16 max-w-[1180px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
+        <section id="pricing" className="mx-auto mt-16 max-w-[1320px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
           <Reveal>
             <div className="mx-auto max-w-[620px] text-center">
               <p className="kicker">Pricing</p>
@@ -571,7 +571,7 @@ export default function Landing() {
             </div>
           </Reveal>
 
-          <div className="mx-auto mt-9 grid max-w-[1080px] gap-4 lg:grid-cols-3 lg:items-stretch">
+          <div className="mx-auto mt-9 grid max-w-[1200px] gap-4 lg:grid-cols-3 lg:items-stretch">
             <Reveal delay={40} className="h-full">
               <div className="card plan-card flex h-full flex-col p-6 sm:p-7">
                 <p className="text-[13px] font-semibold text-ink">Free</p>
@@ -664,7 +664,7 @@ export default function Landing() {
           </Reveal>
         </section>
 
-        <section id="privacy" className="mx-auto mt-16 max-w-[1180px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
+        <section id="privacy" className="mx-auto mt-16 max-w-[1320px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
           <Reveal>
             <div className="hero-ink relative overflow-hidden rounded-[1.5rem] p-6 sm:p-10">
               <div className="hero-grid pointer-events-none absolute inset-0" />
@@ -704,7 +704,7 @@ export default function Landing() {
           </Reveal>
         </section>
 
-        <section className="mx-auto mt-16 max-w-[1180px] px-4 sm:mt-24 sm:px-6 lg:px-8">
+        <section className="mx-auto mt-16 max-w-[1320px] px-4 sm:mt-24 sm:px-6 lg:px-8">
           <Reveal>
             <div className="card relative overflow-hidden px-6 py-10 text-center sm:px-10 sm:py-14">
               <div className="pointer-events-none absolute -left-16 top-0 h-48 w-48 rounded-full bg-accent-soft blur-3xl" />
@@ -736,7 +736,7 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="mx-auto mt-16 max-w-[1180px] border-t border-line px-4 py-6 sm:px-6 lg:px-8">
+      <footer className="mx-auto mt-16 max-w-[1320px] border-t border-line px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Brand />
           <p className="text-[10.5px] text-faint">Notes for the room and the call. Built for the way we meet.</p>

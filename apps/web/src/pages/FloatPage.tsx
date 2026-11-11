@@ -120,7 +120,7 @@ export default function FloatPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1000px]">
+    <div className="mx-auto w-full max-w-[1320px]">
       <p className="kicker">Companion</p>
       <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[30px]">
         Work with JotBox on top.

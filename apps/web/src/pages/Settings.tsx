@@ -91,15 +91,16 @@ export default function Settings() {
   };
 
   return (
-    <div className="mx-auto max-w-[760px]">
+    <div className="w-full">
       <p className="kicker">Settings</p>
       <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[30px]">
         How JotBox behaves.
       </h1>
       <p className="mt-1 text-[13px] text-muted">Account, appearance, and the data kept on this device.</p>
 
-      <div className="mt-6 space-y-4">
-        <section className="card flex flex-wrap items-center justify-between gap-4 p-5">
+      <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
+        <div className="space-y-4">
+          <section className="card flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-accent text-[12px] font-semibold text-accent-ink">
               {(user?.name.trim()[0] ?? user?.email[0] ?? "J").toUpperCase()}
@@ -198,7 +199,9 @@ export default function Settings() {
             Signing out removes this device’s copy; your notes remain in your account.
           </p>
         </Section>
+        </div>
 
+        <div className="space-y-4 xl:sticky xl:top-9">
         <section className="rounded-2xl border border-line bg-raised-2 p-5">
           <div className="flex items-start gap-3">
             <span className="grid h-9 w-9 flex-none place-items-center rounded-lg border border-line bg-raised text-muted">
@@ -218,6 +221,7 @@ export default function Settings() {
           <ShieldCheck className="h-3 w-3" />
           Recordings stay on this device. Notes follow you only when you sign in.
         </p>
+        </div>
       </div>
     </div>
   );

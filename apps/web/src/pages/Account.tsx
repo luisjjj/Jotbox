@@ -75,14 +75,14 @@ function AccountView({ user }: { user: CloudUser }) {
   };
 
   return (
-    <div className="page-enter mx-auto max-w-[880px]">
+    <div className="page-enter w-full">
       <p className="kicker">Account</p>
       <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[30px]">
         Your JotBox account.
       </h1>
       <p className="mt-1 text-[13px] text-muted">Your notes follow you. Recordings stay on this device.</p>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+      <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr] xl:gap-6">
         <section className="card p-5 sm:p-6">
           <div className="flex items-start gap-3.5">
             <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-accent text-[15px] font-semibold text-accent-ink">
