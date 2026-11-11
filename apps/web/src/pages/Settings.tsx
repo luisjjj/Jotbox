@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import {
   Check,
+  Cloud,
   Download,
   HardDrive,
   Info,
@@ -14,15 +15,18 @@ import {
   Sparkles,
   Sun,
   Trash2,
+  User,
 } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { APP_CONFIG, AI_CONFIG } from "@jotbox/config";
+import { useAuth } from "@/auth/AuthProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useStudio, refreshStudio } from "@/hooks/useStudio";
 import { deleteAudio } from "@/lib/audioStore";
 import { loadSampleSessions } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
+import { useSync } from "@/lib/syncStore";
 import { setTheme, useTheme, type ThemeChoice } from "@/lib/theme";
 
 const THEMES: Array<{ value: ThemeChoice; label: string; Icon: typeof Sun }> = [
@@ -68,6 +72,8 @@ export default function Settings() {
   const theme = useTheme();
   const studio = useStudio();
   const sessions = useSessions((state) => state.sessions);
+  const { user } = useAuth();
+  const syncStatus = useSync((state) => state.status);
   const location = useLocation();
   const [checking, setChecking] = useState(false);
   const [studioOverride, setStudioOverride] = useState<boolean | null>(null);
@@ -144,9 +150,41 @@ export default function Settings() {
       <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[30px]">
         How JotBox behaves.
       </h1>
-      <p className="mt-1 text-[13px] text-muted">Appearance, studio connection, and the data kept on this device.</p>
+      <p className="mt-1 text-[13px] text-muted">Account, appearance, studio connection, and the data kept on this device.</p>
 
       <div className="mt-6 space-y-4">
+        <section className="card flex flex-wrap items-center justify-between gap-4 p-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              className={
+                user
+                  ? "grid h-10 w-10 flex-none place-items-center rounded-full bg-accent text-[12px] font-semibold text-accent-ink"
+                  : "grid h-10 w-10 flex-none place-items-center rounded-full border border-line bg-raised-2 text-muted"
+              }
+            >
+              {user ? (user.name.trim()[0] ?? user.email[0]).toUpperCase() : <User className="h-4 w-4" />}
+            </span>
+            <div className="min-w-0">
+              <h2 className="truncate text-[13.5px] font-semibold text-ink">
+                {user ? user.name.trim() || user.email : "No account yet"}
+              </h2>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
+                {user ? (
+                  <>
+                    <Cloud className="h-3 w-3" />
+                    {syncStatus === "syncing" ? "Syncing your notes…" : "Notes sync to your account"}
+                  </>
+                ) : (
+                  "Notes are stored only in this browser."
+                )}
+              </p>
+            </div>
+          </div>
+          <Link to="/account" className="btn btn-line btn-sm">
+            {user ? "Manage account" : "Sign in to sync"}
+          </Link>
+        </section>
+
         <Section title="Appearance" description="JotBox follows your system by default. The choice is remembered here.">
           <div className="grid grid-cols-3 gap-2">
             {THEMES.map((option) => {
@@ -223,7 +261,11 @@ export default function Settings() {
 
         <Section
           title="Data on this device"
-          description="Sessions, notes, and audio are kept in this browser. Nothing syncs to an account."
+          description={
+            user
+              ? "Audio stays in this browser. Notes and transcripts are also saved to your account."
+              : "Sessions, notes, and audio are kept in this browser. Sign in to sync notes across devices."
+          }
           aside={
             <span className="chip">
               <HardDrive className="h-3 w-3" />
@@ -264,18 +306,22 @@ export default function Settings() {
               <Plus className="h-3.5 w-3.5" />
               Add examples
             </button>
-            <button
-              type="button"
-              className="btn btn-sm ml-auto text-rec hover:bg-rec-soft"
-              onClick={() => setConfirmClear(true)}
-              disabled={!sessions.length && audioCount === 0}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Clear everything
-            </button>
+            {!user && (
+              <button
+                type="button"
+                className="btn btn-sm ml-auto text-rec hover:bg-rec-soft"
+                onClick={() => setConfirmClear(true)}
+                disabled={!sessions.length && audioCount === 0}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear everything
+              </button>
+            )}
           </div>
           <p className="mt-2.5 text-[10.5px] leading-4 text-faint">
-            Exports include notes and transcripts as JSON. Audio stays in this browser and is not part of the export.
+            {user
+              ? "Signing out removes the local copy from this device. Your notes remain in your account."
+              : "Exports include notes and transcripts as JSON. Audio stays in this browser and is not part of the export."}
           </p>
         </Section>
 
@@ -287,9 +333,9 @@ export default function Settings() {
             <div>
               <h2 className="text-[13.5px] font-semibold text-ink">What leaves this device</h2>
               <p className="mt-1.5 text-[11.5px] leading-5 text-muted">
-                Nothing, unless studio transcription is on. When it is, audio is sent to the model provider for that
-                one session. Live captions are handled by your browser's speech engine. JotBox has no account, no
-                analytics, and no cloud library.
+                {user
+                  ? "Your notes, jottings, and transcripts sync to your JotBox account on Neon. Audio stays on this device. If studio transcription is on, audio is sent to the model provider for that one session."
+                  : "Nothing, unless studio transcription is on. When it is, audio is sent to the model provider for that one session. Live captions are handled by your browser's speech engine. As a guest, nothing syncs to an account."}
               </p>
             </div>
           </div>

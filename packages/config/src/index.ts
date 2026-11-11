@@ -1,7 +1,7 @@
 export const APP_CONFIG = {
   name: 'JotBox',
   description: 'Notes from meetings, seminars, and lectures — without the typing.',
-  version: '0.3.0',
+  version: '0.4.0',
   maxRecordingDuration: 4 * 60 * 60,
   maxFileSize: 80 * 1024 * 1024,
   supportedAudioTypes: ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/m4a'],

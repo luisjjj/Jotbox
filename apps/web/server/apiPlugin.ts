@@ -1,6 +1,8 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+﻿import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
 import { AI_CONFIG } from "../../../packages/config/src/index.ts";
+// @ts-expect-error shared Node handlers are plain ESM, outside the Vite TS project
+import { handleCoreApi } from "../../../server/api/router.mjs";
 
 const MAX_AUDIO = 80 * 1024 * 1024;
 const NOTES_MODEL = process.env.XAI_NOTES_MODEL || AI_CONFIG.notesModel;
@@ -155,8 +157,7 @@ export function notesApi(apiKey: string): Plugin {
       return;
     }
     try {
-      if (pathname === "/api/health" && req.method === "GET") {
-        send(res, 200, { ai: Boolean(apiKey) });
+      if (await handleCoreApi(req, res, { ai: Boolean(apiKey) })) {
         return;
       }
       if (!apiKey) {
@@ -211,3 +212,4 @@ export function notesApi(apiKey: string): Plugin {
     },
   };
 }
+

@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import clsx from "clsx";
 import {
   ArrowRight,
+  ChevronRight,
   Home,
   Layers,
   Library,
@@ -11,15 +12,18 @@ import {
   Settings,
   ShieldCheck,
   Sun,
+  User,
 } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { APP_CONFIG } from "@jotbox/config";
+import { useAuth } from "@/auth/AuthProvider";
 import { useEngine } from "@/engine/SessionEngine";
 import { useStudio } from "@/hooks/useStudio";
 import { loadSampleSessions } from "@/lib/seed";
 import { useIsDark, setTheme } from "@/lib/theme";
 import { useSessions } from "@/lib/store";
+import { useSync } from "@/lib/syncStore";
 import { Brand } from "./Brand";
 import { CaptureDock } from "./CaptureDock";
 import { FloatWindow } from "./FloatWindow";
@@ -64,12 +68,31 @@ function Sidebar() {
   const navigate = useNavigate();
   const sessions = useSessions((state) => state.sessions);
   const { status } = useEngine();
+  const { user, loading: authLoading } = useAuth();
+  const syncStatus = useSync((state) => state.status);
   const isDark = useIsDark();
 
   const recent = useMemo(
     () => [...sessions].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6),
     [sessions],
   );
+
+  const accountLabel = authLoading
+    ? "Checking account…"
+    : user
+      ? user.name.trim() || user.email
+      : "Sign in to sync";
+  const accountDetail = !user
+    ? "Only on this device"
+    : syncStatus === "syncing"
+      ? "Syncing now…"
+      : syncStatus === "error"
+        ? "Sync needs attention"
+        : "Cloud sync on";
+  const initials = user
+    ? (user.name.trim().split(/\s+/)[0]?.[0] ?? user.email[0]).toUpperCase() +
+      (user.name.trim().split(/\s+/)[1]?.[0] ?? "").toUpperCase()
+    : "";
 
   const addExample = () => {
     loadSampleSessions();
@@ -164,6 +187,27 @@ function Sidebar() {
       </div>
 
       <div className="border-t border-line px-3 py-3">
+        <Link
+          to="/account"
+          className={clsx(
+            "flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-raised-2",
+            location.pathname === "/account" && "bg-raised-2",
+          )}
+        >
+          <span
+            className={clsx(
+              "grid h-8 w-8 flex-none place-items-center rounded-full text-[11px] font-semibold",
+              user ? "bg-accent text-accent-ink" : "border border-line bg-raised-2 text-muted",
+            )}
+          >
+            {user ? initials : <User className="h-4 w-4" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12px] font-medium text-ink">{accountLabel}</span>
+            <span className="mt-0.5 block truncate text-[10px] text-faint">{accountDetail}</span>
+          </span>
+          <ChevronRight className="h-3.5 w-3.5 flex-none text-faint" />
+        </Link>
         <StudioLine />
         <div className="mt-1 flex items-center justify-between">
           <div className="flex items-center gap-1">
@@ -178,7 +222,7 @@ function Sidebar() {
             </button>
             <span className="flex items-center gap-1 px-1 text-[10.5px] text-faint">
               <ShieldCheck className="h-3 w-3" />
-              On device
+              {user ? "Synced notes" : "On device"}
             </span>
           </div>
           <span className="pr-1 text-[10px] tabular-nums text-faint">v{APP_CONFIG.version}</span>
@@ -190,12 +234,25 @@ function Sidebar() {
 
 function MobileHeader() {
   const isDark = useIsDark();
+  const { user } = useAuth();
+  const initials = user
+    ? (user.name.trim()[0] ?? user.email[0]).toUpperCase() + (user.name.trim().split(/\s+/)[1]?.[0] ?? "").toUpperCase()
+    : "";
 
   return (
     <header className="safe-top sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur-md lg:hidden">
       <div className="flex h-14 items-center justify-between px-4">
         <Brand />
         <div className="flex items-center gap-1">
+          <Link to="/account" className="icon-btn" aria-label={user ? "Account" : "Sign in"}>
+            {user ? (
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-accent text-[10px] font-semibold text-accent-ink">
+                {initials}
+              </span>
+            ) : (
+              <User className="h-[18px] w-[18px]" />
+            )}
+          </Link>
           <button
             type="button"
             className="icon-btn"

@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
     ...loadEnv(mode, path.resolve(__dirname, "../.."), ""),
     ...loadEnv(mode, __dirname, ""),
   };
+  if (env.DATABASE_URL) process.env.DATABASE_URL ||= env.DATABASE_URL;
   const apiKey = env.XAI_API_KEY || process.env.XAI_API_KEY || "";
 
   return {
