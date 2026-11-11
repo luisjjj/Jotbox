@@ -159,7 +159,7 @@ function Setup() {
       </p>
 
       {error && (
-        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-rec/25 bg-rec-soft p-3">
+        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-rec-line bg-rec-soft p-3">
           <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
           <p className="flex-1 text-[12.5px] leading-5 text-soft">{error}</p>
           <button type="button" className="icon-btn h-6 w-6" onClick={clearError} aria-label="Dismiss">
@@ -257,7 +257,7 @@ function Setup() {
           </button>
         </div>
 
-        <div className="flex items-start gap-2 rounded-xl border border-line bg-raised-2/60 px-3.5 py-3">
+        <div className="flex items-start gap-2 rounded-xl border border-line bg-raised-2 px-3.5 py-3">
           <Pin className="mt-0.5 h-3.5 w-3.5 flex-none text-faint" />
           <p className="text-[11.5px] leading-5 text-muted">
             Need to keep working? Start here, then{" "}
@@ -386,7 +386,7 @@ function Studio() {
       </div>
 
       {error && (
-        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-rec/25 bg-rec-soft p-3">
+        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-rec-line bg-rec-soft p-3">
           <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
           <p className="flex-1 text-[12.5px] leading-5 text-soft">{error}</p>
           <button type="button" className="icon-btn h-6 w-6" onClick={clearError} aria-label="Dismiss">
@@ -530,3 +530,4 @@ function Processing() {
     </div>
   );
 }
+

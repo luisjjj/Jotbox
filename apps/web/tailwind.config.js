@@ -21,6 +21,7 @@ export default {
         brass: "var(--brass)",
         rec: "var(--rec)",
         "rec-soft": "var(--rec-soft)",
+        "rec-line": "var(--rec-line)",
         highlight: "var(--highlight)",
       },
       fontFamily: {

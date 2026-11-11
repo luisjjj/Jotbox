@@ -19,6 +19,7 @@
   --brass: #8b6b38;
   --rec: #b42318;
   --rec-soft: #fceceb;
+  --rec-line: #f0c9c4;
   --highlight: #f5ecd7;
   --shadow-sm: 0 1px 2px rgba(24, 28, 24, 0.04);
   --shadow-md: 0 12px 32px -12px rgba(24, 28, 24, 0.18);
@@ -43,6 +44,7 @@
   --brass: #d8b77c;
   --rec: #f89085;
   --rec-soft: #331d1a;
+  --rec-line: #5d2c28;
   --highlight: #3a3321;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 12px 32px -12px rgba(0, 0, 0, 0.6);

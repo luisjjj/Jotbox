@@ -7,6 +7,7 @@ import { EngineProvider } from "@/engine/SessionEngine";
 import AccountPage from "@/pages/Account";
 import FloatPage from "@/pages/FloatPage";
 import Home from "@/pages/Home";
+import Landing from "@/pages/Landing";
 import Library from "@/pages/Library";
 import Listen from "@/pages/Listen";
 import NotFound from "@/pages/NotFound";
@@ -38,8 +39,9 @@ export default function App() {
           }}
         />
         <Routes>
+          <Route path="/" element={<Landing />} />
           <Route element={<AppShell />}>
-            <Route index element={<Home />} />
+            <Route path="app" element={<Home />} />
             <Route path="listen" element={<Listen />} />
             <Route path="library" element={<Library />} />
             <Route path="session/:id" element={<SessionPage />} />

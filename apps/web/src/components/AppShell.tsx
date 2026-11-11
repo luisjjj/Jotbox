@@ -30,14 +30,14 @@ import { FloatWindow } from "./FloatWindow";
 import { SessionRow } from "./SessionRow";
 
 const NAV = [
-  { to: "/", label: "Home", Icon: Home, end: true },
+  { to: "/app", label: "Home", Icon: Home, end: true },
   { to: "/library", label: "Library", Icon: Library, end: false },
   { to: "/float", label: "Float mode", Icon: Layers, end: false },
   { to: "/settings", label: "Settings", Icon: Settings, end: false },
 ];
 
 function isNavActive(pathname: string, item: (typeof NAV)[number]) {
-  if (item.to === "/") return pathname === "/";
+  if (item.to === "/app") return pathname === "/app";
   if (item.to === "/library") return pathname === "/library" || pathname.startsWith("/session");
   return pathname.startsWith(item.to);
 }
@@ -103,7 +103,7 @@ function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[272px] flex-col border-r border-line bg-raised lg:flex">
       <div className="px-5 pb-4 pt-6">
-        <Brand />
+        <Brand to="/app" />
       </div>
 
       <div className="px-3">
@@ -240,9 +240,9 @@ function MobileHeader() {
     : "";
 
   return (
-    <header className="safe-top sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur-md lg:hidden">
+    <header className="safe-top sticky top-0 z-30 border-b border-line bg-paper backdrop-blur-md lg:hidden">
       <div className="flex h-14 items-center justify-between px-4">
-        <Brand />
+        <Brand to="/app" />
         <div className="flex items-center gap-1">
           <Link to="/account" className="icon-btn" aria-label={user ? "Account" : "Sign in"}>
             {user ? (
@@ -298,7 +298,7 @@ function MobileNav() {
 
   return (
     <nav
-      className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-raised/95 backdrop-blur-md lg:hidden"
+      className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-raised backdrop-blur-md lg:hidden"
       aria-label="Primary"
     >
       <div className="grid grid-cols-5 items-center px-1.5 pt-1">
@@ -347,3 +347,4 @@ export function AppShell() {
     </div>
   );
 }
+

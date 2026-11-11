@@ -20,10 +20,10 @@ export const AI_CONFIG = {
 } as const;
 
 export const ROUTES = {
-  home: '/',
+  home: '/app',
   listen: '/listen',
   library: '/library',
-  flow: '/flow',
+  flow: '/float',
   settings: '/settings',
   session: (id: string) => `/session/${id}`,
 } as const;

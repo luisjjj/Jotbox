@@ -8,7 +8,7 @@ Guest-first. Sign in when you want your notes on another device — sessions, jo
 
 **Live:** [jotbox-eight.vercel.app](https://jotbox-eight.vercel.app) · **Repo:** [github.com/luisjjj/Jotbox](https://github.com/luisjjj/Jotbox)
 
-![JotBox home](docs/screenshots/home-desktop.png)
+![JotBox landing page](docs/screenshots/landing-desktop.png)
 
 ## The product
 
@@ -62,9 +62,11 @@ Start the app:
 npm run dev:web
 ```
 
-Open **http://localhost:3100**. Add `?demo=1` to any URL to load two example sessions (for example `http://localhost:3100/?demo=1`).
+Open **http://localhost:3100** for the landing page, then **http://localhost:3100/app** for the dashboard. Add `?demo=1` to any URL to load two example sessions (for example `http://localhost:3100/app?demo=1`).
 
 The runtime uses the `jotbox_app` role, not the owner connection. The owner URL is only used by the migration and role-setup scripts.
+
+The public **landing page** lives at `/`; the authenticated/guest **dashboard** lives at `/app`. The PWA starts at `/app`.
 
 ### Database scripts
 
@@ -120,7 +122,8 @@ The studio endpoints (`/api/transcribe`, `/api/enhance`) still live in the Vite 
 
 | Screen | What it does |
 | --- | --- |
-| Home | Greeting, live-capture hero, capture stats, recent notes |
+| Landing (`/`) | Public front door: the promise, how it works, a finished-note preview, privacy, and CTAs |
+| Dashboard (`/app`) | Greeting, quick capture, capture stats, recent notes |
 | Capture | Pick a session shape, name it, choose microphone / call tab / upload |
 | Studio | Timer, notes pad, live transcript, pause/resume, float, stop and write |
 | Notes | The written document, audio + transcript source panel, exports, rewrite |

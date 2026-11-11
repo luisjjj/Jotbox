@@ -13,7 +13,7 @@ export default function NotFound() {
         The link may be old, or the session was deleted from this device.
       </p>
       <div className="mt-5 flex gap-2">
-        <Link to="/" className="btn btn-primary">
+        <Link to="/app" className="btn btn-primary">
           Go home
         </Link>
         <Link to="/library" className="btn btn-line">

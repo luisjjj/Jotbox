@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
         registerType: "autoUpdate",
         includeAssets: ["favicon.svg", "apple-touch-icon.png", "icons/*.png"],
         manifest: {
-          name: "JotBox — notes without the typing",
+          name: "JotBox — the notes are written while you listen",
           short_name: "JotBox",
           description: "Notes from meetings, seminars, and lectures — without the typing.",
           theme_color: "#f5f4ef",
@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
           display: "standalone",
           orientation: "any",
           scope: "/",
-          start_url: "/",
+          start_url: "/app",
           icons: [
             {
               src: "/icons/icon-192.png",

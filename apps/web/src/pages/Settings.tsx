@@ -325,7 +325,7 @@ export default function Settings() {
           </p>
         </Section>
 
-        <section className="rounded-2xl border border-line bg-raised-2/70 p-5">
+        <section className="rounded-2xl border border-line bg-raised-2 p-5">
           <div className="flex items-start gap-3">
             <span className="grid h-9 w-9 flex-none place-items-center rounded-lg border border-line bg-raised text-muted">
               <ShieldCheck className="h-4 w-4" />
@@ -361,3 +361,4 @@ export default function Settings() {
     </div>
   );
 }
+

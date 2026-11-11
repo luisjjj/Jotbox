@@ -17,7 +17,7 @@ export function EmptyState({
   return (
     <div
       className={clsx(
-        "flex flex-col items-center justify-center rounded-2xl border border-dashed border-line-strong bg-raised-2/60 px-6 py-12 text-center",
+        "flex flex-col items-center justify-center rounded-2xl border border-dashed border-line-strong bg-raised-2 px-6 py-12 text-center",
         className,
       )}
     >
@@ -30,3 +30,4 @@ export function EmptyState({
     </div>
   );
 }
+

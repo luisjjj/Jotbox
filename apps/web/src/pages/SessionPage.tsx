@@ -239,7 +239,7 @@ export default function SessionPage() {
   useEffect(() => {
     if (session) document.title = `${session.title} · JotBox`;
     return () => {
-      document.title = "JotBox — notes without the typing";
+      document.title = "JotBox — the notes are written while you listen";
     };
   }, [session?.title, session]);
 
@@ -531,7 +531,7 @@ export default function SessionPage() {
           )}
 
           {failed && (
-            <div className="rounded-xl border border-rec/25 bg-rec-soft p-4">
+            <div className="rounded-xl border border-rec-line bg-rec-soft p-4">
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
                 <div className="min-w-0">
@@ -765,3 +765,4 @@ export default function SessionPage() {
     </div>
   );
 }
+

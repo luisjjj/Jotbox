@@ -128,7 +128,7 @@ function AccountView({ user }: { user: CloudUser }) {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <Link to="/" className="btn btn-primary btn-sm">
+            <Link to="/app" className="btn btn-primary btn-sm">
               Open JotBox
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -174,7 +174,7 @@ function AccountView({ user }: { user: CloudUser }) {
           </div>
 
           {error && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-rec/25 bg-rec-soft px-3 py-2.5">
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
               <p className="text-[11px] leading-5 text-soft">{error}</p>
             </div>
@@ -402,7 +402,7 @@ function AuthForm() {
               )}
 
               {error && (
-                <div className="flex items-start gap-2 rounded-lg border border-rec/25 bg-rec-soft px-3 py-2.5">
+                <div className="flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
                   <p className="text-[11.5px] leading-5 text-soft">{error}</p>
                 </div>
@@ -427,7 +427,7 @@ function AuthForm() {
             </p>
             <p className="mt-3 text-[11px] text-muted">
               Nothing to sync?{" "}
-              <Link to="/" className="font-medium text-ink underline decoration-line-strong underline-offset-2">
+              <Link to="/app" className="font-medium text-ink underline decoration-line-strong underline-offset-2">
                 Keep using JotBox on this device
               </Link>
               .
@@ -455,3 +455,4 @@ export default function AccountPage() {
 
   return user ? <AccountView user={user} /> : <AuthForm />;
 }
+

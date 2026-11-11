@@ -24,7 +24,7 @@ export function CaptureDock() {
 
   return (
     <div className="fixed bottom-[calc(4.9rem+env(safe-area-inset-bottom))] left-3 right-3 z-40 lg:bottom-6 lg:left-auto lg:right-7 lg:w-[390px]">
-      <div className="fade-up flex items-center gap-2.5 rounded-2xl border border-line bg-raised/95 p-2 pl-3 shadow-float backdrop-blur-md">
+      <div className="fade-up flex items-center gap-2.5 rounded-2xl border border-line bg-raised p-2 pl-3 shadow-float backdrop-blur-md">
         <span className={paused ? "h-2 w-2 flex-none rounded-full bg-faint" : "live-dot"} />
         <button
           type="button"
@@ -62,3 +62,4 @@ export function CaptureDock() {
     </div>
   );
 }
+
