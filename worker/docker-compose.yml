@@ -1,0 +1,23 @@
+services:
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    container_name: jotbox-whisper
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Require this bearer token on every transcription request.
+      API_KEY: ${WHISPER_API_KEY:?set WHISPER_API_KEY}
+      ENABLE_UI: "false"
+      LOG_LEVEL: info
+      # Keep the model warm. Download happens on first start.
+      PRELOAD_MODELS: '["Systran/faster-whisper-small"]'
+      STT_MODEL_TTL: "-1"
+      WHISPER__INFERENCE_DEVICE: cpu
+      WHISPER__COMPUTE_TYPE: int8
+    volumes:
+      # Persist model downloads so restarts do not re-download.
+      - speaches-cache:/home/ubuntu/.cache/huggingface/hub
+
+volumes:
+  speaches-cache:

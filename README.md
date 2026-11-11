@@ -118,6 +118,8 @@ Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `lo
 
 The studio endpoints (`/api/transcribe`, `/api/enhance`) still live in the Vite dev/preview middleware. A static Vercel deployment therefore runs in **Draft mode** until those are ported to functions and `XAI_API_KEY` is added.
 
+For the recommended low-cost path — Groq for short clips and a self-hosted Whisper worker for long lectures — see **[docs/ai-providers.md](docs/ai-providers.md)**. It includes the Groq key steps, a ready-to-run [`worker/docker-compose.yml`](worker/docker-compose.yml), deployment notes, and the Vercel size-limit caveat.
+
 ## Screens
 
 | Screen | What it does |
