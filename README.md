@@ -85,7 +85,7 @@ JotBox ships with a provider chain that prefers free infrastructure and falls ba
 | --- | --- | --- |
 | Short recordings | Groq `whisper-large-v3-turbo` | `GROQ_API_KEY` |
 | Long recordings | Self-hosted Speaches / faster-whisper | `WHISPER_BASE_URL`, `WHISPER_API_KEY` |
-| Notes (free) | Groq `llama-3.3-70b-versatile` or OpenRouter free model | `GROQ_API_KEY` / `OPENROUTER_API_KEY` |
+| Notes (free) | Groq `openai/gpt-oss-120b` or OpenRouter free model | `GROQ_API_KEY` / `OPENROUTER_API_KEY` |
 | Notes (premium) | xAI | `XAI_API_KEY` |
 | No keys at all | On-device notes from the spoken words and jottings | — |
 
@@ -94,7 +94,7 @@ The prompts are written for Nigerian Pidgin and code-switching: Pidgin lines sur
 ```env
 GROQ_API_KEY=gsk_...
 GROQ_STT_MODEL=whisper-large-v3-turbo
-GROQ_NOTES_MODEL=llama-3.3-70b-versatile
+GROQ_NOTES_MODEL=openai/gpt-oss-120b
 
 # Optional: long recordings
 WHISPER_BASE_URL=https://your-worker.example.com/v1

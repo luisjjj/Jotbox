@@ -22,7 +22,7 @@ export const AI_CONFIG = {
   providers: {
     groq: {
       sttModel: 'whisper-large-v3-turbo',
-      notesModel: 'llama-3.3-70b-versatile',
+      notesModel: 'openai/gpt-oss-120b',
     },
     worker: {
       sttModel: 'Systran/faster-whisper-small',

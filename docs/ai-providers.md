@@ -36,7 +36,7 @@ uses `language=en` with a Pidgin-aware prompt for context.
    ```env
    GROQ_API_KEY=gsk_...
    GROQ_STT_MODEL=whisper-large-v3-turbo
-   GROQ_NOTES_MODEL=llama-3.3-70b-versatile
+   GROQ_NOTES_MODEL=openai/gpt-oss-120b
    ```
 
 6. Add it to Vercel for the deployed functions:
@@ -166,7 +166,7 @@ The gateway reads this environment shape:
 # Short clips and free notes
 GROQ_API_KEY=gsk_...
 GROQ_STT_MODEL=whisper-large-v3-turbo
-GROQ_NOTES_MODEL=llama-3.3-70b-versatile
+GROQ_NOTES_MODEL=openai/gpt-oss-120b
 
 # Long recordings
 WHISPER_BASE_URL=https://your-worker.example.com/v1

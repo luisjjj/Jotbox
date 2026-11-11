@@ -5,7 +5,7 @@ import { HttpError, assertSameOrigin, clientIp, readJson, requireMethod, sendJso
  *
  * Free-first provider chain:
  *   speech: Groq Whisper (free tier) -> self-hosted Speaches/faster-whisper -> xAI
- *   notes:  Groq Llama (free tier)  -> OpenRouter free model        -> xAI
+ *   notes:  Groq GPT-OSS (free tier) -> OpenRouter free model       -> xAI
  *
  * `JOTBOX_AI_MOCK=1` adds a deterministic demo provider for local UI tests.
  * It is never selected when a real provider is configured.
@@ -28,6 +28,7 @@ const MAX_SCRATCH = 12_000;
 
 const DEFAULT_LANGUAGE = "en";
 const DEFAULT_TONE = "warm-direct";
+const GROQ_NOTES_FALLBACKS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
 
 const KIND_LABEL = {
   meeting: "meeting",
@@ -44,7 +45,6 @@ const STT_PROMPT = [
 ].join(" ");
 
 const NOTES_SYSTEM = `You are JotBox, a note writer for meetings, seminars, lectures and voice notes recorded in Nigeria and across West Africa.
-
 The transcript is what was said. The scratch notes are what the listener marked. When scratch notes exist, treat them as the spine and expand them from the transcript.
 
 Language and tone:
@@ -132,11 +132,11 @@ export function aiStatus() {
   };
 }
 
-function providerError(provider, response, detail) {
+function providerError(provider, response, detail, message) {
   console.error(`[jotbox-ai] ${provider} failed`, response?.status ?? "", String(detail ?? "").slice(0, 500));
   return new HttpError(
     502,
-    "JotBox could not read that recording. Try again, or add the words by hand.",
+    message || "JotBox could not read that recording. Try again, or add the words by hand.",
   );
 }
 
@@ -393,19 +393,40 @@ async function chatCompletion({ url, headers, model, messages, extra = {} }) {
     }),
     signal: AbortSignal.timeout(90_000),
   });
-  if (!response.ok) throw providerError(model, response, await response.text());
+  if (!response.ok) {
+    throw providerError(
+      model,
+      response,
+      await response.text(),
+      "JotBox could not finish the notes. Try again, or add the words by hand.",
+    );
+  }
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content;
   return parseNotes(content);
 }
 
 async function notesWithGroq(payload) {
-  return chatCompletion({
-    url: `${GROQ_BASE}/chat/completions`,
-    headers: { Authorization: `Bearer ${groqKey()}` },
-    model: key("GROQ_NOTES_MODEL") || "llama-3.3-70b-versatile",
-    messages: notesMessages(payload),
-  });
+  const configured = key("GROQ_NOTES_MODEL");
+  const models = [...new Set([configured, ...GROQ_NOTES_FALLBACKS].filter(Boolean))];
+  let lastError;
+  for (const model of models) {
+    try {
+      return await chatCompletion({
+        url: `${GROQ_BASE}/chat/completions`,
+        headers: { Authorization: `Bearer ${groqKey()}` },
+        model,
+        messages: notesMessages(payload),
+      });
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `[jotbox-ai] groq notes model ${model} failed`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+  throw lastError ?? new HttpError(502, "JotBox could not finish the notes.");
 }
 
 async function notesWithOpenrouter(payload) {
@@ -500,9 +521,15 @@ export async function enhanceSession({ kind, title, scratch, transcript, tone })
     }
   }
 
+  if (!providers.length) {
+    throw new HttpError(
+      503,
+      "JotBox cannot write notes on this server yet. Add the words by hand, or try again later.",
+    );
+  }
   throw new HttpError(
-    503,
-    "JotBox cannot write notes on this server yet. Add the words by hand, or try again later.",
+    502,
+    "JotBox could not finish the notes just now. Try again, or add the words by hand.",
   );
 }
 
