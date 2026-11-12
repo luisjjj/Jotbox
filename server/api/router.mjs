@@ -1,6 +1,7 @@
 import { handleHealth } from "./health.mjs";
 import { handleLogin, handleLogout, handleMe, handleRegister } from "./auth.mjs";
 import { handleCaptures } from "./captures.mjs";
+import { handleOrgs } from "./orgs.mjs";
 import { handleEnhance, handleTranscribe } from "./ai.mjs";
 
 /**
@@ -32,6 +33,10 @@ export async function handleCoreApi(req, res) {
   }
   if (pathname === "/api/captures") {
     await handleCaptures(req, res);
+    return true;
+  }
+  if (pathname === "/api/orgs" || pathname.startsWith("/api/orgs/")) {
+    await handleOrgs(req, res);
     return true;
   }
   if (pathname === "/api/transcribe") {

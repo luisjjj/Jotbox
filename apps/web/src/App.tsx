@@ -12,6 +12,7 @@ import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
 import Library from "@/pages/Library";
 import Listen from "@/pages/Listen";
+import MemoryPage from "@/pages/Memory";
 import NotFound from "@/pages/NotFound";
 import SessionPage from "@/pages/SessionPage";
 import Settings from "@/pages/Settings";
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="app" element={<Home />} />
             <Route path="listen" element={<Listen />} />
             <Route path="library" element={<Library />} />
+            <Route path="memory" element={<MemoryPage />} />
             <Route path="session/:id" element={<SessionPage />} />
             <Route path="float" element={<FloatPage />} />
             <Route path="settings" element={<Settings />} />

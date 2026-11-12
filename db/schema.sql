@@ -64,6 +64,74 @@ create table if not exists auth_attempts (
 
 create index if not exists auth_attempts_lookup_idx on auth_attempts (kind, key, created_at desc);
 
+-- Organisational memory: tenants, departments, roles, meeting-level access and audit.
+
+create table if not exists organisations (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_by uuid not null references users(id) on delete cascade,
+  retention_days integer not null default 365 check (retention_days between 30 and 3650),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint organisations_name_length check (length(trim(name)) between 1 and 120)
+);
+
+create table if not exists departments (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organisations(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now(),
+  constraint departments_name_length check (length(trim(name)) between 1 and 80),
+  unique (id, org_id)
+);
+
+create unique index if not exists departments_org_name_idx on departments (org_id, lower(name));
+
+create table if not exists org_members (
+  org_id uuid not null references organisations(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  role text not null default 'member' check (role in ('owner', 'admin', 'manager', 'member')),
+  department_id uuid,
+  joined_at timestamptz not null default now(),
+  primary key (org_id, user_id),
+  foreign key (department_id, org_id) references departments(id, org_id) on delete set null
+);
+
+create index if not exists org_members_user_idx on org_members (user_id);
+
+alter table captures add column if not exists org_id uuid references organisations(id) on delete cascade;
+alter table captures add column if not exists department_id uuid references departments(id) on delete set null;
+alter table captures add column if not exists visibility text not null default 'private'
+  check (visibility in ('private', 'department', 'organisation'));
+alter table captures add column if not exists sensitivity text not null default 'standard'
+  check (sensitivity in ('standard', 'confidential'));
+
+create index if not exists captures_org_created_idx on captures (org_id, created_at desc) where org_id is not null;
+
+create table if not exists capture_grants (
+  capture_id uuid not null references captures(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  granted_by uuid not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (capture_id, user_id)
+);
+
+create index if not exists capture_grants_user_idx on capture_grants (user_id);
+
+create table if not exists audit_events (
+  id bigserial primary key,
+  org_id uuid not null references organisations(id) on delete cascade,
+  actor_id uuid references users(id) on delete set null,
+  action text not null,
+  capture_id uuid references captures(id) on delete set null,
+  metadata jsonb not null default '{}'::jsonb,
+  ip text,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists audit_events_org_created_idx on audit_events (org_id, created_at desc);
+
 create or replace function set_updated_at()
 returns trigger
 language plpgsql
@@ -84,6 +152,15 @@ create trigger captures_set_updated_at
 before update on captures
 for each row execute function set_updated_at();
 
+drop trigger if exists organisations_set_updated_at on organisations;
+create trigger organisations_set_updated_at
+before update on organisations
+for each row execute function set_updated_at();
+
 insert into schema_migrations (version)
 values ('001_initial')
+on conflict (version) do nothing;
+
+insert into schema_migrations (version)
+values ('002_org_memory')
 on conflict (version) do nothing;

@@ -10,6 +10,9 @@
     },
     "api/enhance.mjs": {
       "maxDuration": 120
+    },
+    "api/orgs/[id]/memory.mjs": {
+      "maxDuration": 120
     }
   },
   "rewrites": [

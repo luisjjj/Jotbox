@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import clsx from "clsx";
 import {
   ArrowRight,
+  BrainCircuit,
   ChevronRight,
   Home,
   Layers,
@@ -31,9 +32,12 @@ import { SessionRow } from "./SessionRow";
 const NAV = [
   { to: "/app", label: "Home", Icon: Home, end: true },
   { to: "/library", label: "Library", Icon: Library, end: false },
+  { to: "/memory", label: "Memory", Icon: BrainCircuit, end: false },
   { to: "/float", label: "Keep on top", Icon: Layers, end: false },
   { to: "/settings", label: "Settings", Icon: Settings, end: false },
 ];
+
+const MOBILE_NAV = NAV.filter((item) => item.to !== "/settings");
 
 function isNavActive(pathname: string, item: (typeof NAV)[number]) {
   if (item.to === "/app") return pathname === "/app";
@@ -242,8 +246,8 @@ function MobileNav() {
   const { status } = useEngine();
   const recording = status === "recording" || status === "paused";
 
-  const left = NAV.slice(0, 2);
-  const right = NAV.slice(2);
+  const left = MOBILE_NAV.slice(0, 2);
+  const right = MOBILE_NAV.slice(2);
 
   const renderItem = (item: (typeof NAV)[number]) => {
     const active = isNavActive(location.pathname, item);

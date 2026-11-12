@@ -7,6 +7,132 @@ export interface CloudUser {
   createdAt?: number;
 }
 
+export type OrgRole = "owner" | "admin" | "manager" | "member";
+export type CaptureVisibility = "private" | "department" | "organisation";
+export type CaptureSensitivity = "standard" | "confidential";
+
+export interface Organisation {
+  id: string;
+  name: string;
+  role: OrgRole;
+  departmentId: string | null;
+  departmentName?: string | null;
+  retentionDays: number;
+  memberCount: number;
+  departmentCount: number;
+  captureCount: number;
+  createdAt: number;
+}
+
+export interface OrgDepartment {
+  id: string;
+  name: string;
+  memberCount: number;
+  createdAt: number;
+}
+
+export interface OrgMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: OrgRole;
+  departmentId: string | null;
+  departmentName: string | null;
+  joinedAt: number;
+}
+
+export interface OrgShare {
+  id: string;
+  title: string;
+  kind: "meeting" | "seminar" | "lecture" | "voice";
+  visibility: CaptureVisibility;
+  sensitivity: CaptureSensitivity;
+  departmentId: string | null;
+  departmentName: string | null;
+  createdAt: number;
+  grantUserIds: string[];
+}
+
+export interface OrgAuditEvent {
+  id: number;
+  action: string;
+  metadata: Record<string, unknown>;
+  captureId: string | null;
+  actorName: string;
+  actorEmail: string;
+  createdAt: number;
+}
+
+export interface OrgDetail {
+  org: {
+    id: string;
+    name: string;
+    role: OrgRole;
+    departmentId: string | null;
+    retentionDays: number;
+    createdAt: number;
+    memberCount: number;
+    departmentCount: number;
+    captureCount: number;
+  };
+  departments: OrgDepartment[];
+  members: OrgMember[];
+  shares: OrgShare[];
+  audit: OrgAuditEvent[];
+}
+
+export interface MemorySource {
+  id: string;
+  title: string;
+  kind: string;
+  date: string;
+  department: string | null;
+  sensitivity: CaptureSensitivity;
+  owner: string;
+}
+
+export interface MemoryAnswer {
+  answer: string;
+  timeline: { date: string; title: string; text: string; sourceIds: string[] }[];
+  recorded: { text: string; sourceIds: string[] }[];
+  inferences: { text: string; basis: string }[];
+  reasonMissing: boolean;
+  reasonNote: string;
+  sources: MemorySource[];
+  scope: {
+    role: OrgRole;
+    retentionDays: number;
+    considered: number;
+    used: number;
+    provider: string;
+    model: string;
+  };
+}
+
+export interface SharedCaptureView {
+  id: string;
+  title: string;
+  kind: Session["kind"];
+  status: Session["status"];
+  createdAt: number;
+  durationSec: number;
+  notes: Session["notes"];
+  transcript: Session["transcript"];
+  visibility: CaptureVisibility;
+  sensitivity: CaptureSensitivity;
+  departmentId: string | null;
+  departmentName: string | null;
+  ownerName: string;
+}
+
+export interface ShareInput {
+  captureId: string;
+  visibility: CaptureVisibility;
+  sensitivity: CaptureSensitivity;
+  departmentId?: string | null;
+  grantUserIds?: string[];
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -62,4 +188,53 @@ export const api = {
     }),
   deleteCapture: (id: string) =>
     request<void>(`/api/captures?id=${encodeURIComponent(id)}`, { method: "DELETE" }),
+  listOrgs: async () => (await request<{ orgs: Organisation[] }>("/api/orgs")).orgs,
+  createOrg: async (name: string) =>
+    (await request<{ org: Organisation }>("/api/orgs", { method: "POST", body: JSON.stringify({ name }) })).org,
+  getOrg: (id: string) => request<OrgDetail>(`/api/orgs/${encodeURIComponent(id)}`),
+  updateOrg: (id: string, input: { name?: string; retentionDays?: number }) =>
+    request<{ org: Organisation }>(`/api/orgs/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  createDepartment: (orgId: string, name: string) =>
+    request<{ department: OrgDepartment }>(`/api/orgs/${encodeURIComponent(orgId)}/departments`, {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  addMember: (orgId: string, input: { email: string; role: OrgRole; departmentId?: string | null }) =>
+    request<{ member: OrgMember }>(`/api/orgs/${encodeURIComponent(orgId)}/members`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateMember: (orgId: string, userId: string, input: { role?: OrgRole; departmentId?: string | null }) =>
+    request<{ member: OrgMember }>(
+      `/api/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  removeMember: (orgId: string, userId: string) =>
+    request<void>(`/api/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    }),
+  shareCapture: (orgId: string, input: ShareInput) =>
+    request<{ share: OrgShare }>(`/api/orgs/${encodeURIComponent(orgId)}/captures`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  unshareCapture: (orgId: string, captureId: string) =>
+    request<void>(
+      `/api/orgs/${encodeURIComponent(orgId)}/captures/${encodeURIComponent(captureId)}`,
+      { method: "DELETE" },
+    ),
+  getSharedCapture: (orgId: string, captureId: string) =>
+    request<{ capture: SharedCaptureView }>(
+      `/api/orgs/${encodeURIComponent(orgId)}/captures/${encodeURIComponent(captureId)}`,
+    ),
+  getAudit: async (orgId: string) =>
+    (await request<{ audit: OrgAuditEvent[] }>(`/api/orgs/${encodeURIComponent(orgId)}/audit`)).audit,
+  queryMemory: (orgId: string, question: string) =>
+    request<MemoryAnswer>(`/api/orgs/${encodeURIComponent(orgId)}/memory`, {
+      method: "POST",
+      body: JSON.stringify({ question }),
+    }),
 };

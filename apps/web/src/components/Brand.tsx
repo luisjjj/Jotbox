@@ -20,12 +20,33 @@ export function BrandMark({ className }: { className?: string }) {
   );
 }
 
-export function Brand({ to = "/", compact = false }: { to?: string; compact?: boolean }) {
+export function Brand({
+  to = "/",
+  compact = false,
+  tone = "default",
+}: {
+  to?: string;
+  compact?: boolean;
+  tone?: "default" | "onDark";
+}) {
+  const onDark = tone === "onDark";
   return (
     <Link to={to} className="group inline-flex items-center gap-2.5" aria-label="JotBox home">
-      <BrandMark className="h-8 w-8 transition-transform group-hover:-rotate-3" />
+      <BrandMark
+        className={clsx(
+          "h-8 w-8 transition-transform group-hover:-rotate-3",
+          onDark && "bg-white/10 text-[#f5f1e4] shadow-none",
+        )}
+      />
       {!compact && (
-        <span className="text-[16px] font-semibold tracking-[-0.035em] text-ink">JotBox</span>
+        <span
+          className={clsx(
+            "text-[16px] font-semibold tracking-[-0.035em]",
+            onDark ? "text-[#f5f1e4]" : "text-ink",
+          )}
+        >
+          JotBox
+        </span>
       )}
     </Link>
   );

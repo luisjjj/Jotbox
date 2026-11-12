@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowRight,
   AudioLines,
+  BrainCircuit,
   Building2,
   Check,
   Cloud,
@@ -116,9 +117,9 @@ const PRO_FEATURES = [
 
 const TEAM_FEATURES = [
   "Everything in Pro, for every seat",
-  "A shared library for your team",
-  "Admin, roles, and access control",
-  "Your own retention rules",
+  "Organisational memory across meetings",
+  "Admin, roles, and meeting-level access",
+  "Retention rules and an audit trail",
   "Guided rollout and onboarding",
   "Priority support",
 ];
@@ -207,6 +208,7 @@ export default function Landing() {
   const appHref = signedIn ? "/app" : "/auth?next=%2Fapp";
   const startHref = signedIn ? "/listen" : "/auth?next=%2Flisten";
   const exampleHref = signedIn ? "/app?demo=1" : "/auth?next=%2Fapp%3Fdemo%3D1";
+  const memoryHref = signedIn ? "/memory" : "/auth?next=%2Fmemory";
   const accountHref = signedIn ? "/account" : "/auth?next=%2Faccount";
   const authHref = "/auth?next=%2Fapp";
 
@@ -224,36 +226,39 @@ export default function Landing() {
   return (
     <div className="min-h-dvh bg-paper text-ink">
       <ScrollProgress />
-      <header className="sticky top-0 z-40 bg-paper/90 backdrop-blur-md">
+      <header className="sticky top-0 z-40 bg-[#12362c]">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Brand />
-          <nav className="hidden items-center gap-6 text-[12px] font-medium text-muted md:flex">
-            <a href="#how" className="nav-link transition-colors hover:text-ink">
+          <Brand tone="onDark" />
+          <nav className="hidden items-center gap-6 text-[12px] font-medium text-[#c5d0c7] md:flex">
+            <a href="#how" className="nav-link nav-link-hero transition-colors hover:text-[#f5f1e4]">
               How it works
             </a>
-            <a href="#pidgin" className="nav-link transition-colors hover:text-ink">
+            <a href="#pidgin" className="nav-link nav-link-hero transition-colors hover:text-[#f5f1e4]">
               Pidgin &amp; tone
             </a>
-            <a href="#result" className="nav-link transition-colors hover:text-ink">
+            <a href="#result" className="nav-link nav-link-hero transition-colors hover:text-[#f5f1e4]">
               The notes
             </a>
-            <a href="#pricing" className="nav-link transition-colors hover:text-ink">
+            <a href="#memory" className="nav-link nav-link-hero transition-colors hover:text-[#f5f1e4]">
+              Memory
+            </a>
+            <a href="#pricing" className="nav-link nav-link-hero transition-colors hover:text-[#f5f1e4]">
               Pricing
             </a>
           </nav>
           <div className="flex items-center gap-1.5">
             {!signedIn && (
-              <Link to={authHref} className="btn btn-ghost btn-sm hidden sm:inline-flex">
+              <Link to={authHref} className="btn btn-hero-line btn-sm hidden sm:inline-flex">
                 Sign in
               </Link>
             )}
-            <Link to={appHref} className="btn btn-primary btn-sm hidden sm:inline-flex">
+            <Link to={appHref} className="btn btn-cream btn-sm hidden sm:inline-flex">
               {signedIn ? "Open JotBox" : "Get started"}
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
             <button
               type="button"
-              className="icon-btn md:hidden"
+              className="icon-btn icon-btn-hero md:hidden"
               onClick={() => setMenuOpen((value) => !value)}
               aria-expanded={menuOpen}
               aria-controls="landing-menu"
@@ -271,6 +276,7 @@ export default function Landing() {
                 { href: "#how", label: "How it works" },
                 { href: "#pidgin", label: "Pidgin & tone" },
                 { href: "#result", label: "The notes" },
+                { href: "#memory", label: "Memory" },
                 { href: "#pricing", label: "Pricing" },
                 { href: "#privacy", label: "Privacy" },
               ].map((item) => (
@@ -301,12 +307,11 @@ export default function Landing() {
       </header>
 
       <main>
-        <section className="hero-ink relative overflow-hidden">
+        <section className="hero-top-flat relative overflow-hidden">
           <div className="hero-grid pointer-events-none absolute inset-0" />
           <div className="hero-orb absolute -left-24 top-4 h-64 w-64 rounded-full bg-[#2f705b]/35 blur-3xl" />
           <div className="hero-orb-slow absolute -right-16 bottom-0 h-72 w-72 rounded-full bg-[#d6b97d]/20 blur-3xl" />
-          <div className="relative h-10 w-full bg-gradient-to-b from-paper via-paper/55 to-transparent sm:h-14" aria-hidden />
-          <div className="relative mx-auto max-w-[1320px] px-4 pb-8 pt-2 sm:px-6 sm:pb-12 sm:pt-4 lg:px-8 lg:pb-16 lg:pt-6">
+          <div className="relative mx-auto max-w-[1320px] px-4 pb-8 pt-7 sm:px-6 sm:pb-12 sm:pt-10 lg:px-8 lg:pb-16 lg:pt-14">
             <div className="grid gap-9 lg:grid-cols-[1.04fr_0.96fr] lg:items-center">
               <div className="fade-up flex flex-col items-start">
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e7e2d3]">
@@ -544,6 +549,104 @@ export default function Landing() {
               </div>
             </div>
           </Reveal>
+        </section>
+
+        <section id="memory" className="mx-auto mt-16 max-w-[1320px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[0.88fr_1.12fr] lg:items-center lg:gap-14">
+            <Reveal>
+              <div>
+                <p className="kicker">Organisational memory</p>
+                <h2 className="mt-2 max-w-[17ch] text-[30px] font-semibold leading-[1.1] tracking-[-0.045em] text-ink sm:text-[38px]">
+                  Notes end when the meeting ends. The memory doesn’t.
+                </h2>
+                <p className="mt-3 max-w-[38ch] text-[13px] leading-6 text-muted">
+                  Ask across months of meetings. JotBox puts the decision history back together — what was planned, what
+                  changed, and why — and points every recorded fact at the meeting it came from.
+                </p>
+                <ul className="mt-5 space-y-2.5">
+                  {[
+                    "Recorded decisions are cited. If no reason was written down, JotBox says so instead of inventing one.",
+                    "Private, confidential, and other departments’ meetings never reach the answer.",
+                    "Departments, roles, sharing, and an audit trail keep the history honest.",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-[12px] leading-5 text-soft">
+                      <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-accent" strokeWidth={2.4} />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <Link to={memoryHref} className="btn btn-primary btn-sm">
+                    Open the memory
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                  <span className="chip">
+                    <Building2 className="h-3 w-3" />
+                    Departments &amp; roles
+                  </span>
+                  <span className="chip">
+                    <ShieldCheck className="h-3 w-3" />
+                    Audit trail
+                  </span>
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={100}>
+              <div className="card overflow-hidden">
+                <ChromeBar label="jotbox / memory" />
+                <div className="p-4 sm:p-5">
+                  <div className="flex items-start gap-2.5">
+                    <span className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-accent-soft text-accent">
+                      <BrainCircuit className="h-4 w-4" />
+                    </span>
+                    <p className="rounded-xl rounded-tl-sm border border-line bg-raised-2 px-3 py-2 text-[11.5px] leading-5 text-soft">
+                      What was our original expansion plan, what changed, and why?
+                    </p>
+                  </div>
+
+                  <p className="mt-3 text-[11.5px] leading-5 text-muted">
+                    The record shows a plan for two hubs, a budget shift in February, and a pause in April. No meeting
+                    records the reason for the change.
+                  </p>
+
+                  <div className="mt-3 space-y-2 border-l border-line pl-3.5">
+                    {[
+                      { date: "January", text: "Two hubs: Ibadan and Abuja by March." },
+                      { date: "February", text: "Abuja deposit moved to the second half." },
+                      { date: "April", text: "Abuja paused; Ibadan build prioritised." },
+                    ].map((item) => (
+                      <div key={item.date} className="relative">
+                        <span className="absolute -left-[1.12rem] top-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-faint">{item.date}</p>
+                        <p className="text-[11px] leading-5 text-soft">{item.text}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg border border-line bg-raised p-2.5">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-faint">Recorded</p>
+                      <p className="mt-1 text-[10.5px] leading-4 text-soft">
+                        “Abuja expansion paused” — April strategy reset
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-line bg-highlight p-2.5">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-brass">Not recorded</p>
+                      <p className="mt-1 text-[10.5px] leading-4 text-soft">
+                        No meeting states the reason, so none is invented.
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 flex items-center gap-1.5 text-[9.5px] text-faint">
+                    <Lock className="h-3 w-3" />
+                    Answers respect organisation, department, and meeting access.
+                  </p>
+                </div>
+              </div>
+            </Reveal>
+          </div>
         </section>
 
         <section className="mx-auto mt-16 max-w-[1320px] px-4 sm:mt-24 sm:px-6 lg:px-8">
