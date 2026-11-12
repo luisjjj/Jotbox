@@ -671,8 +671,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       return;
     }
     const pipWindow = await host.documentPictureInPicture.requestWindow({
-      width: 440,
-      height: 92,
+      width: 324,
+      height: 64,
       preferInitialWindowPlacement: true,
     });
     copyStyles(pipWindow.document);

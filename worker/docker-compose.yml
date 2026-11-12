@@ -11,6 +11,7 @@ services:
       ENABLE_UI: "false"
       LOG_LEVEL: info
       # Keep the model warm. Download happens on first start.
+      # Swap in a Pidgin/English fine-tuned checkpoint here and in WHISPER_MODEL.
       PRELOAD_MODELS: '["Systran/faster-whisper-small"]'
       STT_MODEL_TTL: "-1"
       WHISPER__INFERENCE_DEVICE: cpu

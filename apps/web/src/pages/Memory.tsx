@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import {
@@ -31,6 +31,7 @@ import {
   type CaptureSensitivity,
   type CaptureVisibility,
   type MemoryAnswer,
+  type MemoryChatTurn,
   type MemorySource,
   type OrgAuditEvent,
   type OrgDetail,
@@ -318,6 +319,13 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
   );
 }
 
+type ChatEntry = {
+  id: string;
+  question: string;
+  answer: MemoryAnswer | null;
+  error: string;
+};
+
 function AskPanel({
   org,
   onSource,
@@ -325,10 +333,17 @@ function AskPanel({
   org: OrgDetail;
   onSource: (id: string) => void;
 }) {
-  const [question, setQuestion] = useState("");
+  const [draft, setDraft] = useState("");
+  const [turns, setTurns] = useState<ChatEntry[]>([]);
   const [asking, setAsking] = useState(false);
-  const [answer, setAnswer] = useState<MemoryAnswer | null>(null);
   const [error, setError] = useState("");
+  const endRef = useRef<HTMLDivElement | null>(null);
+  const nextId = useRef(0);
+
+  useEffect(() => {
+    if (!turns.length && !asking) return;
+    endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [turns, asking]);
 
   const ask = async (text: string) => {
     const clean = text.trim();
@@ -336,154 +351,282 @@ function AskPanel({
       setError("Write a full question so the answer can be specific.");
       return;
     }
-    setAsking(true);
+    if (asking) return;
+
+    const history = turns
+      .flatMap<MemoryChatTurn>((turn) => {
+        const items: MemoryChatTurn[] = [{ role: "user", content: turn.question }];
+        if (turn.answer) items.push({ role: "assistant", content: turn.answer.answer });
+        return items;
+      })
+      .slice(-8);
+
+    nextId.current += 1;
+    const id = `turn-${nextId.current}`;
+    setTurns((current) => [...current, { id, question: clean, answer: null, error: "" }]);
+    setDraft("");
     setError("");
+    setAsking(true);
     try {
-      const result = await api.queryMemory(org.org.id, clean);
-      setAnswer(result);
+      const result = await api.queryMemory(org.org.id, clean, history);
+      setTurns((current) => current.map((turn) => (turn.id === id ? { ...turn, answer: result } : turn)));
     } catch (err) {
-      setError(messageFor(err));
-      setAnswer(null);
+      setTurns((current) => current.map((turn) => (turn.id === id ? { ...turn, error: messageFor(err) } : turn)));
     } finally {
       setAsking(false);
     }
   };
 
-  const sourceMap = useMemo(() => new Map((answer?.sources ?? []).map((item) => [item.id, item])), [answer]);
+  const reset = () => {
+    setTurns([]);
+    setDraft("");
+    setError("");
+  };
+
+  const lastTurnId = turns[turns.length - 1]?.id;
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <form
-          className="card p-5 sm:p-6"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void ask(question);
-          }}
-        >
-          <label className="label" htmlFor="memory-question">
-            Ask across the meetings you can open
-          </label>
-          <textarea
-            id="memory-question"
-            className="field min-h-[7.5rem]"
-            placeholder="What was the original plan, what changed, and why?"
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-          />
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {SUGGESTIONS.map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                className="rounded-full border border-line bg-raised-2 px-3 py-1.5 text-left text-[11.5px] font-medium text-muted transition-colors hover:border-line-strong hover:text-ink"
-                onClick={() => {
-                  setQuestion(suggestion);
-                  void ask(suggestion);
-                }}
-              >
-                {suggestion}
-              </button>
-            ))}
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="card flex h-[calc(100dvh-13rem)] min-h-[30rem] max-h-[46rem] flex-col overflow-hidden">
+        <header className="flex items-center justify-between gap-2 border-b border-line bg-raised-2 px-4 py-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-accent-soft text-accent">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-ink">Memory chat</h2>
+              <p className="truncate text-[10.5px] text-faint">Ask across months of meetings you can open.</p>
+            </div>
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[10.5px] leading-4 text-faint">
-              Answers use only meetings you are allowed to open, kept for {org.org.retentionDays} days.
-            </p>
-            <button type="submit" className="btn btn-primary" disabled={asking}>
-              {asking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {asking ? "Reading the history…" : "Ask the memory"}
+          {turns.length > 0 && (
+            <button type="button" className="btn btn-ghost btn-sm flex-none" onClick={reset}>
+              <Plus className="h-3.5 w-3.5" />
+              New chat
             </button>
-          </div>
-          {error && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
-              <p className="text-[12px] leading-5 text-soft">{error}</p>
-            </div>
           )}
-        </form>
+        </header>
 
-        <aside className="card p-5">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-accent" />
-            <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-ink">Private by design</h2>
-          </div>
-          <p className="mt-2 text-[11.5px] leading-5 text-muted">
-            JotBox filters every meeting through your access before the answer is written. Private, confidential,
-            and other departments' meetings never reach the model.
-          </p>
-          <div className="mt-4 space-y-2 border-t border-line pt-4">
-            <div className="flex items-center justify-between text-[11.5px]">
-              <span className="text-muted">Your role</span>
-              <Chip tone="accent">{ROLE_LABEL[org.org.role]}</Chip>
-            </div>
-            <div className="flex items-center justify-between text-[11.5px]">
-              <span className="text-muted">Kept for</span>
-              <span className="font-medium text-ink">{org.org.retentionDays} days</span>
-            </div>
-            <div className="flex items-center justify-between text-[11.5px]">
-              <span className="text-muted">Meetings you shared</span>
-              <span className="font-medium text-ink">{org.shares.length}</span>
-            </div>
-          </div>
-          <p className="mt-4 flex items-start gap-1.5 text-[10px] leading-4 text-faint">
-            <Lock className="mt-px h-3 w-3 flex-none" />
-            Recorded facts are cited. Anything JotBox works out is marked as an inference.
-          </p>
-        </aside>
-      </div>
-
-      {answer && (
-        <article className="card fade-up overflow-hidden">
-          <div className="border-b border-line bg-raised-2 px-5 py-4 sm:px-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent" />
-                <h2 className="text-[14px] font-semibold tracking-[-0.02em] text-ink">The answer</h2>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Chip>
-                  <Eye className="h-3 w-3" />
-                  {answer.scope.considered} you can open
-                </Chip>
-                <Chip>
-                  <BookOpen className="h-3 w-3" />
-                  {answer.scope.used} used in this answer
-                </Chip>
-                <Chip tone="accent">{answer.scope.provider === "demo" ? "Demo answer" : "Drafted by JotBox"}</Chip>
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5" aria-live="polite">
+          {turns.length === 0 ? (
+            <div className="flex h-full min-h-[22rem] flex-col items-center justify-center px-2 text-center">
+              <span className="grid h-11 w-11 place-items-center rounded-full border border-line bg-raised-2 text-accent">
+                <BookOpen className="h-5 w-5" />
+              </span>
+              <p className="mt-3 text-[14px] font-semibold tracking-[-0.02em] text-ink">Ask the record a question</p>
+              <p className="mt-1 max-w-[34ch] text-[12px] leading-5 text-muted">
+                What was planned, what changed, and why. Every answer points back to the meeting it came from — and
+                says when no reason was recorded.
+              </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+                {SUGGESTIONS.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    className="rounded-full border border-line bg-raised-2 px-3 py-1.5 text-left text-[11.5px] font-medium text-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
+                    disabled={asking}
+                    onClick={() => void ask(suggestion)}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
-
-          <div className="px-5 py-5 sm:px-6">
-            <p className="text-[14.5px] leading-7 text-soft">{answer.answer}</p>
-
-            {answer.reasonMissing && (
-              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-line bg-highlight px-3.5 py-3">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-brass" />
-                <div>
-                  <p className="text-[12px] font-semibold text-ink">No recorded reason</p>
-                  <p className="mt-0.5 text-[11.5px] leading-5 text-soft">
-                    {answer.reasonNote ||
-                      "The meetings show what changed, but nobody put the reason in the record. JotBox will not invent one."}
+          ) : (
+            turns.map((turn) => (
+              <div key={turn.id} className="space-y-3">
+                <div className="flex justify-end">
+                  <p className="max-w-[88%] rounded-2xl rounded-br-sm bg-accent-soft px-3.5 py-2.5 text-[12.5px] leading-5 text-ink">
+                    {turn.question}
                   </p>
                 </div>
+                {turn.answer ? (
+                  <AnswerCard answer={turn.answer} onSource={onSource} defaultOpen={turn.id === lastTurnId} />
+                ) : turn.error ? (
+                  <div className="flex max-w-[92%] items-start gap-2 rounded-2xl rounded-bl-sm border border-rec-line bg-rec-soft px-3.5 py-2.5">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
+                    <p className="text-[12px] leading-5 text-soft">{turn.error}</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 pl-1 text-[11.5px] text-muted">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                    Reading the record…
+                  </div>
+                )}
               </div>
-            )}
+            ))
+          )}
+          <div ref={endRef} />
+        </div>
 
-            {answer.timeline.length > 0 && (
-              <div className="mt-6">
-                <h3 className="kicker">How it unfolded</h3>
-                <ol className="mt-3 space-y-4 border-l border-line pl-4">
-                  {answer.timeline.map((item, index) => (
-                    <li key={index} className="relative">
-                      <span className="absolute -left-[1.32rem] top-1.5 h-2 w-2 rounded-full border-2 border-raised bg-accent" />
-                      <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-faint">
-                        {formatDateLabel(item.date)}
-                      </p>
-                      <p className="mt-0.5 text-[13px] font-semibold text-ink">{item.title}</p>
-                      <p className="mt-1 text-[12.5px] leading-6 text-soft">{item.text}</p>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        <form
+          className="border-t border-line p-3 sm:p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void ask(draft);
+          }}
+        >
+          {error && (
+            <div className="mb-2 flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
+              <p className="text-[11.5px] leading-4 text-soft">{error}</p>
+            </div>
+          )}
+          <div className="flex items-end gap-2">
+            <label className="sr-only" htmlFor="memory-question">
+              Ask a question about the meetings
+            </label>
+            <textarea
+              id="memory-question"
+              rows={1}
+              className="field min-h-[2.75rem] max-h-32 flex-1 resize-none py-2.5"
+              placeholder={turns.length ? "Ask a follow-up, or open another thread…" : "What was the original plan, what changed, and why?"}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void ask(draft);
+                }
+              }}
+            />
+            <button
+              type="submit"
+              className="btn btn-primary h-11 w-11 flex-none !px-0"
+              disabled={asking || !draft.trim()}
+              aria-label="Send question"
+            >
+              {asking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="mt-2 text-[10px] leading-4 text-faint">
+            Uses only meetings you can open · kept for {org.org.retentionDays} days · recorded facts are cited
+          </p>
+        </form>
+      </section>
+
+      <aside className="card h-fit p-5">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-accent" />
+          <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-ink">Private by design</h2>
+        </div>
+        <p className="mt-2 text-[11.5px] leading-5 text-muted">
+          JotBox filters every meeting through your access before the answer is written. Private, confidential, and
+          other departments' meetings never reach the model.
+        </p>
+        <div className="mt-4 space-y-2 border-t border-line pt-4">
+          <div className="flex items-center justify-between text-[11.5px]">
+            <span className="text-muted">Your role</span>
+            <Chip tone="accent">{ROLE_LABEL[org.org.role]}</Chip>
+          </div>
+          <div className="flex items-center justify-between text-[11.5px]">
+            <span className="text-muted">Kept for</span>
+            <span className="font-medium text-ink">{org.org.retentionDays} days</span>
+          </div>
+          <div className="flex items-center justify-between text-[11.5px]">
+            <span className="text-muted">Meetings you shared</span>
+            <span className="font-medium text-ink">{org.shares.length}</span>
+          </div>
+        </div>
+        <p className="mt-4 flex items-start gap-1.5 text-[10px] leading-4 text-faint">
+          <Lock className="mt-px h-3 w-3 flex-none" />
+          Recorded facts are cited. Anything JotBox works out is marked as an inference.
+        </p>
+      </aside>
+    </div>
+  );
+}
+
+function AnswerCard({
+  answer,
+  onSource,
+  defaultOpen,
+}: {
+  answer: MemoryAnswer;
+  onSource: (id: string) => void;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const sourceMap = useMemo(() => new Map(answer.sources.map((item) => [item.id, item])), [answer]);
+
+  return (
+    <article className="max-w-[95%] overflow-hidden rounded-2xl rounded-bl-sm border border-line bg-raised">
+      <div className="px-3.5 py-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-accent">JotBox</span>
+          <Chip>
+            <Eye className="h-3 w-3" />
+            {answer.scope.considered} you can open
+          </Chip>
+          <Chip>
+            <BookOpen className="h-3 w-3" />
+            {answer.scope.used} used
+          </Chip>
+          {answer.scope.provider === "demo" && <Chip tone="warn">Demo answer</Chip>}
+        </div>
+
+        <p className="mt-2 text-[13px] leading-6 text-soft">{answer.answer}</p>
+
+        {answer.reasonMissing && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-line bg-highlight px-3 py-2.5">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-brass" />
+            <div>
+              <p className="text-[11.5px] font-semibold text-ink">No recorded reason</p>
+              <p className="mt-0.5 text-[11px] leading-5 text-soft">
+                {answer.reasonNote ||
+                  "The meetings show what changed, but nobody put the reason in the record. JotBox will not invent one."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-medium text-accent transition-colors hover:text-ink"
+        >
+          {open ? "Hide the record" : "See the record behind this answer"}
+          <ChevronDown className={clsx("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+        </button>
+      </div>
+
+      {open && (
+        <div className="border-t border-line bg-raised-2/60 px-3.5 py-3.5">
+          {answer.timeline.length > 0 && (
+            <div>
+              <h3 className="kicker">How it unfolded</h3>
+              <ol className="mt-2.5 space-y-3.5 border-l border-line pl-3.5">
+                {answer.timeline.map((item, index) => (
+                  <li key={index} className="relative">
+                    <span className="absolute -left-[1.07rem] top-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
+                    <p className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-faint">
+                      {formatDateLabel(item.date)}
+                    </p>
+                    <p className="mt-0.5 text-[12px] font-semibold text-ink">{item.title}</p>
+                    <p className="mt-0.5 text-[11.5px] leading-5 text-soft">{item.text}</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {item.sourceIds.map((id) => {
+                        const source = sourceMap.get(id);
+                        return source ? <SourceButton key={id} source={source} onOpen={onSource} /> : null;
+                      })}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div>
+              <h3 className="kicker">Recorded</h3>
+              {answer.recorded.length === 0 ? (
+                <p className="mt-1.5 text-[11.5px] text-muted">Nothing in the record answers that directly.</p>
+              ) : (
+                <ul className="mt-1.5 space-y-2">
+                  {answer.recorded.map((item, index) => (
+                    <li key={index} className="rounded-lg border border-line bg-raised p-2.5">
+                      <p className="text-[11.5px] leading-5 text-soft">{item.text}</p>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
                         {item.sourceIds.map((id) => {
                           const source = sourceMap.get(id);
                           return source ? <SourceButton key={id} source={source} onOpen={onSource} /> : null;
@@ -491,64 +634,41 @@ function AskPanel({
                       </div>
                     </li>
                   ))}
-                </ol>
-              </div>
-            )}
-
-            <div className="mt-6 grid gap-4 lg:grid-cols-2">
-              <div>
-                <h3 className="kicker">Recorded</h3>
-                {answer.recorded.length === 0 ? (
-                  <p className="mt-2 text-[12px] text-muted">Nothing in the record answers that directly.</p>
-                ) : (
-                  <ul className="mt-2 space-y-2.5">
-                    {answer.recorded.map((item, index) => (
-                      <li key={index} className="rounded-xl border border-line bg-raised-2 p-3">
-                        <p className="text-[12.5px] leading-5 text-soft">{item.text}</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {item.sourceIds.map((id) => {
-                            const source = sourceMap.get(id);
-                            return source ? <SourceButton key={id} source={source} onOpen={onSource} /> : null;
-                          })}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div>
-                <h3 className="kicker">JotBox read between the lines</h3>
-                <p className="mt-1 text-[10.5px] leading-4 text-faint">These are inferences, not recorded facts.</p>
-                {answer.inferences.length === 0 ? (
-                  <p className="mt-2 text-[12px] text-muted">Nothing needed to be inferred.</p>
-                ) : (
-                  <ul className="mt-2 space-y-2.5">
-                    {answer.inferences.map((item, index) => (
-                      <li key={index} className="rounded-xl border border-dashed border-line-strong bg-raised p-3">
-                        <p className="text-[12.5px] leading-5 text-soft">{item.text}</p>
-                        {item.basis && <p className="mt-1 text-[10.5px] leading-4 text-faint">Based on: {item.basis}</p>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                </ul>
+              )}
             </div>
 
-            {answer.sources.length > 0 && (
-              <div className="mt-6 border-t border-line pt-4">
-                <h3 className="kicker">Meetings used</h3>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {answer.sources.map((source) => (
-                    <SourceButton key={source.id} source={source} onOpen={onSource} />
+            <div>
+              <h3 className="kicker">Read between the lines</h3>
+              <p className="mt-0.5 text-[9.5px] leading-4 text-faint">Inferences, not recorded facts.</p>
+              {answer.inferences.length === 0 ? (
+                <p className="mt-1.5 text-[11.5px] text-muted">Nothing needed to be inferred.</p>
+              ) : (
+                <ul className="mt-1.5 space-y-2">
+                  {answer.inferences.map((item, index) => (
+                    <li key={index} className="rounded-lg border border-dashed border-line-strong bg-raised p-2.5">
+                      <p className="text-[11.5px] leading-5 text-soft">{item.text}</p>
+                      {item.basis && <p className="mt-1 text-[9.5px] leading-4 text-faint">Based on: {item.basis}</p>}
+                    </li>
                   ))}
-                </div>
-              </div>
-            )}
+                </ul>
+              )}
+            </div>
           </div>
-        </article>
+
+          {answer.sources.length > 0 && (
+            <div className="mt-4 border-t border-line pt-3">
+              <h3 className="kicker">Meetings used</h3>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {answer.sources.map((source) => (
+                  <SourceButton key={source.id} source={source} onOpen={onSource} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -1541,7 +1661,7 @@ export default function MemoryPage() {
           </div>
 
           <div className="mt-4">
-            {tab === "ask" && <AskPanel org={detail} onSource={setSourceId} />}
+            {tab === "ask" && <AskPanel key={detail.org.id} org={detail} onSource={setSourceId} />}
             {tab === "workspace" && <WorkspacePanel org={detail} onChanged={refresh} />}
             {tab === "audit" && <AuditPanel org={detail} />}
           </div>

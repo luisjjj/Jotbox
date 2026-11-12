@@ -44,6 +44,8 @@ const STT_PROMPT = [
   "Do not translate Pidgin into formal English. Do not correct grammar. Keep names, places, amounts and dates.",
 ].join(" ");
 
+const STT_VOCAB_LIMIT = 600;
+
 const NOTES_SYSTEM = `You are JotBox, a note writer for meetings, seminars, lectures and voice notes recorded in Nigeria and across West Africa.
 The transcript is what was said. The scratch notes are what the listener marked. When scratch notes exist, treat them as the spine and expand them from the transcript.
 
@@ -95,6 +97,30 @@ function whisperBase() {
   return key("WHISPER_BASE_URL").replace(/\/+$/, "");
 }
 
+function sttLanguage() {
+  const value = key("JOTBOX_STT_LANGUAGE").toLowerCase();
+  if (value === "auto" || value === "none") return null;
+  return value || DEFAULT_LANGUAGE;
+}
+
+function sttVocabulary() {
+  return key("JOTBOX_STT_VOCAB")
+    .split(/[\n,;]+/)
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .slice(0, 60)
+    .join(", ")
+    .slice(0, STT_VOCAB_LIMIT);
+}
+
+export function sttPrompt() {
+  const base = key("JOTBOX_STT_PROMPT") || STT_PROMPT;
+  const vocab = sttVocabulary();
+  return [base, vocab ? `Names and terms this room uses, spelled the way they say them: ${vocab}.` : ""]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function mockEnabled() {
   if (!enabled("JOTBOX_AI_MOCK")) return false;
   if (process.env.VERCEL) {
@@ -123,12 +149,18 @@ export function aiStatus() {
         : xaiKey()
           ? "xai"
           : null;
+  const vocabulary = sttVocabulary();
   return {
     ai: Boolean(transcribe || notes),
     transcribe,
     notes,
     pidgin: true,
     tone: key("JOTBOX_AI_TONE") || DEFAULT_TONE,
+    sttLanguage: sttLanguage() || "auto",
+    sttVocabulary: vocabulary ? vocabulary.split(", ").length : 0,
+    sttModel: whisperBase()
+      ? key("WHISPER_MODEL") || "Systran/faster-whisper-small"
+      : key("GROQ_STT_MODEL") || "whisper-large-v3-turbo",
   };
 }
 
@@ -214,10 +246,11 @@ async function transcribeWithGroq(buffer, contentType, filename) {
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: contentType }), filename);
   form.append("model", key("GROQ_STT_MODEL") || "whisper-large-v3-turbo");
-  form.append("language", key("JOTBOX_STT_LANGUAGE") || DEFAULT_LANGUAGE);
+  const language = sttLanguage();
+  if (language) form.append("language", language);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "word");
-  form.append("prompt", STT_PROMPT);
+  form.append("prompt", sttPrompt());
   form.append("temperature", "0");
 
   const response = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
@@ -235,10 +268,11 @@ async function transcribeWithWorker(buffer, contentType, filename) {
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: contentType }), filename);
   form.append("model", key("WHISPER_MODEL") || "Systran/faster-whisper-small");
-  form.append("language", key("JOTBOX_STT_LANGUAGE") || DEFAULT_LANGUAGE);
+  const language = sttLanguage();
+  if (language) form.append("language", language);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "word");
-  form.append("prompt", STT_PROMPT);
+  form.append("prompt", sttPrompt());
   form.append("temperature", "0");
 
   const headers = key("WHISPER_API_KEY") ? { Authorization: `Bearer ${key("WHISPER_API_KEY")}` } : {};
@@ -255,10 +289,11 @@ async function transcribeWithWorker(buffer, contentType, filename) {
 async function transcribeWithXai(buffer, contentType, filename) {
   const form = new FormData();
   form.append("model", key("XAI_STT_MODEL") || "grok-voice-transcribe-2.0");
-  form.append("language", key("JOTBOX_STT_LANGUAGE") || DEFAULT_LANGUAGE);
+  const language = sttLanguage();
+  if (language) form.append("language", language);
   form.append("format", "true");
   form.append("diarize", "true");
-  form.append("prompt", STT_PROMPT);
+  form.append("prompt", sttPrompt());
   form.append("file", new Blob([buffer], { type: contentType }), filename);
 
   const response = await fetch(XAI_STT_URL, {

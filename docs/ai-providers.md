@@ -216,7 +216,77 @@ hosts both the JotBox API and the Whisper worker, with Vercel serving the PWA.
 
 ---
 
-## 5. Security checklist
+## 5. Tuning speech for English and Pidgin
+
+There are two different jobs here, and only one of them is fine-tuning.
+
+**Hosted speech (Groq, xAI) cannot be fine-tuned.** Use decoding controls
+instead. They are already wired into `/api/transcribe`:
+
+| Control | Environment | What it does |
+| --- | --- | --- |
+| Model | `GROQ_STT_MODEL`, `XAI_STT_MODEL` | `whisper-large-v3` is more accurate than `turbo` on accented, noisy rooms; `turbo` is faster and cheaper |
+| Language | `JOTBOX_STT_LANGUAGE` | `en` is correct for English **and** Nigerian Pidgin, because Pidgin is English-lexified. `auto` omits the language token and lets the model guess; use it only for genuinely other-language meetings |
+| Vocabulary | `JOTBOX_STT_VOCAB` | Comma, semicolon, or newline separated names, places, products and Pidgin spellings. The gateway adds them to the decoding prompt, which biases spelling without changing the audio |
+| Prompt | `JOTBOX_STT_PROMPT` | Replaces the built-in verbatim/Pidgin prompt. Leave unset unless you have a specific reason |
+| Temperature | fixed at `0` | Keeps transcription deterministic and discourages the model from "tidying" Pidgin |
+
+Example:
+
+```env
+JOTBOX_STT_LANGUAGE=en
+JOTBOX_STT_VOCAB=JotBox, Ibadan, Abuja, GTBank, NIPOST, wetin dey, no wahala, make we
+GROQ_STT_MODEL=whisper-large-v3
+```
+
+Keep the vocabulary under about 60 terms. Whisper's prompt is a short context
+hint, not a dictionary; a long list crowds out the actual audio context.
+
+Do not add a post-processing step that rewrites Pidgin into standard English.
+The transcript is evidence for the memory layer, so it stays verbatim. The
+notes prompt already understands Pidgin and quotes it instead of flattening it.
+
+### Fine-tuning a self-hosted worker
+
+Fine-tuning belongs on the Speaches / `faster-whisper` worker, where you control
+the weights. The gateway already sends `WHISPER_MODEL` to the worker, so a
+tuned checkpoint only needs a model id the worker can load.
+
+1. **Collect real audio with consent.** Meetings and voice notes from the same
+   microphones, accents and code-switching mix are worth more than generic
+   read speech. Keep transcripts verbatim, including Pidgin spelling.
+2. **Start from an existing checkpoint.** Look for Pidgin or Nigerian-English
+   Whisper checkpoints on Hugging Face (for example `michaelodafe/whisper-pidgin-v1`)
+   and the [NaijaVoices dataset](https://arxiv.org/html/2505.20564v1) for
+   training and evaluation data. Treat public WER numbers as a starting point,
+   not a promise: evaluate on your own rooms.
+3. **Fine-tune with LoRA or full fine-tuning.** A LoRA run on a single free GPU
+   is enough to specialise spelling and accents; full fine-tuning needs more
+   data and compute. Keep a held-out set that includes both English and Pidgin.
+4. **Measure word error rate on both languages separately.** A model that wins
+   on Pidgin but loses on English is not a win for a mixed room. Track names,
+   numbers, dates and Pidgin function words (`wetin`, `dey`, `na`, `sha`, `abeg`)
+   as their own error buckets.
+5. **Serve it through Speaches.** Put the checkpoint where the worker can load
+   it, convert to CTranslate2 if needed, then point the gateway at it:
+
+   ```env
+   WHISPER_MODEL=your-org/whisper-pidgin-ct2
+   ```
+
+   Preload it in `worker/docker-compose.yml` (`PRELOAD_MODELS`) so the first
+   meeting does not wait for a download.
+6. **Keep the vocabulary prompt.** Even a tuned model benefits from room-specific
+   names and product spellings.
+7. **Roll out behind a switch.** Run the tuned worker alongside the current one
+   and compare transcripts on the same recordings before changing production.
+
+If you later move to a provider that supports custom models, the request shape
+stays the same: model, language, prompt, temperature `0`.
+
+---
+
+## 6. Security checklist
 
 - `API_KEY` is set on the worker; never ship it in the browser bundle.
 - Worker is HTTPS-only; port 8000 is not publicly exposed when a reverse proxy is

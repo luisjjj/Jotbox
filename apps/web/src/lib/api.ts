@@ -109,6 +109,11 @@ export interface MemoryAnswer {
   };
 }
 
+export interface MemoryChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface SharedCaptureView {
   id: string;
   title: string;
@@ -232,9 +237,9 @@ export const api = {
     ),
   getAudit: async (orgId: string) =>
     (await request<{ audit: OrgAuditEvent[] }>(`/api/orgs/${encodeURIComponent(orgId)}/audit`)).audit,
-  queryMemory: (orgId: string, question: string) =>
+  queryMemory: (orgId: string, question: string, history: MemoryChatTurn[] = []) =>
     request<MemoryAnswer>(`/api/orgs/${encodeURIComponent(orgId)}/memory`, {
       method: "POST",
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, history }),
     }),
 };

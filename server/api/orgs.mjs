@@ -828,6 +828,21 @@ async function getAudit(req, res) {
   sendJson(res, 200, { audit: result.rows.map(auditView) });
 }
 
+function parseHistory(value) {
+  if (!Array.isArray(value)) return [];
+  const turns = [];
+  let total = 0;
+  for (const turn of value.slice(-8)) {
+    if (!turn || (turn.role !== "user" && turn.role !== "assistant") || typeof turn.content !== "string") continue;
+    const content = turn.content.trim().slice(0, 1_500);
+    if (!content) continue;
+    if (total + content.length > 6_000) break;
+    total += content.length;
+    turns.push({ role: turn.role, content });
+  }
+  return turns;
+}
+
 async function queryMemory(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
@@ -837,6 +852,9 @@ async function queryMemory(req, res) {
     z.string().trim().min(3, "Ask a question about the record.").max(500, "Keep the question under 500 characters."),
     body?.question,
   );
+  const history = parseHistory(body?.history);
+  const lastUserTurn = [...history].reverse().find((turn) => turn.role === "user");
+  const searchQuestion = [question, lastUserTurn?.content || ""].filter(Boolean).join(" ").slice(0, 700);
 
   rateLimitMemory(member.user.id, member.orgId);
 
@@ -898,7 +916,7 @@ async function queryMemory(req, res) {
     return;
   }
 
-  const terms = questionTerms(question);
+  const terms = questionTerms(searchQuestion);
   const scored = accessible.rows.map((row) => {
     const notesText = notesToText(row.notes);
     const transcriptText = transcriptToText(row.transcript);
@@ -930,7 +948,7 @@ async function queryMemory(req, res) {
   }));
 
   try {
-    const answer = await answerOrganisationMemory({ question, records });
+    const answer = await answerOrganisationMemory({ question, records, history });
     const sourceMap = new Map(
       selected.map(({ row }) => [
         row.id,
@@ -958,6 +976,7 @@ async function queryMemory(req, res) {
       action: "memory.query",
       metadata: {
         question,
+        followUp: history.length > 0,
         provider: answer.provider,
         considered: accessible.rows.length,
         used: selected.length,
