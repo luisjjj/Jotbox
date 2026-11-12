@@ -11,11 +11,15 @@
     "api/enhance.mjs": {
       "maxDuration": 120
     },
-    "api/orgs/[...path].mjs": {
+    "api/orgs-handler.mjs": {
       "maxDuration": 120
     }
   },
   "rewrites": [
+    {
+      "source": "/api/orgs/(.*)",
+      "destination": "/api/orgs-handler?orgPath=$1"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
