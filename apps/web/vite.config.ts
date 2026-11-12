@@ -43,7 +43,16 @@ export default defineConfig(({ mode }) => {
       notesApi(),
       VitePWA({
         registerType: "autoUpdate",
-        includeAssets: ["favicon.svg", "apple-touch-icon.png", "icons/*.png", "fonts/*.woff"],
+        includeAssets: [
+          "favicon.svg",
+          "favicon.ico",
+          "favicon-16.png",
+          "favicon-32.png",
+          "favicon-48.png",
+          "apple-touch-icon.png",
+          "icons/*.png",
+          "fonts/*.woff",
+        ],
         manifest: {
           name: "JotBox — the notes are written while you listen",
           short_name: "JotBox",

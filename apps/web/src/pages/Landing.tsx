@@ -224,7 +224,7 @@ export default function Landing() {
   return (
     <div className="min-h-dvh bg-paper text-ink">
       <ScrollProgress />
-      <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur-md">
+      <header className="sticky top-0 z-40 bg-paper/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <Brand />
           <nav className="hidden items-center gap-6 text-[12px] font-medium text-muted md:flex">
@@ -305,7 +305,8 @@ export default function Landing() {
           <div className="hero-grid pointer-events-none absolute inset-0" />
           <div className="hero-orb absolute -left-24 top-4 h-64 w-64 rounded-full bg-[#2f705b]/35 blur-3xl" />
           <div className="hero-orb-slow absolute -right-16 bottom-0 h-72 w-72 rounded-full bg-[#d6b97d]/20 blur-3xl" />
-          <div className="relative mx-auto max-w-[1320px] px-4 pb-8 pt-7 sm:px-6 sm:pb-12 sm:pt-10 lg:px-8 lg:pb-16 lg:pt-14">
+          <div className="relative h-10 w-full bg-gradient-to-b from-paper via-paper/55 to-transparent sm:h-14" aria-hidden />
+          <div className="relative mx-auto max-w-[1320px] px-4 pb-8 pt-2 sm:px-6 sm:pb-12 sm:pt-4 lg:px-8 lg:pb-16 lg:pt-6">
             <div className="grid gap-9 lg:grid-cols-[1.04fr_0.96fr] lg:items-center">
               <div className="fade-up flex flex-col items-start">
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e7e2d3]">
@@ -348,10 +349,11 @@ export default function Landing() {
               </div>
             </div>
           </div>
+          <div className="relative h-14 w-full bg-gradient-to-b from-transparent via-paper/55 to-paper sm:h-20" aria-hidden />
         </section>
 
-        <div className="mx-auto mt-6 max-w-[1320px] px-4 sm:px-6 lg:px-8">
-          <div className="marquee border-y border-line py-2.5">
+        <div className="mx-auto mt-4 max-w-[1320px] px-4 sm:px-6 lg:px-8">
+          <div className="marquee py-3">
             <div className="marquee-track items-center text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
               {[0, 1].map((copy) => (
                 <div key={copy} className="flex items-center gap-6 pr-6" aria-hidden={copy === 1}>

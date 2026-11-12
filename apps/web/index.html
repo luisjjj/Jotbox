@@ -2,8 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="preload" href="/fonts/SFPRODISPLAYREGULAR.woff" as="font" type="font/woff" crossorigin />
     <link rel="preload" href="/fonts/SFPRODISPLAYMEDIUM.woff" as="font" type="font/woff" crossorigin />
     <link rel="preload" href="/fonts/SFPRODISPLAYBOLD.woff" as="font" type="font/woff" crossorigin />
@@ -12,11 +15,34 @@
       name="description"
       content="JotBox listens to meetings, seminars, and lectures, then writes the notes. Your scribe for the room and the call."
     />
-    <meta name="theme-color" content="#f5f4ef" />
+    <meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1110" media="(prefers-color-scheme: dark)" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="JotBox" />
+    <link rel="canonical" href="https://jotbox-eight.vercel.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="JotBox" />
+    <meta property="og:title" content="JotBox — the notes are written while you listen" />
+    <meta
+      property="og:description"
+      content="JotBox listens to meetings, seminars, and lectures, then writes the notes. Your scribe for the room and the call."
+    />
+    <meta property="og:url" content="https://jotbox-eight.vercel.app/" />
+    <meta property="og:image" content="https://jotbox-eight.vercel.app/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="JotBox — live Pidgin and English capture with notes written as you listen" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="JotBox — the notes are written while you listen" />
+    <meta
+      name="twitter:description"
+      content="JotBox listens to meetings, seminars, and lectures, then writes the notes. Your scribe for the room and the call."
+    />
+    <meta name="twitter:image" content="https://jotbox-eight.vercel.app/og-image.png" />
+    <meta name="twitter:image:alt" content="JotBox — live Pidgin and English capture with notes written as you listen" />
     <title>JotBox — the notes are written while you listen</title>
     <script>
       try {
