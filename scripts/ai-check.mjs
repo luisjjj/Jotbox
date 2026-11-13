@@ -18,7 +18,7 @@ const SAMPLE_TRANSCRIPT = [
 ].join("\n");
 
 function line(label, value) {
-  console.log(`${label.padEnd(14)} ${value ?? "—"}`);
+  console.log(`${label.padEnd(14)} ${value ?? "none"}`);
 }
 
 function providerLabel(value) {

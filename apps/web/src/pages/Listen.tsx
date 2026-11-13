@@ -181,14 +181,14 @@ function Setup() {
 
         <div>
           <label className="label" htmlFor="capture-title">
-            Name it <span className="font-normal text-faint">— optional</span>
+            Name it <span className="font-normal text-faint">(optional)</span>
           </label>
           <input
             id="capture-title"
             className="field"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder={`e.g. ${kind === "lecture" ? "Constitutional law — Thursday" : kind === "seminar" ? "Climate policy panel" : kind === "voice" ? "Idea for the onboarding flow" : "Weekly product sync"}`}
+            placeholder={`e.g. ${kind === "lecture" ? "Constitutional law, Thursday" : kind === "seminar" ? "Climate policy panel" : kind === "voice" ? "Idea for the onboarding flow" : "Weekly product sync"}`}
             autoComplete="off"
             maxLength={120}
           />
@@ -240,7 +240,7 @@ function Setup() {
               <p className="text-[15px] font-medium text-ink">Already have a recording?</p>
               <p className="mt-0.5 text-[13.5px] leading-5 text-muted">
                 {APP_CONFIG.supportedAudioExtensions.join(" ").toUpperCase()} · up to 80 MB.{" "}
-                {studio === false ? "Automatic words are off — you can paste them afterwards." : ""}
+                {studio === false ? "Automatic words are off. You can paste them afterwards." : ""}
               </p>
             </div>
           </div>
@@ -505,7 +505,7 @@ function Studio() {
       </div>
 
       <p className="mt-3 text-center text-[12.5px] text-faint">
-        Keep this tab open for live words. You can switch apps — the audio keeps recording.
+        Keep this tab open for live words. You can switch apps. The audio keeps recording.
       </p>
     </div>
   );

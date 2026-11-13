@@ -4,7 +4,7 @@
 
 JotBox is a mobile-first notetaker for meetings, seminars, lectures, and voice notes. It listens through the microphone or a shared call tab, keeps a live transcript, lets you jot a line or two, and writes the summary, key points, actions, and sections when you stop. On a computer it can float above your other apps.
 
-Guest-first. Sign in when you want your notes on another device — sessions, jottings, and transcripts sync through a Neon Postgres database; audio stays on the device.
+Guest-first. Sign in when you want your notes on another device: sessions, jottings, and transcripts sync through a Neon Postgres database; audio stays on the device.
 
 **Live:** [jotbox-eight.vercel.app](https://jotbox-eight.vercel.app) · **Repo:** [github.com/luisjjj/Jotbox](https://github.com/luisjjj/Jotbox)
 
@@ -87,7 +87,7 @@ JotBox ships with a provider chain that prefers free infrastructure and falls ba
 | Long recordings | Self-hosted Speaches / faster-whisper | `WHISPER_BASE_URL`, `WHISPER_API_KEY` |
 | Notes (free) | Groq `openai/gpt-oss-120b` or OpenRouter free model | `GROQ_API_KEY` / `OPENROUTER_API_KEY` |
 | Notes (premium) | xAI | `XAI_API_KEY` |
-| No keys at all | On-device notes from the spoken words and jottings | — |
+| No keys at all | On-device notes from the spoken words and jottings | None |
 
 The prompts are written for Nigerian Pidgin and code-switching: Pidgin lines survive as they were said, quoted inside otherwise clear English notes, and names, amounts, dates, and decisions stay exact. Whisper is given Pidgin context through its prompt because it has no Nigerian Pidgin language token, so the request uses `language=en` with that context.
 
@@ -143,7 +143,7 @@ Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `lo
 
 **Request size:** Vercel Functions cap a request body at roughly **4.5 MB**, so long recordings must go through the self-hosted worker directly or through object storage. Short clips work through `/api/transcribe` as-is. See [docs/ai-providers.md](docs/ai-providers.md) for the options.
 
-For the recommended low-cost path — Groq for short clips and a self-hosted Whisper worker for long lectures — see **[docs/ai-providers.md](docs/ai-providers.md)**. It includes the Groq key steps, a ready-to-run [`worker/docker-compose.yml`](worker/docker-compose.yml), deployment notes, and the Vercel size-limit caveat.
+For the recommended low-cost path (Groq for short clips and a self-hosted Whisper worker for long lectures), see **[docs/ai-providers.md](docs/ai-providers.md)**. It includes the Groq key steps, a ready-to-run [`worker/docker-compose.yml`](worker/docker-compose.yml), deployment notes, and the Vercel size-limit caveat.
 
 ## Screens
 
@@ -200,11 +200,11 @@ If no provider is available, `buildNotes` falls back to `localNotes`: an on-devi
 
 Database tables (see [`db/schema.sql`](db/schema.sql)):
 
-- `users` — email, name, password hash
-- `auth_sessions` — hashed tokens, expiry, user agent, last seen
-- `captures` — owner, title, kind, status, duration, jottings, transcript JSONB, notes JSONB, audio flag
-- `auth_attempts` — rate-limit counters
-- `schema_migrations` — applied migration versions
+- `users`: email, name, password hash
+- `auth_sessions`: hashed tokens, expiry, user agent, last seen
+- `captures`: owner, title, kind, status, duration, jottings, transcript JSONB, notes JSONB, audio flag
+- `auth_attempts`: rate-limit counters
+- `schema_migrations`: applied migration versions
 
 Client types:
 
@@ -257,11 +257,11 @@ docs/screenshots/
 
 ## Roadmap
 
-1. **Long-audio uploads** — direct-to-worker or object-storage uploads so recordings over the Vercel request limit work in production.
-2. **Account lifecycle** — email verification, password reset, delete-account, active-session management.
-3. **Sharing** — read-only note links, WhatsApp/email share, PDF and DOCX exports.
-4. **Capture depth** — system-audio guidance, calendar/meeting detection, persistent speaker names.
-5. **Local languages** — stronger Yoruba, Igbo, and Hausa recognition, Pidgin-aware evaluation, and an offline Whisper path for low-connectivity rooms.
-6. **Teams and billing** — shared spaces, seat management, and paid plans behind the landing-page pricing.
+1. **Long-audio uploads:** direct-to-worker or object-storage uploads so recordings over the Vercel request limit work in production.
+2. **Account lifecycle:** email verification, password reset, delete-account, active-session management.
+3. **Sharing:** read-only note links, WhatsApp/email share, PDF and DOCX exports.
+4. **Capture depth:** system-audio guidance, calendar/meeting detection, persistent speaker names.
+5. **Local languages:** stronger Yoruba, Igbo, and Hausa recognition, Pidgin-aware evaluation, and an offline Whisper path for low-connectivity rooms.
+6. **Teams and billing:** shared spaces, seat management, and paid plans behind the landing-page pricing.
 
 See [implementation-plan.md](implementation-plan.md) for the working plan and decision log.

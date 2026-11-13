@@ -60,8 +60,8 @@ curl.exe https://api.groq.com/openai/v1/audio/transcriptions ^
 
 Models:
 
-- `whisper-large-v3-turbo` — cheapest/fastest; good for clear English.
-- `whisper-large-v3` — more accurate, slower.
+- `whisper-large-v3-turbo`: cheapest/fastest; good for clear English.
+- `whisper-large-v3`: more accurate, slower.
 - Groq's free tier caps uploads at **25 MB** and does **not** provide speaker
   diarisation. Long lectures need the worker below or audio chunking.
 

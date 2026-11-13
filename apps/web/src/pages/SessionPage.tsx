@@ -103,7 +103,7 @@ const AudioPlayer = forwardRef<AudioHandle, { src: string; fallbackDuration: num
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between text-[12px] tabular-nums text-faint">
           <span>{formatClock(time)}</span>
-          <span>{total ? formatClock(total) : "—"}</span>
+          <span>{total ? formatClock(total) : "Unknown"}</span>
         </div>
         <input
           type="range"
@@ -244,7 +244,7 @@ export default function SessionPage() {
   useEffect(() => {
     if (session) document.title = `${session.title} · JotBox`;
     return () => {
-      document.title = "JotBox — the notes are written while you listen";
+      document.title = "JotBox: the notes are written while you listen";
     };
   }, [session?.title, session]);
 
@@ -548,7 +548,7 @@ export default function SessionPage() {
                 <div>
                   <p className="text-[16px] font-semibold text-ink">Reading the recording</p>
                   <p className="mt-1 text-[14.5px] leading-5 text-muted">
-                    Tidying the spoken words and writing the notes. You can leave this page — it keeps working.
+                    Tidying the spoken words and writing the notes. You can leave this page. It keeps working.
                   </p>
                 </div>
               </div>

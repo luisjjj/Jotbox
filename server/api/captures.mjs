@@ -51,7 +51,7 @@ const session = z.object({
 });
 
 const EXPIRED_LIVE_ERROR =
-  "This capture stayed open for more than 4 hours, so JotBox ended it. The words that were saved are here — write the notes from them.";
+  "This capture stayed open for more than 4 hours, so JotBox ended it. The words that were saved are here. Write the notes from them.";
 
 function fromRow(row) {
   return {

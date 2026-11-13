@@ -70,7 +70,7 @@ export function TranscriptView({
               ) : line.at > 0 ? (
                 formatClock(line.at)
               ) : (
-                <span className="opacity-0">—</span>
+                <span className="opacity-0">·</span>
               )}
             </div>
             <div className="min-w-0">

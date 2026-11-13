@@ -25,7 +25,7 @@ Separate the record from your reading:
 - inferences: a conclusion you draw by connecting records. Mark it as an inference. Never present an inference as something a person said or decided.
 - If the question asks why something changed and no record explicitly states a reason, set reasonMissing to true and say plainly that no reason was recorded. Do not supply a plausible reason.
 - Keep Nigerian Pidgin and other quoted speech exactly as recorded.
-- Use plain, direct language. Timeline entries must be in chronological order.
+- Use plain, direct language. Use commas, colons and full stops, never em dashes. Timeline entries must be in chronological order.
 
 Return only a JSON object with this exact shape:
 {"answer":"string","timeline":[{"date":"YYYY-MM-DD","title":"string","text":"string","sourceIds":["string"]}],"recorded":[{"text":"string","sourceIds":["string"]}],"inferences":[{"text":"string","basis":"string"}],"reasonMissing":false,"reasonNote":"string"}`;

@@ -60,7 +60,7 @@ function DesktopMock() {
         <span className="flex-none text-[10px] font-semibold tabular-nums text-ink">08:41</span>
         <StaticBars className="h-4 w-9 flex-none text-accent" heights={[0.3, 0.7, 1, 0.5, 0.8, 0.4, 0.6]} />
         <p className="min-w-0 flex-1 truncate text-[10px] text-muted">
-          <span className="font-semibold text-ink">Ada</span> — make we pause the same-day promise.
+          <span className="font-semibold text-ink">Ada</span>: make we pause the same-day promise.
         </p>
       </div>
 
@@ -182,7 +182,7 @@ export default function FloatPage() {
               A small pill, above everything else.
             </h2>
             <p className="mt-3.5 max-w-[40ch] text-[15px] leading-6 text-muted">
-              Press Float while a session runs. JotBox opens a small pill with the timer and the latest words — and it
+              Press Float while a session runs. JotBox opens a small pill with the timer and the latest words, and it
               stays above your other windows and websites while you work.
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -276,7 +276,7 @@ export default function FloatPage() {
           <ul className="mt-3 space-y-2">
             {[
               "Add JotBox to the home screen.",
-              "Start a capture, then switch apps freely — audio continues.",
+              "Start a capture, then switch apps freely. Audio continues.",
               "Keep JotBox in view, or use split screen, for live words.",
             ].map((item) => (
               <li key={item} className="flex gap-2 text-[13.5px] leading-5 text-soft">
@@ -293,7 +293,7 @@ export default function FloatPage() {
       </div>
 
       <p className="mt-8 text-center text-[13px] leading-5 text-faint">
-        Works wherever sound plays in a tab — Google Meet, Zoom, Microsoft Teams, and recorded lectures.
+        Works wherever sound plays in a tab: Google Meet, Zoom, Microsoft Teams, and recorded lectures.
       </p>
     </div>
   );

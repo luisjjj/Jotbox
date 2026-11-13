@@ -172,7 +172,7 @@ export default function Settings() {
             <div className="rounded-xl border border-line bg-raised-2 p-3">
               <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-faint">Storage used</p>
               <p className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-ink">
-                {usage ? mb(usage.used) : "—"}
+                {usage ? mb(usage.used) : "Not known"}
               </p>
             </div>
           </div>

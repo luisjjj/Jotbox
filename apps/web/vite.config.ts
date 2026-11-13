@@ -59,9 +59,9 @@ export default defineConfig(({ mode }) => {
           "fonts/*.woff",
         ],
         manifest: {
-          name: "JotBox — the notes are written while you listen",
+          name: "JotBox: the notes are written while you listen",
           short_name: "JotBox",
-          description: "Notes from meetings, seminars, and lectures — without the typing.",
+          description: "Notes from meetings, seminars, and lectures without the typing.",
           theme_color: "#f5f4ef",
           background_color: "#f5f4ef",
           display: "standalone",

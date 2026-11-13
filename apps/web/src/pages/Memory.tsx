@@ -439,7 +439,7 @@ function AskPanel({
       }, 60_000);
     } catch {
       if (run === voiceRun.current) setVoice("idle");
-      setError("Allow the microphone from the address bar, then try again — or type the question.");
+      setError("Allow the microphone from the address bar, then try again, or type the question.");
     }
   };
 
@@ -527,7 +527,7 @@ function AskPanel({
               </span>
               <p className="mt-3 text-[16px] font-semibold tracking-[-0.02em] text-ink">Ask the record a question</p>
               <p className="mt-1 max-w-[34ch] text-[14px] leading-5 text-muted">
-                What was planned, what changed, and why. Every answer points back to the meeting it came from — and
+                What was planned, what changed, and why. Every answer points back to the meeting it came from, and
                 says when no reason was recorded.
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-1.5">
@@ -637,7 +637,7 @@ function AskPanel({
             {voice === "listening" ? (
               <span className="inline-flex items-center gap-1.5">
                 <span className="live-dot !h-1.5 !w-1.5" />
-                Listening — press the mic again to use the words. The audio is not kept.
+                Listening. Press the mic again to use the words. The audio is not kept.
               </span>
             ) : (
               <>Uses only meetings you can open · kept for {org.org.retentionDays} days · recorded facts are cited</>
@@ -1702,7 +1702,7 @@ export default function MemoryPage() {
             What the organisation knows.
           </h1>
           <p className="mt-1 text-[15px] text-muted">
-            Meetings, decisions, and the reasons behind them — kept in one place.
+            Meetings, decisions, and the reasons behind them, kept in one place.
           </p>
         </div>
         {orgs && orgs.length > 0 && (

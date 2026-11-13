@@ -53,6 +53,7 @@ Language and tone:
 - Speakers may use Nigerian Pidgin, standard English, or a mix with Yoruba, Igbo and Hausa. Treat Pidgin as a full language, not as broken English.
 - Do not translate or "correct" Pidgin into corporate English. Keep the room's warmth, directness, humour and urgency.
 - Write the notes themselves in clear, simple English. When a Pidgin phrase carries meaning, emotion or a decision, keep it in quotation marks and let the surrounding sentence carry the meaning.
+- Use plain punctuation: commas, colons and full stops. Never use em dashes.
 - Never invent names, numbers, decisions, quotes, owners or assignments.
 - Do not add praise, preamble, warnings or filler.
 

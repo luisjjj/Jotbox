@@ -39,7 +39,7 @@ function ChromeBar({ label }: { label: string }) {
 const LIVE_LINES = [
   { who: "Ada", text: "Ah, wetin happen to the Friday payout?" },
   { who: "Chinedu", text: "The file reach the bank late, so the window shift." },
-  { who: "Ada", text: "No wahala — make we pause the same-day promise." },
+  { who: "Ada", text: "No wahala, make we pause the same-day promise." },
   { who: "You", text: "I go send the merchant note before four." },
 ];
 
@@ -168,7 +168,7 @@ function LivePidginCard() {
           {visible.map((line) => (
             <p key={line.text} className="ticker text-[13px] leading-5 text-[#d8e2d8]">
               <span className="font-semibold text-[#dcc69b]">{line.who}</span>
-              <span className="mx-1.5 text-[#8ea796]">—</span>
+              <span className="mx-1.5 text-[#8ea796]">·</span>
               {line.text}
             </p>
           ))}
@@ -187,7 +187,7 @@ function LivePidginCard() {
             <div className="h-1.5 w-3/5 rounded-full bg-white/10" />
           </div>
           <p className="mt-2 text-[12px] leading-4 text-[#c5d0c7]">
-            “No wahala — make we pause the same-day promise.” Kept as it was said.
+            “No wahala, make we pause the same-day promise.” Kept as it was said.
           </p>
         </div>
       </div>
@@ -213,7 +213,7 @@ export default function Landing() {
   const authHref = "/auth?next=%2Fapp";
 
   useEffect(() => {
-    document.title = "JotBox — the notes are written while you listen";
+    document.title = "JotBox: the notes are written while you listen";
   }, []);
 
   useEffect(() => {
@@ -322,7 +322,7 @@ export default function Landing() {
                   The notes are written <em className="font-normal italic text-[#dcc69b]">while you listen.</em>
                 </h1>
                 <p className="mt-4 max-w-[42ch] text-[15.5px] leading-6 text-[#c5d0c7] sm:text-[16.5px] sm:leading-7">
-                  Meetings, seminars, lectures — in the room or from a call tab. JotBox keeps the words, the Pidgin, and
+                  Meetings, seminars, lectures: in the room or from a call tab. JotBox keeps the words, the Pidgin, and
                   the tone, then writes the summary, decisions, and next steps. You stay present.
                 </p>
                 <div className="mt-7 flex w-full flex-col items-stretch gap-2.5 sm:w-auto sm:flex-row sm:items-center">
@@ -432,7 +432,7 @@ export default function Landing() {
                 </h2>
                 <p className="mt-3 max-w-[36ch] text-[15px] leading-6 text-muted">
                   Nigerian Pidgin is not broken English. JotBox keeps “wetin dey happen” as it was said, then writes
-                  notes you can send in clear English — with the lines that carry the tone kept in quotes.
+                  notes you can send in clear English, with the lines that carry the tone kept in quotes.
                 </p>
                 <ul className="mt-5 space-y-2.5">
                   {[
@@ -470,7 +470,7 @@ export default function Landing() {
                     {LIVE_LINES.slice(0, 3).map((line) => (
                       <p key={line.text} className="text-[13.5px] leading-5 text-muted">
                         <span className="font-semibold text-brass">{line.who}</span>
-                        <span className="mx-1.5 text-faint">—</span>
+                        <span className="mx-1.5 text-faint">·</span>
                         {line.text}
                       </p>
                     ))}
@@ -560,8 +560,8 @@ export default function Landing() {
                   Notes end when the meeting ends. The memory doesn’t.
                 </h2>
                 <p className="mt-3 max-w-[38ch] text-[15px] leading-6 text-muted">
-                  Ask across months of meetings. JotBox puts the decision history back together — what was planned, what
-                  changed, and why — and points every recorded fact at the meeting it came from.
+                  Ask across months of meetings. JotBox puts the decision history back together (what was planned, what
+                  changed, and why) and points every recorded fact at the meeting it came from.
                 </p>
                 <ul className="mt-5 space-y-2.5">
                   {[
@@ -628,7 +628,7 @@ export default function Landing() {
                     <div className="rounded-lg border border-line bg-raised p-2.5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-faint">Recorded</p>
                       <p className="mt-1 text-[12.5px] leading-4 text-soft">
-                        “Abuja expansion paused” — April strategy reset
+                        “Abuja expansion paused” in the April strategy reset
                       </p>
                     </div>
                     <div className="rounded-lg border border-line bg-highlight p-2.5">

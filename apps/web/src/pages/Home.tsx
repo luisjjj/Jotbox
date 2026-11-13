@@ -86,7 +86,7 @@ export default function Home() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    document.title = "JotBox — your notes";
+    document.title = "JotBox: your notes";
   }, []);
 
   const stats = useMemo(() => {

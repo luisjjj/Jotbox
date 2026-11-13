@@ -56,8 +56,8 @@ describe("notesToMarkdown", () => {
 
   it("tracks action state and keeps owners", () => {
     const markdown = notesToMarkdown(session);
-    expect(markdown).toContain("- [ ] Ada — Send the merchant note before 4pm");
-    expect(markdown).toContain("- [x] Chinedu — Re-pull the two failed batches");
+    expect(markdown).toContain("- [ ] Ada: Send the merchant note before 4pm");
+    expect(markdown).toContain("- [x] Chinedu: Re-pull the two failed batches");
   });
 
   it("keeps Nigerian Pidgin verbatim", () => {
@@ -96,7 +96,7 @@ describe("sessionSlug", () => {
   it("makes a safe file name", () => {
     expect(sessionSlug(session)).toBe("friday-payout-review");
     expect(
-      sessionSlug({ ...session, title: "  Payout / Review — Q4!  " }),
+      sessionSlug({ ...session, title: "  Payout / Review, Q4!  " }),
     ).toBe("payout-review-q4");
     expect(sessionSlug({ ...session, title: "!!!" })).toBe("jotbox-notes");
   });

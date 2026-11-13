@@ -767,7 +767,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     if (status !== "recording" && status !== "paused") {
       if (titledRef.current) {
         titledRef.current = false;
-        document.title = "JotBox — the notes are written while you listen";
+        document.title = "JotBox: the notes are written while you listen";
       }
       return;
     }

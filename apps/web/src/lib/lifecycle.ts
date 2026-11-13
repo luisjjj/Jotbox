@@ -3,10 +3,10 @@ import type { Session } from "./types";
 export const LIVE_LIMIT_MS = 4 * 60 * 60 * 1000;
 
 export const INTERRUPTED_ERROR =
-  "This capture was interrupted when the page closed. The spoken words and jottings that survived are still here — write the notes from them.";
+  "This capture was interrupted when the page closed. The spoken words and jottings that survived are still here. Write the notes from them.";
 
 export const EXPIRED_ERROR =
-  "This capture stayed open for more than 4 hours, so JotBox ended it. The words that were saved are here — write the notes from them.";
+  "This capture stayed open for more than 4 hours, so JotBox ended it. The words that were saved are here. Write the notes from them.";
 
 export function liveExpired(createdAt: number, now = Date.now()) {
   return now - createdAt >= LIVE_LIMIT_MS;

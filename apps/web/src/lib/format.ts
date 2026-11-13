@@ -56,7 +56,7 @@ export function notesToMarkdown(session: Session) {
       lines.push(
         "## Actions",
         "",
-        ...notes.actions.map((item) => `- [${item.done ? "x" : " "}] ${item.owner} — ${item.text}`),
+        ...notes.actions.map((item) => `- [${item.done ? "x" : " "}] ${item.owner}: ${item.text}`),
         "",
       );
     }

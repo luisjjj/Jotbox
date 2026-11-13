@@ -1,10 +1,10 @@
-# JotBox — Implementation Plan
+# JotBox Implementation Plan
 
 _Last updated: 11 November 2026_
 
 ## 1. Positioning
 
-JotBox is the notetaker for the room and the call. It listens to meetings, seminars, lectures, and voice notes, keeps a live transcript, and writes the summary, decisions, and actions — without asking the listener to type.
+JotBox is the notetaker for the room and the call. It listens to meetings, seminars, lectures, and voice notes, keeps a live transcript, and writes the summary, decisions, and actions without asking the listener to type.
 
 The product is mobile-first and account-optional. Guest mode works entirely on the device. Signing in adds cloud sync for notes and transcripts through Neon Postgres, while audio stays local. It is designed for the Nigerian context first: phones rather than Macs, intermittent connectivity, room audio rather than calendar bots, and a price point that fits a student or a small team.
 
@@ -106,7 +106,7 @@ Browser
 
 ## 5. Next phases
 
-### Phase 1 — Finish the account lifecycle (1–2 weeks)
+### Phase 1: Finish the account lifecycle (1–2 weeks)
 
 - Email verification and password reset (needs a transactional email provider).
 - Delete account and export account data.
@@ -114,14 +114,14 @@ Browser
 - Password change and optional passkeys.
 - Conflict handling beyond last-write-wins: per-session `updated_at`/version and merge UI.
 
-### Phase 2 — Studio on the server (1–2 weeks)
+### Phase 2: Studio on the server (1–2 weeks)
 
 - Port `/api/transcribe` and `/api/enhance` to Vercel Functions or a small worker service.
 - Chunk long audio or use object storage because serverless request bodies are small.
 - Usage accounting, quotas, retries, and cost controls.
 - Real-device matrix: iPhone Safari, Android Chrome, desktop Chrome/Edge, low-end Android.
 
-### Phase 3 — Sharing and retention (2 weeks)
+### Phase 3: Sharing and retention (2 weeks)
 
 - Read-only note links and image/PDF shares.
 - WhatsApp-first share formatting; email; DOCX.
@@ -129,7 +129,7 @@ Browser
 - Calendar/meeting signals: detect an ongoing Meet/Zoom tab and prompt to capture.
 - Onboarding: 30-second demo, permission education for mic and tab audio.
 
-### Phase 4 — Depth and trust (3–4 weeks)
+### Phase 4: Depth and trust (3–4 weeks)
 
 - Persistent speaker naming and merge/split.
 - In-place transcript editing with note regeneration.
@@ -137,7 +137,7 @@ Browser
 - End-to-end encrypted note sync (optional account).
 - Data retention controls: auto-delete audio after N days; keep notes.
 
-### Phase 5 — Business
+### Phase 5: Business
 
 - Free tier with a monthly transcription allowance; Pro tier.
 - Team spaces and shared templates for small firms, faculties, and associations.
@@ -188,6 +188,6 @@ Browser
 
 1. Should the free tier include studio minutes, or only draft notes?
 2. Is a native wrapper worth it for true mobile overlay, or is PWA enough for the first 10,000 users?
-3. Which Nigerian language pairs matter first for lectures — Yoruba, Igbo, Hausa, or Pidgin?
+3. Which Nigerian language pairs matter first for lectures: Yoruba, Igbo, Hausa, or Pidgin?
 4. Do teams need real-time shared notes, or is a share link sufficient?
 5. Should audio be retained by default, or deleted automatically after notes are generated?
