@@ -1,10 +1,20 @@
 import { useEffect, useState, type ReactNode } from "react";
 import clsx from "clsx";
-import { Check, Cloud, Download, HardDrive, Monitor, Moon, Plus, ShieldCheck, Sun } from "lucide-react";
+import { Check, Cloud, Download, HardDrive, Monitor, Moon, Plus, ShieldCheck, SlidersHorizontal, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { APP_CONFIG } from "@jotbox/config";
 import { useAuth } from "@/auth/AuthProvider";
+import {
+  FOCUS_OPTIONS,
+  PICKUP_OPTIONS,
+  getFocusMode,
+  getPickupMode,
+  setFocusMode,
+  setPickupMode,
+  type FocusMode,
+  type PickupMode,
+} from "@/lib/listening";
 import { RETENTION_OPTIONS, getAudioRetention, pruneExpiredAudio, setAudioRetention, type AudioRetention } from "@/lib/retention";
 import { loadSampleSessions } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
@@ -57,6 +67,8 @@ export default function Settings() {
   const syncStatus = useSync((state) => state.status);
   const [usage, setUsage] = useState<{ used: number; quota: number } | null>(null);
   const [retention, setRetention] = useState<AudioRetention>(() => getAudioRetention());
+  const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
+  const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
 
   const audioCount = sessions.filter((session) => session.hasAudio).length;
 
@@ -101,7 +113,7 @@ export default function Settings() {
       <p className="mt-1 text-[15px] text-muted">Account, appearance, and the data kept on this device.</p>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <section className="card flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-accent text-[14px] font-semibold text-accent-ink">
@@ -149,6 +161,64 @@ export default function Settings() {
                 </button>
               );
             })}
+          </div>
+        </Section>
+
+        <Section
+          title="Listening"
+          description="These choices apply to new captures. Names on the roster are used to spell people correctly."
+          aside={
+            <span className="chip">
+              <SlidersHorizontal className="h-3 w-3" />
+              On this device
+            </span>
+          }
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-[14px] font-medium text-ink">Session focus</p>
+              <div className="seg mt-2 w-full">
+                {FOCUS_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
+                    data-active={focus === option.value}
+                    onClick={() => {
+                      setFocus(option.value);
+                      setFocusMode(option.value);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[12.5px] leading-4 text-muted">
+                {FOCUS_OPTIONS.find((option) => option.value === focus)?.hint}
+              </p>
+            </div>
+            <div>
+              <p className="text-[14px] font-medium text-ink">Pickup</p>
+              <div className="seg mt-2 w-full">
+                {PICKUP_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
+                    data-active={pickup === option.value}
+                    onClick={() => {
+                      setPickup(option.value);
+                      setPickupMode(option.value);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[12.5px] leading-4 text-muted">
+                {PICKUP_OPTIONS.find((option) => option.value === pickup)?.hint}
+              </p>
+            </div>
           </div>
         </Section>
 
@@ -206,7 +276,7 @@ export default function Settings() {
                 <button
                   key={option.value}
                   type="button"
-                  className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
+                  className="seg-item flex-1 whitespace-nowrap px-1 text-[12px] sm:px-3 sm:text-[12.5px]"
                   data-active={retention === option.value}
                   onClick={() => {
                     setRetention(option.value);
@@ -244,7 +314,7 @@ export default function Settings() {
         </Section>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-9">
+        <div className="min-w-0 space-y-4 xl:sticky xl:top-9">
         <section className="rounded-2xl border border-line bg-raised-2 p-5">
           <div className="flex items-start gap-3">
             <span className="grid h-9 w-9 flex-none place-items-center rounded-lg border border-line bg-raised text-muted">

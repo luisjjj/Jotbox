@@ -39,13 +39,19 @@ const KIND_LABEL = {
 };
 
 const STT_PROMPT = [
-  "Transcribe verbatim. Keep every speaker's words exactly as spoken.",
+  "Transcribe the room verbatim. Keep every speaker's words exactly as spoken.",
   "The speakers may use Nigerian Pidgin, standard English, or a mix with Yoruba, Igbo and Hausa.",
   "Keep Pidgin grammar, slang and code-switching intact: words like wetin, dey, na, sha, abeg, wahala, oga, no wahala, e go, make we.",
   "Do not translate Pidgin into formal English. Do not correct grammar. Keep names, places, amounts and dates.",
+  "Leave out background media, laughter, noise and side talk that is not part of this session.",
+  "A faint, fast or distant speaker still matters: read them carefully instead of skipping the words.",
 ].join(" ");
 
-const STT_VOCAB_LIMIT = 600;
+const STT_VOCAB_LIMIT = 720;
+const STT_CONTEXT_LIMIT = 1200;
+
+const DEFAULT_GROQ_STT = "whisper-large-v3";
+const WORKER_STT_DEFAULT = "Systran/faster-whisper-small";
 
 const NOTES_SYSTEM = `You are JotBox, a note writer for meetings, seminars, lectures and voice notes recorded in Nigeria and across West Africa.
 The transcript is what was said. The scratch notes are what the listener marked. When scratch notes exist, treat them as the spine and expand them from the transcript.
@@ -57,6 +63,8 @@ Language and tone:
 - Use plain punctuation: commas, colons and full stops. Never use em dashes.
 - Never invent names, numbers, decisions, quotes, owners or assignments.
 - Do not add praise, preamble, warnings or filler.
+- Leave out side talk that has nothing to do with the session, such as wifi, lunch, travel or unrelated jokes, unless it changes a decision or an action.
+- Use the spellings of the people listed for the room. Never invent a person who is not in the transcript or that list.
 
 Shape:
 - Title: specific, under 8 words, no quotation marks.
@@ -127,12 +135,46 @@ function sttVocabulary() {
     .slice(0, STT_VOCAB_LIMIT);
 }
 
-export function sttPrompt() {
+function plainText(value, max) {
+  return String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+export function sanitizeSttContext(input) {
+  if (!input || typeof input !== "object") return null;
+  const names = Array.isArray(input.names)
+    ? [...new Set(input.names.map((name) => plainText(name, 80)).filter(Boolean))].slice(0, 20)
+    : [];
+  const title = plainText(input.title, 120);
+  const kind = ["meeting", "seminar", "lecture", "voice"].includes(input.kind) ? input.kind : "";
+  const focus = ["off", "balanced", "strict"].includes(input.focus) ? input.focus : "balanced";
+  if (!title && !names.length) return null;
+  return { title, kind, names, focus };
+}
+
+export function sttPrompt(context) {
   const base = key("JOTBOX_STT_PROMPT") || STT_PROMPT;
   const vocab = sttVocabulary();
-  return [base, vocab ? `Names and terms this room uses, spelled the way they say them: ${vocab}.` : ""]
+  const room = sanitizeSttContext(context);
+  const kind = room?.kind && KIND_LABEL[room.kind] ? KIND_LABEL[room.kind] : "session";
+  const topic = room?.title ? `This ${kind} is called "${room.title}".` : "";
+  const focus =
+    room?.focus === "off"
+      ? ""
+      : "Only transcribe speech that belongs to this session. Leave out side conversations, background media and room noise.";
+  const names = [...new Set([...(room?.names ?? []), ...vocab.split(", ").filter(Boolean)])].join(", ");
+  return [
+    base,
+    topic,
+    focus,
+    names ? `The people and terms below may appear. Spell them the way they say them: ${names}.` : "",
+  ]
     .filter(Boolean)
-    .join(" ");
+    .join(" ")
+    .slice(0, STT_CONTEXT_LIMIT);
 }
 
 function mockEnabled() {
@@ -173,8 +215,8 @@ export function aiStatus() {
     sttLanguage: sttLanguage() || "auto",
     sttVocabulary: vocabulary ? vocabulary.split(", ").length : 0,
     sttModel: whisperBase()
-      ? key("WHISPER_MODEL") || "Systran/faster-whisper-small"
-      : key("GROQ_STT_MODEL") || "whisper-large-v3-turbo",
+      ? key("WHISPER_MODEL") || WORKER_STT_DEFAULT
+      : key("GROQ_STT_MODEL") || DEFAULT_GROQ_STT,
   };
 }
 
@@ -223,8 +265,43 @@ function cleanWord(text) {
   return String(text ?? "").replace(/\s+/g, " ").trim();
 }
 
-function normalizeTranscription(data, provider) {
-  const words = Array.isArray(data?.words)
+const HALLUCINATIONS = [
+  /^(?:thank you for watching|thanks for watching|please subscribe|subscribe|like and subscribe)[.!]?$/i,
+  /^\[?(?:music|applause|laughter|silence|noise|background noise|inaudible|crosstalk)\]?[.!]?$/i,
+  /^(?:you|uh|um|hmm|mm)[.!]?$/i,
+];
+
+function sttThreshold(name, fallback) {
+  const raw = key(name);
+  if (!raw) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function segmentIsNoise(segment) {
+  const text = cleanWord(segment?.text);
+  if (!text) return true;
+  if (HALLUCINATIONS.some((pattern) => pattern.test(text))) return true;
+
+  const noSpeech = Number(segment?.no_speech_prob);
+  const logprob = Number(segment?.avg_logprob);
+  const compression = Number(segment?.compression_ratio);
+  const noSpeechLimit = sttThreshold("JOTBOX_STT_NO_SPEECH", 0.65);
+  const logprobLimit = sttThreshold("JOTBOX_STT_LOGPROB", -1);
+  const compressionLimit = sttThreshold("JOTBOX_STT_COMPRESSION", 2.4);
+
+  if (Number.isFinite(compression) && compression >= compressionLimit && text.length > 12) return true;
+  if (Number.isFinite(noSpeech) && noSpeech >= noSpeechLimit && (!Number.isFinite(logprob) || logprob <= -0.5)) {
+    return true;
+  }
+  if (Number.isFinite(logprob) && logprob <= -1.6 && Number.isFinite(noSpeech) && noSpeech >= 0.3) {
+    return true;
+  }
+  return false;
+}
+
+export function normalizeTranscription(data, provider) {
+  let words = Array.isArray(data?.words)
     ? data.words
         .map((word) => {
           const text = cleanWord(word?.word ?? word?.text);
@@ -241,11 +318,37 @@ function normalizeTranscription(data, provider) {
         .filter((word) => word.text)
     : [];
 
-  let text = typeof data?.text === "string" ? data.text.trim() : "";
-  if (!text && Array.isArray(data?.segments)) {
-    text = data.segments.map((segment) => cleanWord(segment?.text)).filter(Boolean).join(" ");
+  const segments = Array.isArray(data?.segments) ? data.segments : [];
+  const kept = segments.filter((segment) => !segmentIsNoise(segment));
+  const filtered = segments.length - kept.length;
+
+  let text = "";
+  if (segments.length && filtered > 0) {
+    text = kept.map((segment) => cleanWord(segment?.text)).filter(Boolean).join(" ");
+    if (kept.length) {
+      const ranges = kept
+        .map((segment) => ({ start: Number(segment?.start), end: Number(segment?.end) }))
+        .filter((range) => Number.isFinite(range.start) && Number.isFinite(range.end));
+      if (ranges.length) {
+        words = words.filter((word) =>
+          ranges.some((range) => word.start >= range.start - 0.05 && word.start <= range.end + 0.4),
+        );
+      }
+    } else {
+      words = [];
+    }
+  } else if (typeof data?.text === "string") {
+    text = data.text.trim();
+  }
+
+  if (!text && segments.length && filtered === 0) {
+    text = segments.map((segment) => cleanWord(segment?.text)).filter(Boolean).join(" ");
   }
   if (!text) text = words.map((word) => word.text).join(" ");
+  if (HALLUCINATIONS.some((pattern) => pattern.test(text))) {
+    text = "";
+    words = [];
+  }
   text = text.replace(/\s+([,.!?;:])/g, "$1").trim();
 
   return {
@@ -253,18 +356,19 @@ function normalizeTranscription(data, provider) {
     words,
     language: typeof data?.language === "string" ? data.language : null,
     provider,
+    filtered,
   };
 }
 
-async function transcribeWithGroq(buffer, contentType, filename) {
+async function transcribeWithGroq(buffer, contentType, filename, context) {
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: contentType }), filename);
-  form.append("model", key("GROQ_STT_MODEL") || "whisper-large-v3-turbo");
+  form.append("model", key("GROQ_STT_MODEL") || DEFAULT_GROQ_STT);
   const language = sttLanguage();
   if (language) form.append("language", language);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "word");
-  form.append("prompt", sttPrompt());
+  form.append("prompt", sttPrompt(context));
   form.append("temperature", "0");
 
   const response = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
@@ -277,17 +381,28 @@ async function transcribeWithGroq(buffer, contentType, filename) {
   return normalizeTranscription(await response.json(), "groq");
 }
 
-async function transcribeWithWorker(buffer, contentType, filename) {
+async function transcribeWithWorker(buffer, contentType, filename, context) {
   const base = whisperBase();
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: contentType }), filename);
-  form.append("model", key("WHISPER_MODEL") || "Systran/faster-whisper-small");
+  form.append("model", key("WHISPER_MODEL") || WORKER_STT_DEFAULT);
   const language = sttLanguage();
   if (language) form.append("language", language);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "word");
-  form.append("prompt", sttPrompt());
+  form.append("prompt", sttPrompt(context));
   form.append("temperature", "0");
+  if (key("JOTBOX_STT_WORKER_TUNING") !== "off") {
+    form.append("condition_on_previous_text", "false");
+    form.append("vad_filter", "true");
+    form.append(
+      "vad_parameters",
+      JSON.stringify({ threshold: 0.35, min_silence_duration_ms: 350, speech_pad_ms: 400 }),
+    );
+    form.append("no_speech_threshold", String(sttThreshold("JOTBOX_STT_NO_SPEECH", 0.65)));
+    form.append("logprob_threshold", String(sttThreshold("JOTBOX_STT_LOGPROB", -1)));
+    form.append("compression_ratio_threshold", String(sttThreshold("JOTBOX_STT_COMPRESSION", 2.4)));
+  }
 
   const headers = key("WHISPER_API_KEY") ? { Authorization: `Bearer ${key("WHISPER_API_KEY")}` } : {};
   const response = await fetch(`${base}/audio/transcriptions`, {
@@ -300,14 +415,14 @@ async function transcribeWithWorker(buffer, contentType, filename) {
   return normalizeTranscription(await response.json(), "self-hosted");
 }
 
-async function transcribeWithXai(buffer, contentType, filename) {
+async function transcribeWithXai(buffer, contentType, filename, context) {
   const form = new FormData();
   form.append("model", key("XAI_STT_MODEL") || "grok-voice-transcribe-2.0");
   const language = sttLanguage();
   if (language) form.append("language", language);
   form.append("format", "true");
   form.append("diarize", "true");
-  form.append("prompt", sttPrompt());
+  form.append("prompt", sttPrompt(context));
   form.append("file", new Blob([buffer], { type: contentType }), filename);
 
   const response = await fetch(XAI_STT_URL, {
@@ -347,8 +462,7 @@ function mockTranscription() {
   };
 }
 
-export async function transcribeAudio({ buffer, contentType, filename }) {
-  const status = aiStatus();
+export async function transcribeAudio({ buffer, contentType, filename, context }) {
   const attempts = [];
   const providers = [];
   if (buffer.length > GROQ_FREE_MAX && whisperBase()) providers.push("worker");
@@ -359,9 +473,9 @@ export async function transcribeAudio({ buffer, contentType, filename }) {
 
   for (const provider of providers) {
     try {
-      if (provider === "groq") return await transcribeWithGroq(buffer, contentType, filename);
-      if (provider === "worker") return await transcribeWithWorker(buffer, contentType, filename);
-      if (provider === "xai") return await transcribeWithXai(buffer, contentType, filename);
+      if (provider === "groq") return await transcribeWithGroq(buffer, contentType, filename, context);
+      if (provider === "worker") return await transcribeWithWorker(buffer, contentType, filename, context);
+      if (provider === "xai") return await transcribeWithXai(buffer, contentType, filename, context);
       if (provider === "demo") return mockTranscription();
     } catch (error) {
       attempts.push({ provider, message: error instanceof Error ? error.message : "failed" });
@@ -375,8 +489,13 @@ export async function transcribeAudio({ buffer, contentType, filename }) {
   );
 }
 
-function notesMessages({ kind, title, scratch, transcript, tone }) {
+function notesMessages({ kind, title, scratch, transcript, tone, participants = [] }) {
   const toneName = TONE_HINT[tone] ? tone : DEFAULT_TONE;
+  const people = participants
+    .map((person) => (typeof person === "string" ? person : person?.name))
+    .map((name) => plainText(name, 80))
+    .filter(Boolean)
+    .slice(0, 20);
   return [
     { role: "system", content: NOTES_SYSTEM },
     {
@@ -386,6 +505,7 @@ function notesMessages({ kind, title, scratch, transcript, tone }) {
         `Shape: ${KIND_SHAPE[kind] || KIND_SHAPE.meeting}`,
         `Tone: ${toneName}. ${TONE_HINT[toneName]}`,
         `Working title: ${title || "(none)"}`,
+        `People in the room: ${people.length ? people.join(", ") : "(not listed)"}`,
         "",
         "Scratch notes from the listener:",
         scratch.trim() || "(none)",
@@ -547,13 +667,14 @@ function mockNotes({ kind, title, scratch, transcript }) {
   };
 }
 
-export async function enhanceSession({ kind, title, scratch, transcript, tone }) {
+export async function enhanceSession({ kind, title, scratch, transcript, tone, participants = [] }) {
   const payload = {
     kind: KIND_LABEL[kind] ? kind : "meeting",
     title: String(title || "").slice(0, 160),
     scratch: String(scratch || "").slice(0, MAX_SCRATCH),
     transcript: String(transcript || "").slice(0, MAX_TRANSCRIPT),
     tone: TONE_HINT[tone] ? tone : key("JOTBOX_AI_TONE") || DEFAULT_TONE,
+    participants: Array.isArray(participants) ? participants.slice(0, 20) : [],
   };
 
   const providers = [];
@@ -1049,6 +1170,16 @@ function rateLimit(req, limit = 40) {
   }
 }
 
+function sttContextFromRequest(req) {
+  const raw = String(req.headers["x-jotbox-stt-context"] || "").trim();
+  if (!raw || raw.length > 4000) return null;
+  try {
+    return sanitizeSttContext(JSON.parse(Buffer.from(raw, "base64url").toString("utf8")));
+  } catch {
+    return null;
+  }
+}
+
 export async function handleTranscribe(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
@@ -1057,7 +1188,8 @@ export async function handleTranscribe(req, res) {
   if (!body.length) throw new HttpError(400, "No recording was sent.");
   const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
   const filename = `session.${extensionFor(contentType)}`;
-  sendJson(res, 200, await transcribeAudio({ buffer: body, contentType, filename }));
+  const context = sttContextFromRequest(req);
+  sendJson(res, 200, await transcribeAudio({ buffer: body, contentType, filename, context }));
 }
 
 export async function handleEnhance(req, res) {
@@ -1072,6 +1204,7 @@ export async function handleEnhance(req, res) {
     scratch: payload.scratch,
     transcript: payload.transcript,
     tone: payload.tone,
+    participants: Array.isArray(payload.participants) ? payload.participants : [],
   });
   sendJson(res, 200, notes);
 }

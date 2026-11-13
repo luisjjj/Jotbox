@@ -314,6 +314,7 @@ export default function SessionPage() {
         lines: useLines,
         audio: null,
         ai,
+        participants: session.participants ?? [],
       });
       patch(session.id, {
         notes: result.notes,
@@ -362,6 +363,7 @@ export default function SessionPage() {
         lines: session.transcript,
         audio: blob,
         ai: true,
+        participants: session.participants ?? [],
       });
       patch(session.id, {
         notes: result.notes,

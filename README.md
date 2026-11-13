@@ -83,7 +83,7 @@ JotBox ships with a provider chain that prefers free infrastructure and falls ba
 
 | Step | Provider | Env |
 | --- | --- | --- |
-| Short recordings | Groq `whisper-large-v3-turbo` | `GROQ_API_KEY` |
+| Short recordings | Groq `whisper-large-v3` | `GROQ_API_KEY` |
 | Long recordings | Self-hosted Speaches / faster-whisper | `WHISPER_BASE_URL`, `WHISPER_API_KEY` |
 | Notes (free) | Groq `openai/gpt-oss-120b` or OpenRouter free model | `GROQ_API_KEY` / `OPENROUTER_API_KEY` |
 | Notes (premium) | xAI | `XAI_API_KEY` |
@@ -91,9 +91,11 @@ JotBox ships with a provider chain that prefers free infrastructure and falls ba
 
 The prompts are written for Nigerian Pidgin and code-switching: Pidgin lines survive as they were said, quoted inside otherwise clear English notes, and names, amounts, dates, and decisions stay exact. Whisper is given Pidgin context through its prompt because it has no Nigerian Pidgin language token, so the request uses `language=en` with that context.
 
+Capture setup and Settings also expose two listening controls. **Session focus** (`Off`, `Balanced`, `Strict`) drops clear side talk such as wifi or lunch before the notes are written; `Strict` also drops lines that never touch the session title or the roster. **Pickup** (`Balanced`, `Far voices`) trades noise suppression for gain and gentle compression so faint or distant speakers stay audible. Roster names are sent with both the transcription request and the notes prompt, so JotBox spells people the way the room does.
+
 ```env
 GROQ_API_KEY=gsk_...
-GROQ_STT_MODEL=whisper-large-v3-turbo
+GROQ_STT_MODEL=whisper-large-v3
 GROQ_NOTES_MODEL=openai/gpt-oss-120b
 
 # Optional: long recordings

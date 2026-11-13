@@ -21,7 +21,7 @@ export const AI_CONFIG = {
   tone: 'warm-direct',
   providers: {
     groq: {
-      sttModel: 'whisper-large-v3-turbo',
+      sttModel: 'whisper-large-v3',
       notesModel: 'openai/gpt-oss-120b',
     },
     worker: {

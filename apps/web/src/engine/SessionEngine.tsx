@@ -15,6 +15,13 @@ import { buildNotes, studioAvailable } from "@/lib/buildNotes";
 import { defaultTitle, formatClock } from "@/lib/format";
 import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/lib/insights";
 import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
+import {
+  focusContext,
+  getPickupMode,
+  isNoiseLine,
+  isOffTopic,
+  pickupConstraints,
+} from "@/lib/listening";
 import { useSessions } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 import type { CaptureSource, LiveInsights, Participant, Session, SessionKind, TranscriptLine } from "@/lib/types";
@@ -77,7 +84,7 @@ interface EngineValue {
   setParticipants: (people: Participant[]) => void;
   setTitle: (value: string) => void;
   setKind: (kind: SessionKind) => void;
-  importFile: (file: File, kind: SessionKind) => Promise<void>;
+  importFile: (file: File, kind: SessionKind, participants?: Participant[]) => Promise<void>;
   pin: () => Promise<void>;
   clearError: () => void;
 }
@@ -111,6 +118,28 @@ function messageFor(error: unknown, source: CaptureSource) {
 function pickMime() {
   const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
   return types.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+}
+
+function shapeQuietVoices(input: AudioNode, context: AudioContext) {
+  const highpass = context.createBiquadFilter();
+  highpass.type = "highpass";
+  highpass.frequency.value = 85;
+  const compressor = context.createDynamicsCompressor();
+  compressor.threshold.value = -34;
+  compressor.knee.value = 18;
+  compressor.ratio.value = 4;
+  compressor.attack.value = 0.005;
+  compressor.release.value = 0.24;
+  input.connect(highpass);
+  highpass.connect(compressor);
+  return compressor;
+}
+
+function farMicStream(stream: MediaStream, context: AudioContext) {
+  const source = context.createMediaStreamSource(stream);
+  const destination = context.createMediaStreamDestination();
+  shapeQuietVoices(source, context).connect(destination);
+  return destination.stream;
 }
 
 function copyStyles(target: Document) {
@@ -245,13 +274,22 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       void audioContext?.close().catch(() => undefined);
     };
 
+    const pickup = getPickupMode();
+
     if (nextSource === "mic") {
-      const mic = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      const mic = await navigator.mediaDevices.getUserMedia({ audio: pickupConstraints(pickup) });
+      let recorded = mic;
+      if (pickup === "far" && audioContext) {
+        try {
+          await audioContext.resume();
+          if (audioContext.state === "running") recorded = farMicStream(mic, audioContext);
+        } catch {
+          recorded = mic;
+        }
+      }
       if (audioContext && analyser) {
         try {
-          audioContext.createMediaStreamSource(mic).connect(analyser);
+          audioContext.createMediaStreamSource(recorded).connect(analyser);
         } catch {
           /* metering only; the raw microphone still records */
         }
@@ -260,7 +298,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         mic.getTracks().forEach((track) => track.stop());
         closeContext();
       };
-      return mic;
+      return recorded;
     }
 
     const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
@@ -274,9 +312,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
 
     let mic: MediaStream | null = null;
     try {
-      mic = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      mic = await navigator.mediaDevices.getUserMedia({ audio: pickupConstraints(pickup) });
     } catch {
       mic = null;
     }
@@ -295,14 +331,17 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       if (!audioContext || !analyser) return null;
       try {
         const destination = audioContext.createMediaStreamDestination();
-        const tabNode = audioContext.createMediaStreamSource(tabStream);
-        tabNode.connect(destination);
-        tabNode.connect(analyser);
+        const bus = audioContext.createGain();
+        audioContext.createMediaStreamSource(tabStream).connect(bus);
         if (mic) {
-          const micNode = audioContext.createMediaStreamSource(mic);
-          micNode.connect(destination);
-          micNode.connect(analyser);
+          const micGain = audioContext.createGain();
+          micGain.gain.value = pickup === "far" ? 1.35 : 1;
+          audioContext.createMediaStreamSource(mic).connect(micGain);
+          micGain.connect(bus);
         }
+        const output = pickup === "far" ? shapeQuietVoices(bus, audioContext) : bus;
+        output.connect(destination);
+        output.connect(analyser);
         return destination.stream;
       } catch {
         return null;
@@ -345,12 +384,27 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     rec.interimResults = true;
     rec.lang = "en-NG";
     rec.onresult = (event) => {
+      const context = focusContext({
+        title: titleRef.current,
+        kind: kindRef.current,
+        participants: participantsRef.current,
+        scratch: scratchRef.current,
+      });
       let pending = "";
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
         const text = result[0].transcript.trim();
         if (!text) continue;
         if (result.isFinal) {
+          const last = linesRef.current[linesRef.current.length - 1];
+          if (last && last.text.trim().toLowerCase() === text.toLowerCase()) {
+            pending = "";
+            continue;
+          }
+          if (isOffTopic(text, context)) {
+            pending = "";
+            continue;
+          }
           linesRef.current = [
             ...linesRef.current,
             { id: crypto.randomUUID(), text, at: currentElapsed() },
@@ -358,7 +412,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           setLines(linesRef.current);
           pending = "";
           persistLive();
-        } else {
+        } else if (!isNoiseLine(text)) {
           pending += `${text} `;
         }
       }
@@ -466,6 +520,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         lines: linesNow,
         audio: blob,
         ai,
+        participants: participantsRef.current,
       });
       useSessions.getState().upsert({
         id,
@@ -603,7 +658,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const importFile = useCallback(
-    async (file: File, nextKind: SessionKind) => {
+    async (file: File, nextKind: SessionKind, people: Participant[] = []) => {
       if (statusRef.current !== "idle") {
         setError("Finish the current session first.");
         return;
@@ -624,6 +679,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         transcript: [],
         notes: null,
         hasAudio: false,
+        participants: people,
       });
       navigate(`/session/${id}`);
       try {
@@ -641,6 +697,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             transcript: [],
             notes: null,
             hasAudio: true,
+            participants: people,
             error:
               "The recording is saved on this device. JotBox can't write notes from it right now. You can paste the words below and JotBox will write the notes from them.",
           });
@@ -654,6 +711,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           lines: [],
           audio: file,
           ai: true,
+          participants: people,
         });
         const wrote = result.lines.length > 0 || result.notes.highlights.length > 0;
         useSessions.getState().upsert({
@@ -667,6 +725,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           transcript: result.lines,
           notes: wrote ? result.notes : null,
           hasAudio: true,
+          participants: people,
           error: wrote ? undefined : "No words came back from that recording.",
         });
       } catch (caught) {
@@ -681,6 +740,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           transcript: [],
           notes: null,
           hasAudio: true,
+          participants: people,
           error: caught instanceof Error ? caught.message : "JotBox could not read that recording.",
         });
       } finally {

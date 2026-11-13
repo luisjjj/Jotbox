@@ -35,7 +35,7 @@ uses `language=en` with a Pidgin-aware prompt for context.
 
    ```env
    GROQ_API_KEY=gsk_...
-   GROQ_STT_MODEL=whisper-large-v3-turbo
+   GROQ_STT_MODEL=whisper-large-v3
    GROQ_NOTES_MODEL=openai/gpt-oss-120b
    ```
 
@@ -53,15 +53,17 @@ uses `language=en` with a Pidgin-aware prompt for context.
 curl.exe https://api.groq.com/openai/v1/audio/transcriptions ^
   -H "Authorization: Bearer %GROQ_API_KEY%" ^
   -F "file=@sample.m4a" ^
-  -F "model=whisper-large-v3-turbo" ^
+  -F "model=whisper-large-v3" ^
   -F "response_format=verbose_json" ^
   -F "timestamp_granularities[]=word"
 ```
 
 Models:
 
-- `whisper-large-v3-turbo`: cheapest/fastest; good for clear English.
-- `whisper-large-v3`: more accurate, slower.
+- `whisper-large-v3`: the default. More accurate on accented, faint, fast and
+  noisy rooms, which is why JotBox prefers it over the cheaper turbo model.
+- `whisper-large-v3-turbo`: faster and cheaper; use it only when latency
+  matters more than accuracy on a clear English room.
 - Groq's free tier caps uploads at **25 MB** and does **not** provide speaker
   diarisation. Long lectures need the worker below or audio chunking.
 
@@ -165,7 +167,7 @@ The gateway reads this environment shape:
 ```env
 # Short clips and free notes
 GROQ_API_KEY=gsk_...
-GROQ_STT_MODEL=whisper-large-v3-turbo
+GROQ_STT_MODEL=whisper-large-v3
 GROQ_NOTES_MODEL=openai/gpt-oss-120b
 
 # Long recordings
@@ -230,6 +232,17 @@ instead. They are already wired into `/api/transcribe`:
 | Vocabulary | `JOTBOX_STT_VOCAB` | Comma, semicolon, or newline separated names, places, products and Pidgin spellings. The gateway adds them to the decoding prompt, which biases spelling without changing the audio |
 | Prompt | `JOTBOX_STT_PROMPT` | Replaces the built-in verbatim/Pidgin prompt. Leave unset unless you have a specific reason |
 | Temperature | fixed at `0` | Keeps transcription deterministic and discourages the model from "tidying" Pidgin |
+| Noise cut | `JOTBOX_STT_NO_SPEECH`, `JOTBOX_STT_LOGPROB`, `JOTBOX_STT_COMPRESSION` | Segment-level confidence thresholds. Segments above the no-speech cut, below the log-probability cut, or with an unusually high compression ratio are dropped before the words reach the notes. Defaults are `0.65`, `-1` and `2.4` |
+| Worker VAD | `JOTBOX_STT_WORKER_TUNING` | On by default. Sends faster-whisper VAD and `condition_on_previous_text=false` to the self-hosted worker, which stops long recordings from drifting into repeated or invented text. Set to `off` only for a worker that rejects those fields |
+
+Every capture also sends a short per-session context header (`x-jotbox-stt-context`)
+with the session title, roster names and focus mode. The gateway appends it to
+the speech prompt, so names are spelled the way the room spells them and the
+model is told to leave out side conversations. The browser's **Session focus**
+(`off`, `balanced`, `strict`) then drops clear asides before the notes are
+written, and **Pickup** (`balanced`, `far voices`) chooses between noise
+suppression and extra gain plus gentle compression for faint or distant
+speakers. Both are available in capture setup and Settings.
 
 Example:
 
@@ -237,6 +250,9 @@ Example:
 JOTBOX_STT_LANGUAGE=en
 JOTBOX_STT_VOCAB=JotBox, Ibadan, Abuja, GTBank, NIPOST, wetin dey, no wahala, make we
 GROQ_STT_MODEL=whisper-large-v3
+# Keep more faint speech: raise the no-speech cut toward 0.75.
+# Drop more room noise: lower it toward 0.55.
+# JOTBOX_STT_NO_SPEECH=0.65
 ```
 
 Keep the vocabulary under about 60 terms. Whisper's prompt is a short context

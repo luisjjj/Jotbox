@@ -15,6 +15,7 @@ import {
   Pin,
   Play,
   Plus,
+  SlidersHorizontal,
   Square,
   Upload,
   UserRound,
@@ -28,6 +29,16 @@ import { APP_CONFIG } from "@jotbox/config";
 import { useEngine } from "@/engine/SessionEngine";
 import { useStudio } from "@/hooks/useStudio";
 import { defaultTitle, formatClock, KIND_META } from "@/lib/format";
+import {
+  FOCUS_OPTIONS,
+  PICKUP_OPTIONS,
+  getFocusMode,
+  getPickupMode,
+  setFocusMode,
+  setPickupMode,
+  type FocusMode,
+  type PickupMode,
+} from "@/lib/listening";
 import type { Participant, SessionKind } from "@/lib/types";
 import { KindBadge, KindIcon } from "@/components/KindBadge";
 import { TranscriptView } from "@/components/TranscriptView";
@@ -181,7 +192,7 @@ function Roster({
         </span>
         <input
           className="field h-9 min-w-0 flex-1"
-          placeholder={compact ? "Add a person" : "Add names, so the notes can say who spoke"}
+          placeholder={compact ? "Add a person" : "Add names, so JotBox spells them right"}
           value={name}
           onChange={(event) => setName(event.target.value)}
           maxLength={80}
@@ -205,6 +216,8 @@ function Setup() {
   const studio = useStudio();
   const [title, setTitle] = useState("");
   const [people, setPeople] = useState<Participant[]>([]);
+  const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
+  const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [busy, setBusy] = useState<"mic" | "tab" | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -234,7 +247,7 @@ function Setup() {
     setUploading(true);
     toast.success("Reading the recording…");
     try {
-      await importFile(file, kind);
+      await importFile(file, kind, people);
     } finally {
       setUploading(false);
     }
@@ -286,6 +299,59 @@ function Setup() {
         </div>
 
         <Roster people={people} onChange={setPeople} />
+
+        <div className="rounded-xl border border-line bg-raised p-3.5">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-accent" />
+            <p className="text-[14.5px] font-medium text-ink">Listening</p>
+          </div>
+          <div className="mt-3 grid gap-3.5 sm:grid-cols-2">
+            <div>
+              <p className="label">Session focus</p>
+              <div className="seg mt-1.5 w-full">
+                {FOCUS_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
+                    data-active={focus === option.value}
+                    onClick={() => {
+                      setFocus(option.value);
+                      setFocusMode(option.value);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
+                {FOCUS_OPTIONS.find((option) => option.value === focus)?.hint}
+              </p>
+            </div>
+            <div>
+              <p className="label">Pickup</p>
+              <div className="seg mt-1.5 w-full">
+                {PICKUP_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
+                    data-active={pickup === option.value}
+                    onClick={() => {
+                      setPickup(option.value);
+                      setPickupMode(option.value);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
+                {PICKUP_OPTIONS.find((option) => option.value === pickup)?.hint}
+              </p>
+            </div>
+          </div>
+        </div>
 
         <div>
           <p className="label">How should JotBox hear it?</p>

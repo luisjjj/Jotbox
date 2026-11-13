@@ -1,7 +1,8 @@
 import { defaultTitle, transcriptText } from "./format";
+import { filterLines, focusContext, getFocusMode, knownNames } from "./listening";
 import { localNotes } from "./localNotes";
 import { wordsToLines } from "./transcript";
-import type { SessionKind, SessionNotes, SttWord, TranscriptLine } from "./types";
+import type { Participant, SessionKind, SessionNotes, SttWord, TranscriptLine } from "./types";
 
 async function timedFetch(input: string, init: RequestInit, timeoutMs: number) {
   const controller = new AbortController();
@@ -62,12 +63,22 @@ function asNotes(value: unknown): StudioPayload | null {
   return { title: record.title, summary: record.summary, highlights, decisions, actions, sections };
 }
 
-async function transcribe(blob: Blob) {
+function encodeContext(value: unknown) {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function transcribe(blob: Blob, context: { title: string; kind: SessionKind; names: string[]; focus: string }) {
   const response = await timedFetch(
     "/api/transcribe",
     {
       method: "POST",
-      headers: { "Content-Type": blob.type || "application/octet-stream" },
+      headers: {
+        "Content-Type": blob.type || "application/octet-stream",
+        "x-jotbox-stt-context": encodeContext(context),
+      },
       body: blob,
     },
     180_000,
@@ -82,6 +93,7 @@ async function studioNotes(input: {
   title: string;
   scratch: string;
   lines: TranscriptLine[];
+  participants: Participant[];
 }) {
   const response = await timedFetch(
     "/api/enhance",
@@ -94,6 +106,7 @@ async function studioNotes(input: {
         scratch: input.scratch,
         transcript: transcriptText(input.lines).slice(0, 80_000),
         tone: "warm-direct",
+        participants: input.participants.map((person) => person.name),
       }),
     },
     90_000,
@@ -125,20 +138,35 @@ export async function buildNotes(input: {
   lines: TranscriptLine[];
   audio?: Blob | null;
   ai: boolean;
+  participants?: Participant[];
 }) {
+  const participants = input.participants ?? [];
+  const context = focusContext({
+    title: input.title,
+    kind: input.kind,
+    participants,
+    scratch: input.scratch,
+  });
+  const focus = getFocusMode();
   let lines = input.lines;
   if (input.ai && input.audio && input.audio.size > 0) {
     try {
-      const fromAudio = await transcribe(input.audio);
+      const fromAudio = await transcribe(input.audio, {
+        title: input.title,
+        kind: input.kind,
+        names: knownNames(participants),
+        focus,
+      });
       if (fromAudio && fromAudio.length) lines = fromAudio;
     } catch {
       lines = input.lines;
     }
   }
+  lines = filterLines(lines, context, focus).kept;
 
   if (input.ai && (lines.length || input.scratch.trim())) {
     try {
-      const studio = await studioNotes({ ...input, lines });
+      const studio = await studioNotes({ ...input, lines, participants });
       if (studio) {
         return {
           lines,
