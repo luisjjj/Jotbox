@@ -39,8 +39,8 @@ function Section({
     <section id={id} className="card scroll-mt-6 p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">{title}</h2>
-          <p className="mt-1 max-w-[48ch] text-[12px] leading-5 text-muted">{description}</p>
+          <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-ink">{title}</h2>
+          <p className="mt-1 max-w-[48ch] text-[14px] leading-5 text-muted">{description}</p>
         </div>
         {aside}
       </div>
@@ -93,21 +93,21 @@ export default function Settings() {
   return (
     <div className="w-full">
       <p className="kicker">Settings</p>
-      <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[30px]">
+      <h1 className="mt-1.5 text-[28px] font-semibold tracking-[-0.04em] text-ink sm:text-[32px]">
         How JotBox behaves.
       </h1>
-      <p className="mt-1 text-[13px] text-muted">Account, appearance, and the data kept on this device.</p>
+      <p className="mt-1 text-[15px] text-muted">Account, appearance, and the data kept on this device.</p>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start">
         <div className="space-y-4">
           <section className="card flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-accent text-[12px] font-semibold text-accent-ink">
+            <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-accent text-[14px] font-semibold text-accent-ink">
               {(user?.name.trim()[0] ?? user?.email[0] ?? "J").toUpperCase()}
             </span>
             <div className="min-w-0">
-              <h2 className="truncate text-[13.5px] font-semibold text-ink">{user?.name.trim() || user?.email}</h2>
-              <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
+              <h2 className="truncate text-[15.5px] font-semibold text-ink">{user?.name.trim() || user?.email}</h2>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted">
                 <Cloud className="h-3 w-3" />
                 {syncStatus === "syncing"
                   ? "Updating your notes…"
@@ -143,7 +143,7 @@ export default function Settings() {
                     <option.Icon className={clsx("h-4 w-4", active ? "text-accent" : "text-muted")} />
                     {active && <Check className="h-3.5 w-3.5 text-accent" />}
                   </span>
-                  <span className="text-[12px] font-medium text-ink">{option.label}</span>
+                  <span className="text-[14px] font-medium text-ink">{option.label}</span>
                 </button>
               );
             })}
@@ -162,16 +162,16 @@ export default function Settings() {
         >
           <div className="grid gap-2 sm:grid-cols-3">
             <div className="rounded-xl border border-line bg-raised-2 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-faint">Sessions</p>
-              <p className="mt-1 text-[18px] font-semibold tracking-[-0.03em] text-ink">{sessions.length}</p>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-faint">Sessions</p>
+              <p className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-ink">{sessions.length}</p>
             </div>
             <div className="rounded-xl border border-line bg-raised-2 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-faint">Audio files</p>
-              <p className="mt-1 text-[18px] font-semibold tracking-[-0.03em] text-ink">{audioCount}</p>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-faint">Audio files</p>
+              <p className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-ink">{audioCount}</p>
             </div>
             <div className="rounded-xl border border-line bg-raised-2 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-faint">Storage used</p>
-              <p className="mt-1 text-[18px] font-semibold tracking-[-0.03em] text-ink">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-faint">Storage used</p>
+              <p className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-ink">
                 {usage ? mb(usage.used) : "—"}
               </p>
             </div>
@@ -194,7 +194,7 @@ export default function Settings() {
               Add examples
             </button>
           </div>
-          <p className="mt-2.5 text-[10.5px] leading-4 text-faint">
+          <p className="mt-2.5 text-[12.5px] leading-4 text-faint">
             Exports include notes and spoken words as a file. Audio stays in this browser and is not part of the export.
             Signing out removes this device’s copy; your notes remain in your account.
           </p>
@@ -208,8 +208,8 @@ export default function Settings() {
               <ShieldCheck className="h-4 w-4" />
             </span>
             <div>
-              <h2 className="text-[13.5px] font-semibold text-ink">What leaves this device</h2>
-              <p className="mt-1.5 text-[11.5px] leading-5 text-muted">
+              <h2 className="text-[15.5px] font-semibold text-ink">What leaves this device</h2>
+              <p className="mt-1.5 text-[13.5px] leading-5 text-muted">
                 Your notes and jottings follow you to your JotBox account. Recordings stay on this device. When you ask
                 JotBox to write notes, that recording is sent for writing and nothing else.
               </p>
@@ -217,7 +217,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <p className="flex items-center gap-1.5 px-1 pb-2 text-[10.5px] text-faint">
+        <p className="flex items-center gap-1.5 px-1 pb-2 text-[12.5px] text-faint">
           <ShieldCheck className="h-3 w-3" />
           Recordings stay on this device. Notes follow you only when you sign in.
         </p>

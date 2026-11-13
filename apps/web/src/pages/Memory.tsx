@@ -27,6 +27,7 @@ import { toast } from "react-hot-toast";
 import { useAuth } from "@/auth/AuthProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
+import { Select } from "@/components/Select";
 import {
   ApiError,
   api,
@@ -130,8 +131,8 @@ function Section({
     <section className="card p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">{title}</h2>
-          <p className="mt-1 max-w-[52ch] text-[12px] leading-5 text-muted">{description}</p>
+          <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-ink">{title}</h2>
+          <p className="mt-1 max-w-[52ch] text-[14px] leading-5 text-muted">{description}</p>
         </div>
         {aside}
       </div>
@@ -158,7 +159,7 @@ function SourceButton({ source, onOpen }: { source: MemorySource; onOpen: (id: s
   return (
     <button
       type="button"
-      className="inline-flex max-w-full items-center gap-1 rounded-full border border-line bg-raised-2 px-2 py-0.5 text-[10.5px] font-medium text-muted transition-colors hover:border-line-strong hover:text-ink"
+      className="inline-flex max-w-full items-center gap-1 rounded-full border border-line bg-raised-2 px-2 py-0.5 text-[12.5px] font-medium text-muted transition-colors hover:border-line-strong hover:text-ink"
       onClick={() => onOpen(source.id)}
       title={`Open ${source.title}`}
     >
@@ -211,7 +212,7 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
         <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
             <p className="kicker">Source meeting</p>
-            <h2 className="mt-1 truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">
+            <h2 className="mt-1 truncate text-[18px] font-semibold tracking-[-0.02em] text-ink">
               {view?.title ?? "Loading…"}
             </h2>
             {view && (
@@ -238,10 +239,10 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
           {error ? (
             <div className="flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
-              <p className="text-[12px] leading-5 text-soft">{error}</p>
+              <p className="text-[14px] leading-5 text-soft">{error}</p>
             </div>
           ) : !view ? (
-            <div className="flex items-center gap-2 py-8 text-[12.5px] text-muted">
+            <div className="flex items-center gap-2 py-8 text-[14.5px] text-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
               Opening the meeting…
             </div>
@@ -251,14 +252,14 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
                 <>
                   <div>
                     <h3 className="kicker">Summary</h3>
-                    <p className="mt-1.5 text-[13.5px] leading-6 text-soft">{view.notes.summary}</p>
+                    <p className="mt-1.5 text-[15.5px] leading-6 text-soft">{view.notes.summary}</p>
                   </div>
                   {view.notes.highlights.length > 0 && (
                     <div>
                       <h3 className="kicker">Highlights</h3>
                       <ul className="mt-1.5 space-y-1.5">
                         {view.notes.highlights.map((item, index) => (
-                          <li key={index} className="flex gap-2 text-[13px] leading-5 text-soft">
+                          <li key={index} className="flex gap-2 text-[15px] leading-5 text-soft">
                             <span className="bullet-dot" />
                             <span>{item}</span>
                           </li>
@@ -271,7 +272,7 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
                       <h3 className="kicker">Actions</h3>
                       <ul className="mt-1.5 space-y-1.5">
                         {view.notes.actions.map((item) => (
-                          <li key={item.id} className="flex gap-2 text-[13px] leading-5 text-soft">
+                          <li key={item.id} className="flex gap-2 text-[15px] leading-5 text-soft">
                             <span className="bullet-dot" />
                             <span>
                               <span className="font-medium text-ink">{item.owner || "Unassigned"}:</span> {item.text}
@@ -286,7 +287,7 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
                       <h3 className="kicker">{section.heading}</h3>
                       <ul className="mt-1.5 space-y-1.5">
                         {section.bullets.map((item, bulletIndex) => (
-                          <li key={bulletIndex} className="flex gap-2 text-[13px] leading-5 text-soft">
+                          <li key={bulletIndex} className="flex gap-2 text-[15px] leading-5 text-soft">
                             <span className="bullet-dot" />
                             <span>{item}</span>
                           </li>
@@ -296,7 +297,7 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
                   ))}
                 </>
               ) : (
-                <p className="text-[12.5px] text-muted">This meeting has no written notes yet.</p>
+                <p className="text-[14.5px] text-muted">This meeting has no written notes yet.</p>
               )}
 
               {view.transcript.length > 0 && (
@@ -304,8 +305,8 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
                   <h3 className="kicker">Spoken words</h3>
                   <div className="mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-line bg-raised-2 p-3 scroll-quiet">
                     {view.transcript.map((line) => (
-                      <p key={line.id} className="py-1 text-[12.5px] leading-5 text-soft">
-                        <span className="mr-2 text-[10.5px] tabular-nums text-faint">{formatClock(line.at)}</span>
+                      <p key={line.id} className="py-1 text-[14.5px] leading-5 text-soft">
+                        <span className="mr-2 text-[12.5px] tabular-nums text-faint">{formatClock(line.at)}</span>
                         {line.speaker && <span className="mr-1 font-medium text-brass">{line.speaker}:</span>}
                         {line.text}
                       </p>
@@ -506,8 +507,8 @@ function AskPanel({
               <Sparkles className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-ink">Memory chat</h2>
-              <p className="truncate text-[10.5px] text-faint">Ask across months of meetings you can open.</p>
+              <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Memory chat</h2>
+              <p className="truncate text-[12.5px] text-faint">Ask across months of meetings you can open.</p>
             </div>
           </div>
           {turns.length > 0 && (
@@ -524,8 +525,8 @@ function AskPanel({
               <span className="grid h-11 w-11 place-items-center rounded-full border border-line bg-raised-2 text-accent">
                 <BookOpen className="h-5 w-5" />
               </span>
-              <p className="mt-3 text-[14px] font-semibold tracking-[-0.02em] text-ink">Ask the record a question</p>
-              <p className="mt-1 max-w-[34ch] text-[12px] leading-5 text-muted">
+              <p className="mt-3 text-[16px] font-semibold tracking-[-0.02em] text-ink">Ask the record a question</p>
+              <p className="mt-1 max-w-[34ch] text-[14px] leading-5 text-muted">
                 What was planned, what changed, and why. Every answer points back to the meeting it came from — and
                 says when no reason was recorded.
               </p>
@@ -534,7 +535,7 @@ function AskPanel({
                   <button
                     key={suggestion}
                     type="button"
-                    className="rounded-full border border-line bg-raised-2 px-3 py-1.5 text-left text-[11.5px] font-medium text-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
+                    className="rounded-full border border-line bg-raised-2 px-3 py-1.5 text-left text-[13.5px] font-medium text-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
                     disabled={asking}
                     onClick={() => void ask(suggestion)}
                   >
@@ -547,7 +548,7 @@ function AskPanel({
             turns.map((turn) => (
               <div key={turn.id} className="space-y-3">
                 <div className="flex justify-end">
-                  <p className="max-w-[88%] rounded-2xl rounded-br-sm bg-accent-soft px-3.5 py-2.5 text-[12.5px] leading-5 text-ink">
+                  <p className="max-w-[88%] rounded-2xl rounded-br-sm bg-accent-soft px-3.5 py-2.5 text-[14.5px] leading-5 text-ink">
                     {turn.question}
                   </p>
                 </div>
@@ -556,10 +557,10 @@ function AskPanel({
                 ) : turn.error ? (
                   <div className="flex max-w-[92%] items-start gap-2 rounded-2xl rounded-bl-sm border border-rec-line bg-rec-soft px-3.5 py-2.5">
                     <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
-                    <p className="text-[12px] leading-5 text-soft">{turn.error}</p>
+                    <p className="text-[14px] leading-5 text-soft">{turn.error}</p>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 pl-1 text-[11.5px] text-muted">
+                  <div className="flex items-center gap-2 pl-1 text-[13.5px] text-muted">
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
                     Reading the record…
                   </div>
@@ -580,7 +581,7 @@ function AskPanel({
           {error && (
             <div className="mb-2 flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
-              <p className="text-[11.5px] leading-4 text-soft">{error}</p>
+              <p className="text-[13.5px] leading-4 text-soft">{error}</p>
             </div>
           )}
           <div className="flex items-end gap-2">
@@ -632,7 +633,7 @@ function AskPanel({
               {asking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             </button>
           </div>
-          <p className="mt-2 text-[10px] leading-4 text-faint">
+          <p className="mt-2 text-[12px] leading-4 text-faint">
             {voice === "listening" ? (
               <span className="inline-flex items-center gap-1.5">
                 <span className="live-dot !h-1.5 !w-1.5" />
@@ -648,27 +649,27 @@ function AskPanel({
       <aside className="card h-fit p-5">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-accent" />
-          <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-ink">Private by design</h2>
+          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Private by design</h2>
         </div>
-        <p className="mt-2 text-[11.5px] leading-5 text-muted">
+        <p className="mt-2 text-[13.5px] leading-5 text-muted">
           JotBox filters every meeting through your access before the answer is written. Private, confidential, and
           other departments' meetings never reach the model.
         </p>
         <div className="mt-4 space-y-2 border-t border-line pt-4">
-          <div className="flex items-center justify-between text-[11.5px]">
+          <div className="flex items-center justify-between text-[13.5px]">
             <span className="text-muted">Your role</span>
             <Chip tone="accent">{ROLE_LABEL[org.org.role]}</Chip>
           </div>
-          <div className="flex items-center justify-between text-[11.5px]">
+          <div className="flex items-center justify-between text-[13.5px]">
             <span className="text-muted">Kept for</span>
             <span className="font-medium text-ink">{org.org.retentionDays} days</span>
           </div>
-          <div className="flex items-center justify-between text-[11.5px]">
+          <div className="flex items-center justify-between text-[13.5px]">
             <span className="text-muted">Meetings you shared</span>
             <span className="font-medium text-ink">{org.shares.length}</span>
           </div>
         </div>
-        <p className="mt-4 flex items-start gap-1.5 text-[10px] leading-4 text-faint">
+        <p className="mt-4 flex items-start gap-1.5 text-[12px] leading-4 text-faint">
           <Lock className="mt-px h-3 w-3 flex-none" />
           Recorded facts are cited. Anything JotBox works out is marked as an inference.
         </p>
@@ -693,7 +694,7 @@ function AnswerCard({
     <article className="max-w-[95%] overflow-hidden rounded-2xl rounded-bl-sm border border-line bg-raised">
       <div className="px-3.5 py-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-accent">JotBox</span>
+          <span className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-accent">JotBox</span>
           <Chip>
             <Eye className="h-3 w-3" />
             {answer.scope.considered} you can open
@@ -705,14 +706,14 @@ function AnswerCard({
           {answer.scope.provider === "demo" && <Chip tone="warn">Demo answer</Chip>}
         </div>
 
-        <p className="mt-2 text-[13px] leading-6 text-soft">{answer.answer}</p>
+        <p className="mt-2 text-[15px] leading-6 text-soft">{answer.answer}</p>
 
         {answer.reasonMissing && (
           <div className="mt-3 flex items-start gap-2 rounded-xl border border-line bg-highlight px-3 py-2.5">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-brass" />
             <div>
-              <p className="text-[11.5px] font-semibold text-ink">No recorded reason</p>
-              <p className="mt-0.5 text-[11px] leading-5 text-soft">
+              <p className="text-[13.5px] font-semibold text-ink">No recorded reason</p>
+              <p className="mt-0.5 text-[13px] leading-5 text-soft">
                 {answer.reasonNote ||
                   "The meetings show what changed, but nobody put the reason in the record. JotBox will not invent one."}
               </p>
@@ -724,7 +725,7 @@ function AnswerCard({
           type="button"
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
-          className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-medium text-accent transition-colors hover:text-ink"
+          className="mt-2.5 inline-flex items-center gap-1 text-[13px] font-medium text-accent transition-colors hover:text-ink"
         >
           {open ? "Hide the record" : "See the record behind this answer"}
           <ChevronDown className={clsx("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
@@ -740,11 +741,11 @@ function AnswerCard({
                 {answer.timeline.map((item, index) => (
                   <li key={index} className="relative">
                     <span className="absolute -left-[1.07rem] top-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
-                    <p className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-faint">
+                    <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-faint">
                       {formatDateLabel(item.date)}
                     </p>
-                    <p className="mt-0.5 text-[12px] font-semibold text-ink">{item.title}</p>
-                    <p className="mt-0.5 text-[11.5px] leading-5 text-soft">{item.text}</p>
+                    <p className="mt-0.5 text-[14px] font-semibold text-ink">{item.title}</p>
+                    <p className="mt-0.5 text-[13.5px] leading-5 text-soft">{item.text}</p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {item.sourceIds.map((id) => {
                         const source = sourceMap.get(id);
@@ -761,12 +762,12 @@ function AnswerCard({
             <div>
               <h3 className="kicker">Recorded</h3>
               {answer.recorded.length === 0 ? (
-                <p className="mt-1.5 text-[11.5px] text-muted">Nothing in the record answers that directly.</p>
+                <p className="mt-1.5 text-[13.5px] text-muted">Nothing in the record answers that directly.</p>
               ) : (
                 <ul className="mt-1.5 space-y-2">
                   {answer.recorded.map((item, index) => (
                     <li key={index} className="rounded-lg border border-line bg-raised p-2.5">
-                      <p className="text-[11.5px] leading-5 text-soft">{item.text}</p>
+                      <p className="text-[13.5px] leading-5 text-soft">{item.text}</p>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {item.sourceIds.map((id) => {
                           const source = sourceMap.get(id);
@@ -781,15 +782,15 @@ function AnswerCard({
 
             <div>
               <h3 className="kicker">Read between the lines</h3>
-              <p className="mt-0.5 text-[9.5px] leading-4 text-faint">Inferences, not recorded facts.</p>
+              <p className="mt-0.5 text-[11.5px] leading-4 text-faint">Inferences, not recorded facts.</p>
               {answer.inferences.length === 0 ? (
-                <p className="mt-1.5 text-[11.5px] text-muted">Nothing needed to be inferred.</p>
+                <p className="mt-1.5 text-[13.5px] text-muted">Nothing needed to be inferred.</p>
               ) : (
                 <ul className="mt-1.5 space-y-2">
                   {answer.inferences.map((item, index) => (
                     <li key={index} className="rounded-lg border border-dashed border-line-strong bg-raised p-2.5">
-                      <p className="text-[11.5px] leading-5 text-soft">{item.text}</p>
-                      {item.basis && <p className="mt-1 text-[9.5px] leading-4 text-faint">Based on: {item.basis}</p>}
+                      <p className="text-[13.5px] leading-5 text-soft">{item.text}</p>
+                      {item.basis && <p className="mt-1 text-[11.5px] leading-4 text-faint">Based on: {item.basis}</p>}
                     </li>
                   ))}
                 </ul>
@@ -900,7 +901,7 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
         description="Choose who can reach this meeting when they ask the memory. You can change it at any time."
       >
         {candidates.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-line-strong bg-raised-2 px-3.5 py-3 text-[12px] text-muted">
+          <p className="rounded-xl border border-dashed border-line-strong bg-raised-2 px-3.5 py-3 text-[14px] text-muted">
             Record a meeting first. It will appear here once it is on this device.
           </p>
         ) : (
@@ -910,45 +911,37 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
                 <label className="label" htmlFor="share-capture">
                   Meeting
                 </label>
-                <div className="relative">
-                  <select
-                    id="share-capture"
-                    className="field appearance-none pr-9"
-                    value={captureId}
-                    onChange={(event) => selectCapture(event.target.value)}
-                  >
-                    <option value="">Choose a meeting</option>
-                    {candidates.map((session) => (
-                      <option key={session.id} value={session.id}>
-                        {session.title}
-                        {sharesById.has(session.id) ? " · shared" : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-                </div>
+                <Select
+                  id="share-capture"
+                  value={captureId}
+                  onChange={selectCapture}
+                  options={[
+                    { value: "", label: "Choose a meeting" },
+                    ...candidates.map((session) => ({
+                      value: session.id,
+                      label: `${session.title}${sharesById.has(session.id) ? " · shared" : ""}`,
+                    })),
+                  ]}
+                />
               </div>
               <div>
                 <label className="label" htmlFor="share-sensitivity">
                   Sensitivity
                 </label>
-                <div className="relative">
-                  <select
-                    id="share-sensitivity"
-                    className="field appearance-none pr-9"
-                    value={sensitivity}
-                    onChange={(event) => setSensitivity(event.target.value as CaptureSensitivity)}
-                  >
-                    <option value="standard">Standard</option>
-                    <option value="confidential">Confidential</option>
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-                </div>
+                <Select
+                  id="share-sensitivity"
+                  value={sensitivity}
+                  onChange={(next) => setSensitivity(next as CaptureSensitivity)}
+                  options={[
+                    { value: "standard", label: "Standard" },
+                    { value: "confidential", label: "Confidential" },
+                  ]}
+                />
               </div>
             </div>
 
             {sensitivity === "confidential" ? (
-              <p className="flex items-start gap-2 rounded-lg border border-line bg-highlight px-3 py-2.5 text-[11.5px] leading-5 text-soft">
+              <p className="flex items-start gap-2 rounded-lg border border-line bg-highlight px-3 py-2.5 text-[13.5px] leading-5 text-soft">
                 <Lock className="mt-0.5 h-3.5 w-3.5 flex-none text-brass" />
                 Confidential meetings are only reachable by you and the people you grant below. Department and
                 organisation access are ignored.
@@ -959,43 +952,36 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
                   <label className="label" htmlFor="share-visibility">
                     Who can open it
                   </label>
-                  <div className="relative">
-                    <select
-                      id="share-visibility"
-                      className="field appearance-none pr-9"
-                      value={visibility}
-                      onChange={(event) => setVisibility(event.target.value as CaptureVisibility)}
-                    >
-                      <option value="private">{VISIBILITY_LABEL.private}</option>
-                      {(admin || org.org.departmentId) && (
-                        <option value="department">{VISIBILITY_LABEL.department}</option>
-                      )}
-                      {admin && <option value="organisation">{VISIBILITY_LABEL.organisation}</option>}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-                  </div>
+                  <Select
+                    id="share-visibility"
+                    value={visibility}
+                    onChange={(next) => setVisibility(next as CaptureVisibility)}
+                    options={[
+                      { value: "private", label: VISIBILITY_LABEL.private },
+                      ...((admin || org.org.departmentId)
+                        ? [{ value: "department", label: VISIBILITY_LABEL.department }]
+                        : []),
+                      ...(admin ? [{ value: "organisation", label: VISIBILITY_LABEL.organisation }] : []),
+                    ]}
+                  />
                 </div>
                 {visibility === "department" && (
                   <div>
                     <label className="label" htmlFor="share-department">
                       Department
                     </label>
-                    <div className="relative">
-                      <select
-                        id="share-department"
-                        className="field appearance-none pr-9"
-                        value={departmentId}
-                        onChange={(event) => setDepartmentId(event.target.value)}
-                      >
-                        <option value="">Choose a department</option>
-                        {departmentOptions.map((department) => (
-                          <option key={department.id} value={department.id}>
-                            {department.name}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-                    </div>
+                    <Select
+                      id="share-department"
+                      value={departmentId}
+                      onChange={setDepartmentId}
+                      options={[
+                        { value: "", label: "Choose a department" },
+                        ...departmentOptions.map((department) => ({
+                          value: department.id,
+                          label: department.name,
+                        })),
+                      ]}
+                    />
                   </div>
                 )}
               </div>
@@ -1007,7 +993,7 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
                 {org.members.map((member) => (
                   <label
                     key={member.userId}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-raised-2 px-2.5 py-2 text-[12px] text-soft transition-colors hover:border-line-strong"
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-raised-2 px-2.5 py-2 text-[14px] text-soft transition-colors hover:border-line-strong"
                   >
                     <input
                       type="checkbox"
@@ -1016,7 +1002,7 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
                       onChange={() => toggleGrant(member.userId)}
                     />
                     <span className="min-w-0 flex-1 truncate">{member.name || member.email}</span>
-                    <span className="flex-none text-[10px] text-faint">
+                    <span className="flex-none text-[12px] text-faint">
                       {member.departmentName ?? ROLE_LABEL[member.role]}
                     </span>
                   </label>
@@ -1027,7 +1013,7 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
             {error && (
               <div className="flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
-                <p className="text-[12px] leading-5 text-soft">{error}</p>
+                <p className="text-[14px] leading-5 text-soft">{error}</p>
               </div>
             )}
 
@@ -1047,7 +1033,7 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
         aside={<Chip>{org.shares.length}</Chip>}
       >
         {org.shares.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-line-strong bg-raised-2 px-3.5 py-3 text-[12px] text-muted">
+          <p className="rounded-xl border border-dashed border-line-strong bg-raised-2 px-3.5 py-3 text-[14px] text-muted">
             Nothing is shared yet. The memory gets sharper as meetings are added.
           </p>
         ) : (
@@ -1055,7 +1041,7 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
             {org.shares.map((share) => (
               <li key={share.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium text-ink">{share.title}</p>
+                  <p className="truncate text-[15px] font-medium text-ink">{share.title}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Chip>{VISIBILITY_LABEL[share.visibility]}</Chip>
                     {share.visibility === "department" && share.departmentName && <Chip>{share.departmentName}</Chip>}
@@ -1068,7 +1054,7 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
                       <Chip>{SENSITIVITY_LABEL[share.sensitivity]}</Chip>
                     )}
                     {share.grantUserIds.length > 0 && <Chip>{share.grantUserIds.length} with direct access</Chip>}
-                    <span className="text-[10.5px] text-faint">{format(share.createdAt, "d MMM yyyy")}</span>
+                    <span className="text-[12.5px] text-faint">{format(share.createdAt, "d MMM yyyy")}</span>
                   </div>
                 </div>
                 <button
@@ -1163,50 +1149,45 @@ function PeoplePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Prom
           const locked = member.role === "owner" || (org.org.role === "admin" && member.role === "admin") || isSelf;
           return (
             <li key={member.userId} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
-              <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent">
+              <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent">
                 {(member.name.trim()[0] ?? member.email[0]).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium text-ink">
+                <p className="truncate text-[15px] font-medium text-ink">
                   {member.name || member.email}
-                  {isSelf && <span className="ml-1.5 text-[10.5px] font-normal text-faint">you</span>}
+                  {isSelf && <span className="ml-1.5 text-[12.5px] font-normal text-faint">you</span>}
                 </p>
-                <p className="truncate text-[11px] text-faint">{member.email}</p>
+                <p className="truncate text-[13px] text-faint">{member.email}</p>
               </div>
 
               {admin && !locked ? (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <div className="relative">
-                    <select
-                      className="field h-8 min-h-0 w-[7.5rem] appearance-none py-0 pl-2.5 pr-7 text-[11.5px]"
-                      value={member.role}
-                      onChange={(event) => void patch(member, { role: event.target.value as OrgRole })}
-                      disabled={savingId === member.userId}
-                    >
-                      <option value="member">Member</option>
-                      <option value="manager">Manager</option>
-                      {owner && <option value="admin">Admin</option>}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
-                  </div>
-                  <div className="relative">
-                    <select
-                      className="field h-8 min-h-0 w-[8.5rem] appearance-none py-0 pl-2.5 pr-7 text-[11.5px]"
-                      value={member.departmentId ?? ""}
-                      onChange={(event) =>
-                        void patch(member, { departmentId: event.target.value ? event.target.value : null })
-                      }
-                      disabled={savingId === member.userId}
-                    >
-                      <option value="">No department</option>
-                      {org.departments.map((department) => (
-                        <option key={department.id} value={department.id}>
-                          {department.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
-                  </div>
+                  <Select
+                    className="h-8 min-h-0 w-[8rem] py-0 pl-2.5 text-[13.5px]"
+                    value={member.role}
+                    onChange={(next) => void patch(member, { role: next as OrgRole })}
+                    disabled={savingId === member.userId}
+                    aria-label={`Role for ${member.name || member.email}`}
+                    options={[
+                      { value: "member", label: "Member" },
+                      { value: "manager", label: "Manager" },
+                      ...(owner ? [{ value: "admin", label: "Admin" }] : []),
+                    ]}
+                  />
+                  <Select
+                    className="h-8 min-h-0 w-[9rem] py-0 pl-2.5 text-[13.5px]"
+                    value={member.departmentId ?? ""}
+                    onChange={(next) => void patch(member, { departmentId: next ? next : null })}
+                    disabled={savingId === member.userId}
+                    aria-label={`Department for ${member.name || member.email}`}
+                    options={[
+                      { value: "", label: "No department" },
+                      ...org.departments.map((department) => ({
+                        value: department.id,
+                        label: department.name,
+                      })),
+                    ]}
+                  />
                   <button
                     type="button"
                     className="icon-btn h-8 w-8 text-muted hover:text-rec"
@@ -1231,7 +1212,7 @@ function PeoplePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Prom
         <div className="mt-4 rounded-xl border border-line bg-raised-2 p-3.5">
           <div className="flex items-center gap-2">
             <UserPlus className="h-4 w-4 text-accent" />
-            <p className="text-[12.5px] font-medium text-ink">Add someone</p>
+            <p className="text-[14.5px] font-medium text-ink">Add someone</p>
           </div>
           <div className="mt-2.5 flex flex-col gap-2 sm:flex-row">
             <input
@@ -1241,40 +1222,37 @@ function PeoplePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Prom
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-            <div className="relative">
-              <select
-                className="field w-full appearance-none pr-8 sm:w-[8rem]"
-                value={role}
-                onChange={(event) => setRole(event.target.value as OrgRole)}
-              >
-                <option value="member">Member</option>
-                <option value="manager">Manager</option>
-                {owner && <option value="admin">Admin</option>}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            </div>
-            <div className="relative">
-              <select
-                className="field w-full appearance-none pr-8 sm:w-[9.5rem]"
-                value={departmentId}
-                onChange={(event) => setDepartmentId(event.target.value)}
-              >
-                <option value="">No department</option>
-                {org.departments.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            </div>
+            <Select
+              className="w-full sm:w-[8.5rem]"
+              value={role}
+              onChange={(next) => setRole(next as OrgRole)}
+              aria-label="New member role"
+              options={[
+                { value: "member", label: "Member" },
+                { value: "manager", label: "Manager" },
+                ...(owner ? [{ value: "admin", label: "Admin" }] : []),
+              ]}
+            />
+            <Select
+              className="w-full sm:w-[10rem]"
+              value={departmentId}
+              onChange={setDepartmentId}
+              aria-label="New member department"
+              options={[
+                { value: "", label: "No department" },
+                ...org.departments.map((department) => ({
+                  value: department.id,
+                  label: department.name,
+                })),
+              ]}
+            />
             <button type="button" className="btn btn-line" onClick={() => void add()} disabled={adding}>
               {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Add
             </button>
           </div>
-          <p className="mt-1.5 text-[10.5px] text-faint">They need a JotBox account first.</p>
-          {error && <p className="mt-2 text-[11.5px] text-rec">{error}</p>}
+          <p className="mt-1.5 text-[12.5px] text-faint">They need a JotBox account first.</p>
+          {error && <p className="mt-2 text-[13.5px] text-rec">{error}</p>}
         </div>
       )}
 
@@ -1354,7 +1332,7 @@ function WorkspacePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => P
         aside={<Chip>{org.departments.length}</Chip>}
       >
         {org.departments.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-line-strong bg-raised-2 px-3.5 py-3 text-[12px] text-muted">
+          <p className="rounded-xl border border-dashed border-line-strong bg-raised-2 px-3.5 py-3 text-[14px] text-muted">
             No departments yet.
           </p>
         ) : (
@@ -1422,17 +1400,17 @@ function WorkspacePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => P
                 onChange={(event) => setRetention(event.target.value)}
                 disabled={!admin}
               />
-              <span className="text-[11.5px] text-muted">days</span>
+              <span className="text-[13.5px] text-muted">days</span>
             </div>
           </div>
         </div>
-        <p className="mt-2 flex items-start gap-1.5 text-[10.5px] leading-4 text-faint">
+        <p className="mt-2 flex items-start gap-1.5 text-[12.5px] leading-4 text-faint">
           <Clock className="mt-px h-3 w-3 flex-none" />
           Older meetings drop out of memory answers. The recordings themselves stay on each person's device.
         </p>
         {admin && (
           <div className="mt-3 flex items-center justify-end gap-2">
-            {orgError && <span className="text-[11.5px] text-rec">{orgError}</span>}
+            {orgError && <span className="text-[13.5px] text-rec">{orgError}</span>}
             <button type="button" className="btn btn-primary btn-sm" onClick={() => void saveOrg()} disabled={savingOrg}>
               {savingOrg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               Save changes
@@ -1479,14 +1457,14 @@ function AuditPanel({ org }: { org: OrgDetail }) {
     return (
       <div className="flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
         <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
-        <p className="text-[12px] leading-5 text-soft">{error}</p>
+        <p className="text-[14px] leading-5 text-soft">{error}</p>
       </div>
     );
   }
 
   if (!events) {
     return (
-      <div className="flex items-center gap-2 py-10 text-[12.5px] text-muted">
+      <div className="flex items-center gap-2 py-10 text-[14.5px] text-muted">
         <Loader2 className="h-4 w-4 animate-spin" />
         Reading the audit trail…
       </div>
@@ -1530,14 +1508,14 @@ function AuditPanel({ org }: { org: OrgDetail }) {
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <p className="text-[12.5px] font-medium text-ink">{AUDIT_LABEL[event.action] ?? event.action}</p>
-                <p className="text-[10.5px] text-faint">
+                <p className="text-[14.5px] font-medium text-ink">{AUDIT_LABEL[event.action] ?? event.action}</p>
+                <p className="text-[12.5px] text-faint">
                   {event.actorName || event.actorEmail || "Someone"} ·{" "}
                   {formatDistanceToNowStrict(event.createdAt, { addSuffix: true })}
                 </p>
               </div>
               {auditDetail(event) && (
-                <p className="mt-0.5 truncate text-[11.5px] text-muted">{auditDetail(event)}</p>
+                <p className="mt-0.5 truncate text-[13.5px] text-muted">{auditDetail(event)}</p>
               )}
             </div>
           </li>
@@ -1576,8 +1554,8 @@ function CreateOrg({ onCreated }: { onCreated: (org: Organisation) => void }) {
         <span className="grid h-12 w-12 place-items-center rounded-2xl bg-accent-soft text-accent">
           <Building2 className="h-5 w-5" />
         </span>
-        <h2 className="mt-4 text-[20px] font-semibold tracking-[-0.03em] text-ink">Start your organisation</h2>
-        <p className="mt-1.5 max-w-[46ch] text-[13px] leading-6 text-muted">
+        <h2 className="mt-4 text-[22px] font-semibold tracking-[-0.03em] text-ink">Start your organisation</h2>
+        <p className="mt-1.5 max-w-[46ch] text-[15px] leading-6 text-muted">
           Bring meetings together so decisions, changes, and the reasons behind them survive past the room.
         </p>
         <div className="mt-5">
@@ -1600,15 +1578,15 @@ function CreateOrg({ onCreated }: { onCreated: (org: Organisation) => void }) {
               Create
             </button>
           </div>
-          {error && <p className="mt-2 text-[11.5px] text-rec">{error}</p>}
-          <p className="mt-2 text-[10.5px] leading-4 text-faint">
+          {error && <p className="mt-2 text-[13.5px] text-rec">{error}</p>}
+          <p className="mt-2 text-[12.5px] leading-4 text-faint">
             You become the owner. You can add departments and people next.
           </p>
         </div>
       </section>
 
       <section className="card p-6">
-        <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-ink">What the memory does</h2>
+        <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">What the memory does</h2>
         <ul className="mt-3 space-y-3">
           {[
             {
@@ -1632,8 +1610,8 @@ function CreateOrg({ onCreated }: { onCreated: (org: Organisation) => void }) {
                 {item.icon}
               </span>
               <div>
-                <p className="text-[12.5px] font-medium text-ink">{item.title}</p>
-                <p className="mt-0.5 text-[11.5px] leading-5 text-muted">{item.body}</p>
+                <p className="text-[14.5px] font-medium text-ink">{item.title}</p>
+                <p className="mt-0.5 text-[13.5px] leading-5 text-muted">{item.body}</p>
               </div>
             </li>
           ))}
@@ -1708,7 +1686,7 @@ export default function MemoryPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 py-16 text-[13px] text-muted">
+      <div className="flex items-center gap-2 py-16 text-[15px] text-muted">
         <Loader2 className="h-4 w-4 animate-spin" />
         Opening the memory…
       </div>
@@ -1720,31 +1698,23 @@ export default function MemoryPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="kicker">Memory</p>
-          <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[30px]">
+          <h1 className="mt-1.5 text-[28px] font-semibold tracking-[-0.04em] text-ink sm:text-[32px]">
             What the organisation knows.
           </h1>
-          <p className="mt-1 text-[13px] text-muted">
+          <p className="mt-1 text-[15px] text-muted">
             Meetings, decisions, and the reasons behind them — kept in one place.
           </p>
         </div>
         {orgs && orgs.length > 0 && (
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <select
-                className="field min-h-0 h-10 appearance-none py-0 pl-3 pr-8 text-[12.5px]"
-                value={activeId ?? ""}
-                onChange={(event) => void switchOrg(event.target.value)}
-                aria-label="Organisation"
-                disabled={switching}
-              >
-                {orgs.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            </div>
+            <Select
+              className="h-10 min-h-0 w-[12rem] py-0 pl-3 text-[14.5px]"
+              value={activeId ?? ""}
+              onChange={(next) => void switchOrg(next)}
+              aria-label="Organisation"
+              disabled={switching}
+              options={orgs.map((org) => ({ value: org.id, label: org.name }))}
+            />
           </div>
         )}
       </div>
@@ -1752,14 +1722,14 @@ export default function MemoryPage() {
       {error && (
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
-          <p className="text-[12px] leading-5 text-soft">{error}</p>
+          <p className="text-[14px] leading-5 text-soft">{error}</p>
         </div>
       )}
 
       {orgs && orgs.length === 0 ? (
         <CreateOrg onCreated={(org) => void created(org)} />
       ) : !detail ? (
-        <div className="flex items-center gap-2 py-16 text-[13px] text-muted">
+        <div className="flex items-center gap-2 py-16 text-[15px] text-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
           Opening the organisation…
         </div>

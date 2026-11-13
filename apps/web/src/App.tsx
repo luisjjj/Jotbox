@@ -30,7 +30,7 @@ export default function App() {
               color: "var(--ink)",
               border: "1px solid var(--line)",
               borderRadius: "12px",
-              fontSize: "13px",
+              fontSize: "15px",
               boxShadow: "var(--shadow-md)",
             },
             success: {

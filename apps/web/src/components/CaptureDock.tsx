@@ -1,13 +1,13 @@
 import { useState } from "react";
 import clsx from "clsx";
-import { ArrowUpRight, ChevronDown, Pause, Play, Square } from "lucide-react";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { toast } from "react-hot-toast";
 import { useEngine } from "@/engine/SessionEngine";
 import { formatClock } from "@/lib/format";
+import { Waveform } from "./Waveform";
 
 export function CaptureDock() {
-  const { status, elapsed, title, lines, interim, pause, resume, stop } = useEngine();
+  const { status, elapsed, title, lines, interim } = useEngine();
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -23,11 +23,6 @@ export function CaptureDock() {
   const previous = lines[lines.length - 2];
   const words = interim || latest?.text || "";
 
-  const handleStop = () => {
-    toast.success("Writing your notes…", { id: "writing-notes" });
-    void stop();
-  };
-
   return (
     <div
       className={clsx(
@@ -41,34 +36,27 @@ export function CaptureDock() {
           <button
             type="button"
             onClick={() => navigate("/listen")}
-            className="min-w-0 flex-1 rounded-lg py-1 text-left"
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg py-1 text-left"
             aria-label="Open the live recording"
           >
-            <span className="flex items-baseline gap-1.5">
-              <span className="text-[13px] font-semibold tabular-nums tracking-[-0.01em] text-ink">
-                {formatClock(elapsed)}
-              </span>
-              <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-faint">
+            <span className="flex-none text-[15px] font-semibold tabular-nums tracking-[-0.01em] text-ink">
+              {formatClock(elapsed)}
+            </span>
+            <Waveform
+              active={!paused}
+              bars={7}
+              className="hidden h-5 flex-none sm:flex"
+              barClassName="!h-4"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11.5px] font-semibold uppercase tracking-[0.12em] text-faint">
                 {paused ? "paused" : "listening"}
               </span>
+              <span className="mt-0.5 flex items-center gap-1 truncate text-[13.5px] text-muted">
+                {words || title || "Untitled session"}
+                <ArrowUpRight className="h-3 w-3 flex-none opacity-50" />
+              </span>
             </span>
-            <span className="mt-0.5 flex items-center gap-1 truncate text-[11.5px] text-muted">
-              {title || "Untitled session"}
-              <ArrowUpRight className="h-3 w-3 flex-none opacity-50" />
-            </span>
-          </button>
-          <button
-            type="button"
-            className="icon-btn h-9 w-9 rounded-lg border border-line bg-raised"
-            onClick={paused ? resume : pause}
-            aria-label={paused ? "Resume recording" : "Pause recording"}
-            title={paused ? "Resume" : "Pause"}
-          >
-            {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-          </button>
-          <button type="button" className="btn btn-primary btn-sm h-9" onClick={handleStop}>
-            <Square className="h-3.5 w-3.5 fill-current" />
-            Stop
           </button>
           <button
             type="button"
@@ -92,16 +80,16 @@ export function CaptureDock() {
         >
           <div className="overflow-hidden">
             <div className="border-t border-line px-3 py-2.5">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-faint">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
                 {paused ? "Paused" : "Latest words"}
               </p>
               {previous && (
-                <p className="mt-1 truncate text-[11px] leading-4 text-faint">
+                <p className="mt-1 truncate text-[13px] leading-4 text-faint">
                   {previous.speaker && <span className="font-semibold text-brass">{previous.speaker}: </span>}
                   {previous.text}
                 </p>
               )}
-              <p className="mt-0.5 text-[12px] leading-5 text-soft">
+              <p className="mt-0.5 text-[14px] leading-5 text-soft">
                 {words ? (
                   <>
                     {!interim && latest?.speaker && <span className="font-semibold text-brass">{latest.speaker}: </span>}
@@ -113,10 +101,10 @@ export function CaptureDock() {
               </p>
               <button
                 type="button"
-                onClick={() => navigate("/float")}
-                className="mt-2 inline-flex items-center gap-1 text-[10.5px] font-medium text-accent hover:text-ink"
+                onClick={() => navigate("/listen")}
+                className="mt-2 inline-flex items-center gap-1 text-[12.5px] font-medium text-accent hover:text-ink"
               >
-                Pin this pill above your other apps
+                Open the live recording
                 <ArrowUpRight className="h-3 w-3" />
               </button>
             </div>

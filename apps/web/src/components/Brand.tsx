@@ -41,7 +41,7 @@ export function Brand({
       {!compact && (
         <span
           className={clsx(
-            "text-[16px] font-semibold tracking-[-0.035em]",
+            "text-[18px] font-semibold tracking-[-0.035em]",
             onDark ? "text-[#f5f1e4]" : "text-ink",
           )}
         >

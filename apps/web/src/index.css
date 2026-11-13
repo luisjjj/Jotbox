@@ -100,7 +100,7 @@
     font-family:
       "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "SF Pro Icons", "Helvetica Neue",
       "Segoe UI", sans-serif;
-    font-size: 15px;
+    font-size: 17px;
     font-feature-settings: "cv11", "ss01", "kern";
     font-synthesis-weight: auto;
     text-rendering: optimizeLegibility;
@@ -152,7 +152,7 @@
     border: 1px solid transparent;
     background: transparent;
     color: var(--ink);
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-weight: 550;
     letter-spacing: -0.01em;
     white-space: nowrap;
@@ -242,14 +242,14 @@
   .btn-sm {
     min-height: 2.15rem;
     padding: 0 0.7rem;
-    font-size: 0.8rem;
+    font-size: 0.925rem;
     border-radius: 0.6rem;
   }
 
   .btn-lg {
     min-height: 3rem;
     padding: 0 1.35rem;
-    font-size: 0.95rem;
+    font-size: 1.075rem;
     border-radius: 0.85rem;
   }
 
@@ -306,14 +306,14 @@
     border: 1px solid var(--line);
     background: var(--raised);
     color: var(--muted);
-    font-size: 0.72rem;
+    font-size: 0.845rem;
     font-weight: 500;
     letter-spacing: 0.01em;
     white-space: nowrap;
   }
 
   .kicker {
-    font-size: 0.675rem;
+    font-size: 0.8rem;
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -323,7 +323,7 @@
   .label {
     display: block;
     margin-bottom: 0.45rem;
-    font-size: 0.78rem;
+    font-size: 0.905rem;
     font-weight: 550;
     color: var(--soft);
   }
@@ -336,7 +336,7 @@
     border-radius: 0.7rem;
     background: var(--raised);
     color: var(--ink);
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1.4;
     transition:
       border-color 0.15s ease,
@@ -345,7 +345,7 @@
 
   @media (min-width: 1024px) {
     .field {
-      font-size: 0.9rem;
+      font-size: 1.025rem;
     }
   }
 
@@ -384,7 +384,7 @@
     border-radius: 0.5rem;
     background: transparent;
     color: var(--muted);
-    font-size: 0.78rem;
+    font-size: 0.905rem;
     font-weight: 500;
     cursor: pointer;
     transition:
@@ -406,7 +406,7 @@
 
   .doc-copy {
     color: var(--soft);
-    font-size: 0.98rem;
+    font-size: 1.105rem;
     line-height: 1.75;
   }
 
@@ -774,14 +774,14 @@
 
   .transcript-time {
     padding-top: 0.15rem;
-    font-size: 0.68rem;
+    font-size: 0.805rem;
     font-variant-numeric: tabular-nums;
     color: var(--faint);
     letter-spacing: 0.02em;
   }
 
   .transcript-speaker {
-    font-size: 0.72rem;
+    font-size: 0.845rem;
     font-weight: 600;
     color: var(--brass);
     letter-spacing: 0.01em;

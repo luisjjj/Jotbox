@@ -59,11 +59,11 @@ function KindSelector({ kind, onChange }: { kind: SessionKind; onChange: (kind: 
               <KindIcon kind={item} className="h-4 w-4" />
             </span>
             <span className="min-w-0">
-              <span className="flex items-center gap-1 text-[12.5px] font-semibold tracking-[-0.01em] text-ink">
+              <span className="flex items-center gap-1 text-[14.5px] font-semibold tracking-[-0.01em] text-ink">
                 {KIND_META[item].label}
                 {active && <Check className="h-3 w-3 text-accent" />}
               </span>
-              <span className="mt-0.5 hidden text-[10.5px] leading-4 text-muted sm:block">
+              <span className="mt-0.5 hidden text-[12.5px] leading-4 text-muted sm:block">
                 {KIND_META[item].hint}
               </span>
             </span>
@@ -99,10 +99,10 @@ function SourceCard({
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
           <Icon className="h-5 w-5" strokeWidth={1.8} />
         </span>
-        <span className="chip text-[10px]">{note}</span>
+        <span className="chip text-[12px]">{note}</span>
       </div>
-      <h3 className="mt-4 text-[15px] font-semibold tracking-[-0.02em] text-ink">{title}</h3>
-      <p className="mt-1.5 flex-1 text-[12.5px] leading-5 text-muted">{body}</p>
+      <h3 className="mt-4 text-[17px] font-semibold tracking-[-0.02em] text-ink">{title}</h3>
+      <p className="mt-1.5 flex-1 text-[14.5px] leading-5 text-muted">{body}</p>
       <button type="button" className="btn btn-line mt-4 w-full justify-between" onClick={onClick} disabled={busy || disabled}>
         <span>{busy ? "Opening…" : action}</span>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
@@ -154,10 +154,10 @@ function Setup() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] xl:items-start xl:gap-10">
         <div className="xl:sticky xl:top-9">
           <p className="kicker">New capture</p>
-          <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[32px]">
+          <h1 className="mt-1.5 text-[28px] font-semibold tracking-[-0.04em] text-ink sm:text-[34px]">
             What are you listening to?
           </h1>
-          <p className="mt-1.5 max-w-[46ch] text-[13.5px] leading-6 text-muted">
+          <p className="mt-1.5 max-w-[46ch] text-[15.5px] leading-6 text-muted">
             Pick the shape of the session. JotBox listens, keeps the spoken words, and writes the notes in that shape.
           </p>
         </div>
@@ -166,7 +166,7 @@ function Setup() {
           {error && (
             <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-rec-line bg-rec-soft p-3">
               <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
-              <p className="flex-1 text-[12.5px] leading-5 text-soft">{error}</p>
+              <p className="flex-1 text-[14.5px] leading-5 text-soft">{error}</p>
               <button type="button" className="icon-btn h-6 w-6" onClick={clearError} aria-label="Dismiss">
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -219,12 +219,12 @@ function Setup() {
             />
           </div>
           {!canShare && (
-            <p className="mt-2 text-[11px] leading-5 text-faint">
+            <p className="mt-2 text-[13px] leading-5 text-faint">
               Sharing a call tab needs a computer. On a phone, use the microphone.
             </p>
           )}
           {studio === false && (
-            <p className="mt-2 text-[11px] leading-5 text-faint">
+            <p className="mt-2 text-[13px] leading-5 text-faint">
               Automatic words are not turned on for this workspace, so call and uploaded audio is saved but not written
               out. The microphone still shows live words, and you can paste the words after the session.
             </p>
@@ -237,8 +237,8 @@ function Setup() {
               <FileAudio className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-[13px] font-medium text-ink">Already have a recording?</p>
-              <p className="mt-0.5 text-[11.5px] leading-5 text-muted">
+              <p className="text-[15px] font-medium text-ink">Already have a recording?</p>
+              <p className="mt-0.5 text-[13.5px] leading-5 text-muted">
                 {APP_CONFIG.supportedAudioExtensions.join(" ").toUpperCase()} · up to 80 MB.{" "}
                 {studio === false ? "Automatic words are off — you can paste them afterwards." : ""}
               </p>
@@ -264,7 +264,7 @@ function Setup() {
 
         <div className="flex items-start gap-2 rounded-xl border border-line bg-raised-2 px-3.5 py-3">
           <Pin className="mt-0.5 h-3.5 w-3.5 flex-none text-faint" />
-          <p className="text-[11.5px] leading-5 text-muted">
+          <p className="text-[13.5px] leading-5 text-muted">
             Need to keep working? Start here, then{" "}
             <Link to="/float" className="font-medium text-ink underline decoration-line-strong underline-offset-2">
               pin the pill
@@ -332,14 +332,14 @@ function Studio() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-rec-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-rec">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-rec-soft px-2.5 py-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-rec">
               <span className="live-dot" />
               {paused ? "Paused" : "Listening"}
             </span>
-            <span className="text-[24px] font-semibold tabular-nums tracking-[-0.03em] text-ink sm:text-[28px]">
+            <span className="text-[26px] font-semibold tabular-nums tracking-[-0.03em] text-ink sm:text-[30px]">
               {formatClock(elapsed)}
             </span>
-            <span className="hidden items-center gap-1 text-[11px] text-faint sm:flex">
+            <span className="hidden items-center gap-1 text-[13px] text-faint sm:flex">
               <AudioLines className="h-3.5 w-3.5" />
               {sourceLabel}
             </span>
@@ -347,7 +347,7 @@ function Studio() {
           <div className="mt-2.5 flex items-center gap-2">
             <KindBadge kind={kind} />
             <input
-              className="w-full min-w-0 bg-transparent text-[18px] font-semibold tracking-[-0.03em] text-ink outline-none placeholder:text-faint sm:text-[22px]"
+              className="w-full min-w-0 bg-transparent text-[20px] font-semibold tracking-[-0.03em] text-ink outline-none placeholder:text-faint sm:text-[24px]"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Name this session"
@@ -397,7 +397,7 @@ function Studio() {
       {error && (
         <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-rec-line bg-rec-soft p-3">
           <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
-          <p className="flex-1 text-[12.5px] leading-5 text-soft">{error}</p>
+          <p className="flex-1 text-[14.5px] leading-5 text-soft">{error}</p>
           <button type="button" className="icon-btn h-6 w-6" onClick={clearError} aria-label="Dismiss">
             <X className="h-3.5 w-3.5" />
           </button>
@@ -413,7 +413,7 @@ function Studio() {
             onClick={() => setPane("notes")}
           >
             Your notes
-            <span className="text-[10px] text-faint">{words}</span>
+            <span className="text-[12px] text-faint">{words}</span>
           </button>
           <button
             type="button"
@@ -422,7 +422,7 @@ function Studio() {
             onClick={() => setPane("transcript")}
           >
             Spoken words
-            <span className="text-[10px] text-faint">{lines.length}</span>
+            <span className="text-[12px] text-faint">{lines.length}</span>
           </button>
         </div>
       </div>
@@ -439,12 +439,12 @@ function Studio() {
             <div className="hidden items-center justify-between border-b border-line px-4 py-3 sm:px-5 lg:flex">
               <div className="flex items-center gap-2">
                 <Pencil className="h-3.5 w-3.5 text-muted" />
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Your notes</h2>
+                <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-muted">Your notes</h2>
               </div>
-              <span className="text-[10.5px] tabular-nums text-faint">{words} words · saved</span>
+              <span className="text-[12.5px] tabular-nums text-faint">{words} words · saved</span>
             </div>
             <textarea
-              className="min-h-[42vh] w-full flex-1 resize-none border-0 bg-transparent p-4 text-[15.5px] leading-7 text-ink outline-none placeholder:text-faint sm:p-5 lg:min-h-0"
+              className="min-h-[42vh] w-full flex-1 resize-none border-0 bg-transparent p-4 text-[17.5px] leading-7 text-ink outline-none placeholder:text-faint sm:p-5 lg:min-h-0"
               placeholder={
                 "Write what you want to keep.\n\n• Decisions\n• Names, numbers, dates\n• What you owe someone"
               }
@@ -452,7 +452,7 @@ function Studio() {
               onChange={(event) => setScratch(event.target.value)}
               spellCheck
             />
-            <p className="border-t border-line px-4 py-2.5 text-[10.5px] leading-4 text-faint sm:px-5">
+            <p className="border-t border-line px-4 py-2.5 text-[12.5px] leading-4 text-faint sm:px-5">
               Short lines work best. These become the spine of the written notes.
             </p>
           </section>
@@ -467,11 +467,11 @@ function Studio() {
             <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-5">
               <div className="flex items-center gap-2">
                 <AudioLines className="h-3.5 w-3.5 text-muted" />
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+                <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-muted">
                   Spoken words
                 </h2>
               </div>
-              <span className="flex items-center gap-1.5 text-[10.5px] text-faint">
+              <span className="flex items-center gap-1.5 text-[12.5px] text-faint">
                 {captions ? (
                   <>
                     <span className="h-1.5 w-1.5 rounded-full bg-[#3e7a5b]" />
@@ -483,7 +483,7 @@ function Studio() {
               </span>
             </div>
             {!captions && (
-              <div className="flex items-start gap-2 border-b border-line bg-raised-2 px-4 py-2.5 text-[11px] leading-5 text-muted sm:px-5">
+              <div className="flex items-start gap-2 border-b border-line bg-raised-2 px-4 py-2.5 text-[13px] leading-5 text-muted sm:px-5">
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-brass" />
                 {studio === false
                   ? "This browser can't show live words. Audio is still recording, and you can paste the words after the session."
@@ -497,14 +497,14 @@ function Studio() {
               className="flex-1 px-4 py-2 sm:px-5"
               emptyLabel="Speak, or play the meeting. Words will appear here as you listen."
             />
-            <p className="border-t border-line px-4 py-2.5 text-[10.5px] leading-4 text-faint sm:px-5">
+            <p className="border-t border-line px-4 py-2.5 text-[12.5px] leading-4 text-faint sm:px-5">
               Live words are a first pass. They are tidied up when the session ends.
             </p>
           </section>
         </div>
       </div>
 
-      <p className="mt-3 text-center text-[10.5px] text-faint">
+      <p className="mt-3 text-center text-[12.5px] text-faint">
         Keep this tab open for live words. You can switch apps — the audio keeps recording.
       </p>
     </div>
@@ -525,8 +525,8 @@ function Processing() {
       <span className="grid h-14 w-14 place-items-center rounded-2xl border border-line bg-raised shadow-sm">
         <Loader2 className="h-6 w-6 animate-spin text-accent" />
       </span>
-      <h1 className="mt-5 text-[22px] font-semibold tracking-[-0.03em] text-ink">Writing the notes</h1>
-      <p className="mt-2 max-w-[34ch] text-[13px] leading-6 text-muted">
+      <h1 className="mt-5 text-[24px] font-semibold tracking-[-0.03em] text-ink">Writing the notes</h1>
+      <p className="mt-2 max-w-[34ch] text-[15px] leading-6 text-muted">
         Reading the recording, tidying the spoken words, and writing the summary and actions. This page will move on its
         own.
       </p>

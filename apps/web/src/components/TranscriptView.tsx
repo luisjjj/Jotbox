@@ -36,7 +36,7 @@ export function TranscriptView({
   if (!lines.length && !interim) {
     return (
       <div className={clsx("grid min-h-[9rem] place-items-center px-4 text-center", className)}>
-        <p className="max-w-[15rem] text-[13px] leading-6 text-faint">{emptyLabel}</p>
+        <p className="max-w-[15rem] text-[15px] leading-6 text-faint">{emptyLabel}</p>
       </div>
     );
   }
@@ -75,7 +75,7 @@ export function TranscriptView({
             </div>
             <div className="min-w-0">
               {showSpeaker && <div className="transcript-speaker mb-0.5">{line.speaker}</div>}
-              <p className="text-[13.5px] leading-[1.6] text-soft">{line.text}</p>
+              <p className="text-[15.5px] leading-[1.6] text-soft">{line.text}</p>
             </div>
           </div>
         );
@@ -85,7 +85,7 @@ export function TranscriptView({
           <div className="transcript-time">
             <span className="live-dot" />
           </div>
-          <p className="pt-0.5 text-[13.5px] italic leading-[1.6] text-faint">{interim}</p>
+          <p className="pt-0.5 text-[15.5px] italic leading-[1.6] text-faint">{interim}</p>
         </div>
       )}
     </div>

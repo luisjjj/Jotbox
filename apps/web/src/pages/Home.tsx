@@ -46,10 +46,10 @@ function StatsGrid({ stats, stacked = false }: { stats: Stats; stacked?: boolean
             <item.Icon className="h-4 w-4" strokeWidth={1.8} />
           </span>
           <div className="min-w-0">
-            <p className="text-[19px] font-semibold leading-none tracking-[-0.03em] text-ink sm:text-[22px]">
+            <p className="text-[21px] font-semibold leading-none tracking-[-0.03em] text-ink sm:text-[24px]">
               {item.value}
             </p>
-            <p className="mt-1.5 truncate text-[10px] font-medium uppercase tracking-[0.08em] text-faint sm:text-[10.5px]">
+            <p className="mt-1.5 text-[12px] font-medium uppercase leading-4 tracking-[0.04em] text-faint sm:text-[12.5px] sm:tracking-[0.08em]">
               {item.label}
             </p>
           </div>
@@ -70,8 +70,8 @@ function FloatCard() {
           <Layers className="h-4 w-4" />
         </span>
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-ink">Keep JotBox on top</p>
-          <p className="mt-0.5 truncate text-[12px] text-muted">
+          <p className="text-[15px] font-medium text-ink">Keep JotBox on top</p>
+          <p className="mt-0.5 truncate text-[14px] text-muted">
             Pin the pill above Meet, Zoom, or your slides while you work.
           </p>
         </div>
@@ -114,10 +114,10 @@ export default function Home() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="kicker">{format(new Date(), "EEEE, d MMMM")}</p>
-          <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.035em] text-ink sm:text-[30px]">
+          <h1 className="mt-1.5 text-[28px] font-semibold tracking-[-0.035em] text-ink sm:text-[32px]">
             {greeting()}.
           </h1>
-          <p className="mt-1 text-[13.5px] text-muted">Start a capture, or pick up where you left off.</p>
+          <p className="mt-1 text-[15.5px] text-muted">Start a capture, or pick up where you left off.</p>
         </div>
         <Link to="/listen" className="btn btn-primary hidden sm:inline-flex">
           <Plus className="h-4 w-4" />
@@ -133,8 +133,8 @@ export default function Home() {
                 <Mic className="h-5 w-5" strokeWidth={1.9} />
               </span>
               <div>
-                <p className="text-[14px] font-medium tracking-[-0.01em] text-ink">Ready when the room is.</p>
-                <p className="mt-0.5 max-w-[52ch] text-[12px] leading-5 text-muted">
+                <p className="text-[16px] font-medium tracking-[-0.01em] text-ink">Ready when the room is.</p>
+                <p className="mt-0.5 max-w-[52ch] text-[14px] leading-5 text-muted">
                   Record a meeting, seminar, or lecture in the room or from a call tab. JotBox keeps the spoken words and
                   writes the notes when you stop.
                 </p>
@@ -152,13 +152,13 @@ export default function Home() {
 
           <section className="mt-8 xl:mt-7">
             <div className="flex items-end justify-between gap-3">
-              <div>
-                <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Recent notes</h2>
-                <p className="mt-0.5 text-[12px] text-muted">Your latest rooms, lectures, and calls.</p>
+              <div className="min-w-0">
+                <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-ink">Recent notes</h2>
+                <p className="mt-0.5 text-[14px] text-muted">Your latest rooms, lectures, and calls.</p>
               </div>
               <Link
                 to="/library"
-                className="inline-flex items-center gap-1 text-[12px] font-medium text-muted transition-colors hover:text-ink"
+                className="inline-flex flex-none items-center gap-1 whitespace-nowrap text-[14px] font-medium text-muted transition-colors hover:text-ink"
               >
                 View library
                 <ArrowRight className="h-3.5 w-3.5" />

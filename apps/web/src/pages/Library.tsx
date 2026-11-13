@@ -77,10 +77,10 @@ export default function Library() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="kicker">Library</p>
-          <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-0.04em] text-ink sm:text-[30px]">
+          <h1 className="mt-1.5 text-[28px] font-semibold tracking-[-0.04em] text-ink sm:text-[32px]">
             Everything you have heard.
           </h1>
-          <p className="mt-1 text-[13px] text-muted">
+          <p className="mt-1 text-[15px] text-muted">
             {sessions.length === 0
               ? "What you capture shows up here, with the spoken words and the written notes."
               : `${sessions.length} session${sessions.length === 1 ? "" : "s"} in your library.`}
@@ -124,7 +124,7 @@ export default function Library() {
                 onClick={() => setFilter(item.value)}
                 aria-pressed={active}
                 className={clsx(
-                  "rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                  "rounded-full border px-3 py-1.5 text-[14px] font-medium transition-colors",
                   active
                     ? "border-accent bg-accent-soft text-accent"
                     : "border-line bg-raised text-muted hover:border-line-strong hover:text-ink",
@@ -178,8 +178,8 @@ export default function Library() {
           {grouped.map(([label, items]) => (
             <section key={label}>
               <div className="mb-2 flex items-center justify-between px-1">
-                <h2 className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-faint">{label}</h2>
-                <span className="text-[10.5px] tabular-nums text-faint">{items.length}</span>
+                <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">{label}</h2>
+                <span className="text-[12.5px] tabular-nums text-faint">{items.length}</span>
               </div>
               <div className="card divide-y divide-line p-1.5">
                 {items.map((session, index) => (
@@ -191,7 +191,7 @@ export default function Library() {
             </section>
           ))}
           {query && (
-            <p className="flex items-center gap-1.5 px-1 text-[11px] text-faint">
+            <p className="flex items-center gap-1.5 px-1 text-[13px] text-faint">
               <Inbox className="h-3.5 w-3.5" />
               Searching titles, summaries, jottings, and spoken words.
             </p>

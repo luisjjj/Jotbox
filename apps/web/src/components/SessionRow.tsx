@@ -64,32 +64,32 @@ export function SessionRow({
           <p
             className={clsx(
               "truncate font-medium tracking-[-0.01em] text-ink",
-              compact ? "text-[12.5px]" : "text-[14px]",
+              compact ? "text-[14.5px]" : "text-[16px]",
               active && "font-semibold",
             )}
           >
             {session.title}
           </p>
           {isSample(session.id) && !compact && (
-            <span className="hidden rounded border border-line px-1 py-px text-[9px] font-medium uppercase tracking-[0.08em] text-faint sm:inline">
+            <span className="hidden rounded border border-line px-1 py-px text-[11px] font-medium uppercase tracking-[0.08em] text-faint sm:inline">
               Example
             </span>
           )}
         </div>
         {compact ? (
-          <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-faint">
+          <p className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] text-faint">
             <KindDot kind={session.kind} />
             {formatWhen(session.createdAt)}
           </p>
         ) : (
-          <p className="mt-0.5 truncate text-[12px] text-muted">
+          <p className="mt-0.5 truncate text-[14px] text-muted">
             {formatWhen(session.createdAt)}
             {session.durationSec > 0 && <span className="text-faint"> · {formatClock(session.durationSec)}</span>}
             {session.notes && <span className="text-faint"> · {session.notes.actions.filter((a) => !a.done).length} open</span>}
           </p>
         )}
         {!compact && showPreview && (
-          <p className="mt-1 line-clamp-1 text-[12.5px] leading-5 text-faint">{previewFor(session)}</p>
+          <p className="mt-1 line-clamp-1 text-[14.5px] leading-5 text-faint">{previewFor(session)}</p>
         )}
       </div>
       {showStatus && session.status !== "ready" && <SessionStatusChip session={session} />}

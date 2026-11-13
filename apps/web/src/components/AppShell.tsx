@@ -94,7 +94,7 @@ function Sidebar() {
           </span>
           <span
             className={clsx(
-              "grid h-5 w-5 place-items-center rounded-md text-[11px]",
+              "grid h-5 w-5 place-items-center rounded-md text-[13px]",
               status === "recording" || status === "paused" ? "bg-rec-soft text-rec" : "bg-white/15",
             )}
           >
@@ -112,7 +112,7 @@ function Sidebar() {
               key={item.to}
               to={item.to}
               className={clsx(
-                "mb-0.5 flex items-center gap-2.5 rounded-lg px-2.5 py-[0.55rem] text-[13px] font-medium transition-colors",
+                "mb-0.5 flex items-center gap-2.5 rounded-lg px-2.5 py-[0.55rem] text-[15px] font-medium transition-colors",
                 active ? "bg-accent-soft text-accent" : "text-muted hover:bg-raised-2 hover:text-ink",
               )}
               aria-current={active ? "page" : undefined}
@@ -126,7 +126,7 @@ function Sidebar() {
 
       <div className="mt-6 flex items-center justify-between px-5">
         <p className="kicker">Recent</p>
-        <Link to="/library" className="text-[11px] font-medium text-muted transition-colors hover:text-ink">
+        <Link to="/library" className="text-[13px] font-medium text-muted transition-colors hover:text-ink">
           View all
         </Link>
       </div>
@@ -142,8 +142,8 @@ function Sidebar() {
               <ArrowRight className="h-3.5 w-3.5" />
             </span>
             <span>
-              <span className="block text-[12px] font-medium text-ink">Nothing here yet</span>
-              <span className="mt-0.5 block text-[11px] leading-4 text-faint">Open an example to see the notes.</span>
+              <span className="block text-[14px] font-medium text-ink">Nothing here yet</span>
+              <span className="mt-0.5 block text-[13px] leading-4 text-faint">Open an example to see the notes.</span>
             </span>
           </button>
         ) : (
@@ -169,15 +169,15 @@ function Sidebar() {
         >
           <span
             className={clsx(
-              "grid h-8 w-8 flex-none place-items-center rounded-full text-[11px] font-semibold",
+              "grid h-8 w-8 flex-none place-items-center rounded-full text-[13px] font-semibold",
               user ? "bg-accent text-accent-ink" : "border border-line bg-raised-2 text-muted",
             )}
           >
             {user ? initials : <User className="h-4 w-4" />}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-medium text-ink">{accountLabel}</span>
-            <span className="mt-0.5 block truncate text-[10px] text-faint">{accountDetail}</span>
+            <span className="block truncate text-[14px] font-medium text-ink">{accountLabel}</span>
+            <span className="mt-0.5 block truncate text-[12px] text-faint">{accountDetail}</span>
           </span>
           <ChevronRight className="h-3.5 w-3.5 flex-none text-faint" />
         </Link>
@@ -192,7 +192,7 @@ function Sidebar() {
             >
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            <span className="flex items-center gap-1 px-1 text-[10.5px] text-faint">
+            <span className="flex items-center gap-1 px-1 text-[12.5px] text-faint">
               <ShieldCheck className="h-3 w-3" />
               Private
             </span>
@@ -217,7 +217,7 @@ function MobileHeader() {
         <div className="flex items-center gap-1">
           <Link to="/account" className="icon-btn" aria-label={user ? "Account" : "Sign in"}>
             {user ? (
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-accent text-[10px] font-semibold text-accent-ink">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-accent text-[12px] font-semibold text-accent-ink">
                 {initials}
               </span>
             ) : (
@@ -256,7 +256,7 @@ function MobileNav() {
         key={item.to}
         to={item.to}
         className={clsx(
-          "flex min-h-[3.1rem] flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium",
+          "flex min-h-[3.1rem] flex-col items-center justify-center gap-1 rounded-lg text-[12px] font-medium",
           active ? "text-accent" : "text-muted",
         )}
         aria-current={active ? "page" : undefined}
@@ -283,7 +283,7 @@ function MobileNav() {
           >
             <Mic className="h-[19px] w-[19px]" strokeWidth={2} />
           </span>
-          <span className={clsx("text-[10px] font-semibold", recording ? "text-rec" : "text-accent")}>
+          <span className={clsx("text-[12px] font-semibold", recording ? "text-rec" : "text-accent")}>
             {recording ? "Recording" : "Capture"}
           </span>
         </Link>

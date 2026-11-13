@@ -44,10 +44,10 @@ export function ConfirmDialog({
         aria-describedby="confirm-description"
         className="fade-up w-full max-w-[400px] rounded-2xl border border-line bg-raised p-5 shadow-float"
       >
-        <h2 id="confirm-title" className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
+        <h2 id="confirm-title" className="text-[17px] font-semibold tracking-[-0.01em] text-ink">
           {title}
         </h2>
-        <p id="confirm-description" className="mt-2 text-[13.5px] leading-6 text-muted">
+        <p id="confirm-description" className="mt-2 text-[15.5px] leading-6 text-muted">
           {description}
         </p>
         <div className="mt-5 flex justify-end gap-2">

@@ -1,24 +1,24 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
-import { ChevronDown, ChevronUp, Pause, Play, Square, X } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEngine } from "@/engine/SessionEngine";
 import { formatClock } from "@/lib/format";
 import { Waveform } from "./Waveform";
 
 const COMPACT = { width: 324, height: 64 };
-const EXPANDED = { width: 408, height: 204 };
+const EXPANDED = { width: 408, height: 176 };
 
 export function FloatWindow() {
   const { pip } = useEngine();
 
   if (!pip) return null;
 
-  return createPortal(<FloatPanel />, pip.document.body);
+  return createPortal(<FloatPill />, pip.document.body);
 }
 
-function FloatPanel() {
-  const { status, elapsed, title, lines, interim, pause, resume, stop, pip } = useEngine();
+function FloatPill() {
+  const { status, elapsed, title, lines, interim, pip } = useEngine();
   const [open, setOpen] = useState(false);
   const paused = status === "paused";
   const latest = lines[lines.length - 1];
@@ -53,7 +53,7 @@ function FloatPanel() {
             )}
             aria-hidden="true"
           />
-          <span className="flex-none text-[12px] font-semibold tabular-nums tracking-[-0.02em] text-[#f5f1e4]">
+          <span className="flex-none text-[14px] font-semibold tabular-nums tracking-[-0.02em] text-[#f5f1e4]">
             {formatClock(elapsed)}
           </span>
           <Waveform
@@ -66,13 +66,13 @@ function FloatPanel() {
           <div className="min-w-0 flex-1">
             {open ? (
               <>
-                <p className="text-[8.5px] font-semibold uppercase tracking-[0.12em] text-[#a6b5a8]">
+                <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[#a6b5a8]">
                   {paused ? "Paused" : "Listening"}
                 </p>
-                <p className="truncate text-[11px] leading-4 text-[#e3ebe1]">{title || "Untitled session"}</p>
+                <p className="truncate text-[13px] leading-4 text-[#e3ebe1]">{title || "Untitled session"}</p>
               </>
             ) : (
-              <p className="truncate text-[11px] leading-4 text-[#d8e2d8]">{title || "Untitled session"}</p>
+              <p className="truncate text-[13px] leading-4 text-[#d8e2d8]">{title || "Untitled session"}</p>
             )}
           </div>
           <button
@@ -91,12 +91,12 @@ function FloatPanel() {
           <div>
             <div className="mt-2.5 space-y-1 border-t border-white/10 pt-2.5">
               {previous && (
-                <p className="truncate text-[10.5px] leading-4 text-[#96a89b]">
+                <p className="truncate text-[12.5px] leading-4 text-[#96a89b]">
                   {previous.speaker && <span className="font-semibold text-[#c9b48a]">{previous.speaker}: </span>}
                   {previous.text}
                 </p>
               )}
-              <p className="text-[11.5px] leading-5 text-[#eef2e7]">
+              <p className="line-clamp-3 text-[13.5px] leading-5 text-[#eef2e7]">
                 {words ? (
                   <>
                     {!interim && latest?.speaker && (
@@ -108,33 +108,6 @@ function FloatPanel() {
                   "Words will show here as the room speaks."
                 )}
               </p>
-            </div>
-
-            <div className="mt-2.5 flex items-center gap-1.5">
-              <button
-                type="button"
-                className="island-control flex h-8 flex-1 items-center justify-center gap-1.5 rounded-full bg-white/[0.1] text-[11px] font-semibold text-[#f5f1e4] hover:bg-white/[0.16]"
-                onClick={paused ? resume : pause}
-              >
-                {paused ? <Play className="h-3 w-3 fill-current" /> : <Pause className="h-3 w-3" />}
-                {paused ? "Resume" : "Pause"}
-              </button>
-              <button
-                type="button"
-                className="island-control flex h-8 flex-1 items-center justify-center gap-1.5 rounded-full bg-[#e0b3ad] text-[11px] font-semibold text-[#3b1715] hover:brightness-105"
-                onClick={() => void stop()}
-              >
-                <Square className="h-2.5 w-2.5 fill-current" />
-                Stop
-              </button>
-              <button
-                type="button"
-                className="island-control grid h-8 w-8 flex-none place-items-center rounded-full bg-white/[0.06] text-[#a6b5a8] hover:bg-white/[0.12] hover:text-[#f5f1e4]"
-                onClick={() => pip?.close()}
-                aria-label="Close the pill"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
             </div>
           </div>
         </div>

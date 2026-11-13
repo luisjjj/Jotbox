@@ -8,8 +8,8 @@ export default function NotFound() {
         <Compass className="h-5 w-5" />
       </span>
       <p className="kicker mt-5">404</p>
-      <h1 className="mt-1.5 text-[22px] font-semibold tracking-[-0.03em] text-ink">This page is not here.</h1>
-      <p className="mt-2 text-[13px] leading-6 text-muted">
+      <h1 className="mt-1.5 text-[24px] font-semibold tracking-[-0.03em] text-ink">This page is not here.</h1>
+      <p className="mt-2 text-[15px] leading-6 text-muted">
         The link may be old, or the session was deleted from this device.
       </p>
       <div className="mt-5 flex gap-2">

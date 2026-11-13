@@ -98,7 +98,7 @@ const AudioPlayer = forwardRef<AudioHandle, { src: string; fallbackDuration: num
         {playing ? <Pause className="h-4 w-4 fill-current" /> : <Play className="ml-0.5 h-4 w-4 fill-current" />}
       </button>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between text-[10px] tabular-nums text-faint">
+        <div className="flex items-center justify-between text-[12px] tabular-nums text-faint">
           <span>{formatClock(time)}</span>
           <span>{total ? formatClock(total) : "—"}</span>
         </div>
@@ -167,7 +167,7 @@ function Panel({
               My jottings
             </button>
           </div>
-          <span className="pr-1 text-[10px] tabular-nums text-faint">{session.transcript.length} lines</span>
+          <span className="pr-1 text-[12px] tabular-nums text-faint">{session.transcript.length} lines</span>
         </div>
         {panel === "transcript" ? (
           <TranscriptView
@@ -180,7 +180,7 @@ function Panel({
           />
         ) : (
           <div className="scroll-quiet max-h-[360px] overflow-y-auto px-3.5 py-3">
-            <p className="whitespace-pre-wrap text-[12.5px] leading-6 text-soft">
+            <p className="whitespace-pre-wrap text-[14.5px] leading-6 text-soft">
               {session.scratch.trim() || "You did not jot anything during this session."}
             </p>
           </div>
@@ -466,14 +466,14 @@ export default function SessionPage() {
       <header className="mt-4 border-b border-line pb-5">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
           <KindBadge kind={session.kind} />
-          <span className="hidden text-[11.5px] text-muted sm:inline">{meta.date}</span>
-          <span className="text-[11.5px] text-muted sm:hidden">
+          <span className="hidden text-[13.5px] text-muted sm:inline">{meta.date}</span>
+          <span className="text-[13.5px] text-muted sm:hidden">
             {format(session.createdAt, "d MMM · HH:mm")}
           </span>
           {meta.duration && (
             <>
               <span className="text-faint">·</span>
-              <span className="text-[11.5px] tabular-nums text-muted">{meta.duration}</span>
+              <span className="text-[13.5px] tabular-nums text-muted">{meta.duration}</span>
             </>
           )}
           {isSample(session.id) && <span className="chip">Example</span>}
@@ -481,7 +481,7 @@ export default function SessionPage() {
         </div>
         <h1 className="sr-only">{session.title}</h1>
         <input
-          className="mt-2.5 w-full min-w-0 rounded-md border-b border-transparent bg-transparent pb-1 text-[26px] font-semibold leading-tight tracking-[-0.04em] text-ink outline-none transition-colors hover:border-line focus:border-accent sm:text-[32px]"
+          className="mt-2.5 w-full min-w-0 rounded-md border-b border-transparent bg-transparent pb-1 text-[28px] font-semibold leading-tight tracking-[-0.04em] text-ink outline-none transition-colors hover:border-line focus:border-accent sm:text-[34px]"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           onBlur={commitTitle}
@@ -494,7 +494,7 @@ export default function SessionPage() {
           aria-label="Session title"
           spellCheck={false}
         />
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-faint">
           <span className="inline-flex items-center gap-1.5">
             <Sparkles className="h-3 w-3" />
             {session.notes?.source === "studio"
@@ -517,8 +517,8 @@ export default function SessionPage() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 </span>
                 <div>
-                  <p className="text-[14px] font-semibold text-ink">Reading the recording</p>
-                  <p className="mt-1 text-[12.5px] leading-5 text-muted">
+                  <p className="text-[16px] font-semibold text-ink">Reading the recording</p>
+                  <p className="mt-1 text-[14.5px] leading-5 text-muted">
                     Tidying the spoken words and writing the notes. You can leave this page — it keeps working.
                   </p>
                 </div>
@@ -535,8 +535,8 @@ export default function SessionPage() {
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
                 <div className="min-w-0">
-                  <p className="text-[13px] font-semibold text-ink">{failureTitle}</p>
-                  <p className="mt-1 break-words text-[12px] leading-5 text-soft">
+                  <p className="text-[15px] font-semibold text-ink">{failureTitle}</p>
+                  <p className="mt-1 break-words text-[14px] leading-5 text-soft">
                     {session.error ?? "Something went wrong after the recording stopped."}
                   </p>
                 </div>
@@ -561,8 +561,8 @@ export default function SessionPage() {
 
           {orphanedLive && !processing && (
             <div className="rounded-xl border border-line bg-accent-soft px-4 py-3">
-              <p className="text-[12.5px] font-medium text-ink">This capture is not running right now.</p>
-              <p className="mt-1 text-[11.5px] leading-5 text-muted">
+              <p className="text-[14.5px] font-medium text-ink">This capture is not running right now.</p>
+              <p className="mt-1 text-[13.5px] leading-5 text-muted">
                 If the tab closed mid-session, the audio is gone but the spoken words that made it survive. Write the
                 notes from what is here.
               </p>
@@ -576,10 +576,10 @@ export default function SessionPage() {
           {!processing && showNotes && session.notes && (
             <article className="mt-5">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-faint">Summary</h2>
+                <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">Summary</h2>
                 <button
                   type="button"
-                  className="btn btn-ghost btn-sm -mr-2 text-[11px]"
+                  className="btn btn-ghost btn-sm -mr-2 text-[13px]"
                   onClick={() => void regenerate()}
                   disabled={rebuilding}
                   title="Rewrite the notes from the spoken words and jottings"
@@ -588,18 +588,18 @@ export default function SessionPage() {
                   Rewrite
                 </button>
               </div>
-              <p className="mt-2.5 max-w-[70ch] text-[19.5px] font-normal leading-[1.55] tracking-[0.002em] text-soft sm:text-[21px]">
+              <p className="mt-2.5 max-w-[70ch] text-[21.5px] font-normal leading-[1.55] tracking-[0.002em] text-soft sm:text-[23px]">
                 {session.notes.summary}
               </p>
 
               {session.notes.highlights.length > 0 && (
                 <section className="mt-8">
-                  <h2 className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-faint">Key points</h2>
+                  <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">Key points</h2>
                   <ul className="mt-3 space-y-2.5">
                     {session.notes.highlights.map((highlight) => (
                       <li key={highlight} className="flex gap-3">
                         <span className="bullet-dot" />
-                        <p className="text-[14px] leading-6 text-soft">{highlight}</p>
+                        <p className="text-[16px] leading-6 text-soft">{highlight}</p>
                       </li>
                     ))}
                   </ul>
@@ -609,10 +609,10 @@ export default function SessionPage() {
               {session.notes.actions.length > 0 && (
                 <section className="mt-8">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-faint">
+                    <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                       Action items
                     </h2>
-                    <span className="text-[10.5px] tabular-nums text-faint">
+                    <span className="text-[12.5px] tabular-nums text-faint">
                       {openCount} of {session.notes.actions.length} open
                     </span>
                   </div>
@@ -632,13 +632,13 @@ export default function SessionPage() {
                         <div className="min-w-0 flex-1">
                           <p
                             className={clsx(
-                              "text-[13.5px] leading-5",
+                              "text-[15.5px] leading-5",
                               action.done ? "text-faint line-through" : "text-soft",
                             )}
                           >
                             {action.text}
                           </p>
-                          <p className="mt-1 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-faint">
+                          <p className="mt-1 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-faint">
                             {action.owner}
                           </p>
                         </div>
@@ -650,19 +650,19 @@ export default function SessionPage() {
 
               {session.notes.sections.map((section) => (
                 <section key={section.heading} className="mt-8">
-                  <h2 className="text-[15.5px] font-semibold tracking-[-0.02em] text-ink">{section.heading}</h2>
+                  <h2 className="text-[17.5px] font-semibold tracking-[-0.02em] text-ink">{section.heading}</h2>
                   <ul className="mt-2.5 space-y-2">
                     {section.bullets.map((bullet) => (
                       <li key={bullet} className="flex gap-3">
                         <span className="bullet-dot" />
-                        <p className="text-[14px] leading-6 text-soft">{bullet}</p>
+                        <p className="text-[16px] leading-6 text-soft">{bullet}</p>
                       </li>
                     ))}
                   </ul>
                 </section>
               ))}
 
-              <p className="mt-10 border-t border-line pt-3 text-[10.5px] leading-5 text-faint">
+              <p className="mt-10 border-t border-line pt-3 text-[12.5px] leading-5 text-faint">
                 Notes are a summary of what was said, not a word-for-word record. Check names, numbers, and owners
                 before you send them on.
               </p>
@@ -703,8 +703,8 @@ export default function SessionPage() {
             <div className="card mt-6 p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-[14px] font-semibold text-ink">Add the spoken words</h2>
-                  <p className="mt-1 text-[11.5px] leading-5 text-muted">
+                  <h2 className="text-[16px] font-semibold text-ink">Add the spoken words</h2>
+                  <p className="mt-1 text-[13.5px] leading-5 text-muted">
                     Paste what was said. One line per turn works best, and the order is kept.
                   </p>
                 </div>
@@ -713,13 +713,13 @@ export default function SessionPage() {
                 </button>
               </div>
               <textarea
-                className="field mt-3 min-h-[190px] resize-y font-sans text-[13px] leading-6"
+                className="field mt-3 min-h-[190px] resize-y font-sans text-[15px] leading-6"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder={"Ada: Friday's volume is still pending.\nChinedu: The bank acknowledged the file late.\nYou: Then we pause the same-day promise."}
               />
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[10.5px] text-faint">Notes will be rewritten from these words.</p>
+                <p className="text-[12.5px] text-faint">Notes will be rewritten from these words.</p>
                 <div className="flex gap-2">
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>
                     Cancel
@@ -741,8 +741,8 @@ export default function SessionPage() {
 
         <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
           <div className="mb-2 flex items-center justify-between px-0.5">
-            <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-faint">Source</p>
-            <span className="flex items-center gap-1 text-[10px] text-faint">
+            <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-faint">Source</p>
+            <span className="flex items-center gap-1 text-[12px] text-faint">
               <PencilLine className="h-3 w-3" />
               {session.scratch.trim() ? "Jottings saved" : "No jottings"}
             </span>

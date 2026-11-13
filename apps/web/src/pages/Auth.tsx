@@ -89,12 +89,12 @@ export default function Auth() {
             <div>
               <div className="flex items-center gap-2.5">
                 <BrandMark className="h-9 w-9" />
-                <span className="text-[16px] font-semibold tracking-[-0.03em]">JotBox</span>
+                <span className="text-[18px] font-semibold tracking-[-0.03em]">JotBox</span>
               </div>
-              <h1 className="mt-10 max-w-[13ch] text-[38px] font-semibold leading-[1.05] tracking-[-0.045em] text-[#f5f1e4]">
+              <h1 className="mt-10 max-w-[13ch] text-[40px] font-semibold leading-[1.05] tracking-[-0.045em] text-[#f5f1e4]">
                 Your notes, wherever you are.
               </h1>
-              <p className="mt-4 max-w-[34ch] text-[13px] leading-6 text-[#c5d0c7]">
+              <p className="mt-4 max-w-[34ch] text-[15px] leading-6 text-[#c5d0c7]">
                 Sign in once and every room, lecture, and call follows you to the next device.
               </p>
             </div>
@@ -104,7 +104,7 @@ export default function Auth() {
                 { Icon: Lock, text: "Recordings stay on your device" },
                 { Icon: Sparkles, text: "JotBox writes the summary and actions" },
               ].map((item) => (
-                <div key={item.text} className="flex items-center gap-2.5 text-[11.5px] text-[#d8e2d8]">
+                <div key={item.text} className="flex items-center gap-2.5 text-[13.5px] text-[#d8e2d8]">
                   <span className="grid h-6 w-6 place-items-center rounded-full border border-white/15 bg-white/[0.06]">
                     <item.Icon className="h-3 w-3" />
                   </span>
@@ -120,10 +120,10 @@ export default function Auth() {
             <BrandMark className="h-11 w-11 rounded-2xl" />
           </div>
           <p className="kicker">Welcome to JotBox</p>
-          <h1 className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-ink sm:text-[36px]">
+          <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.04em] text-ink sm:text-[38px]">
             {mode === "login" ? "Sign in to your notes." : "Create your account."}
           </h1>
-          <p className="mt-2 text-[13px] leading-6 text-muted">
+          <p className="mt-2 text-[15px] leading-6 text-muted">
             {mode === "login"
               ? "Your rooms, lectures, and calls are waiting on the other side."
               : "One account for every room. Free to start."}
@@ -225,7 +225,7 @@ export default function Auth() {
             {error && (
               <div className="flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
-                <p className="text-[11.5px] leading-5 text-soft">{error}</p>
+                <p className="text-[13.5px] leading-5 text-soft">{error}</p>
               </div>
             )}
 
@@ -241,7 +241,7 @@ export default function Auth() {
             </button>
           </form>
 
-          <p className="mt-5 text-[10.5px] leading-4 text-faint">
+          <p className="mt-5 text-[12.5px] leading-4 text-faint">
             Your recordings stay on your device. Notes and jottings sync to your account.
           </p>
         </div>
