@@ -30,6 +30,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FollowUpDialog } from "@/components/FollowUpDialog";
 import { NoticeDialog } from "@/components/NoticeDialog";
+import { PaywallDialog } from "@/components/Paywall";
 import { PeopleCard } from "@/components/PeopleCard";
 import { SessionAsk } from "@/components/SessionAsk";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -46,6 +47,7 @@ import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { linesFromText } from "@/lib/transcript";
 import type { Session, TranscriptLine } from "@/lib/types";
+import { usePro } from "@/lib/usageStore";
 import { useEngine } from "@/engine/SessionEngine";
 import { useAudioUrl } from "@/hooks/useAudio";
 
@@ -236,6 +238,7 @@ export default function SessionPage() {
   const toggleAction = useSessions((state) => state.toggleAction);
   const remove = useSessions((state) => state.remove);
   const engine = useEngine();
+  const pro = usePro();
 
   const [title, setTitle] = useState(session?.title ?? "");
   const [copying, setCopying] = useState(false);
@@ -248,6 +251,7 @@ export default function SessionPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [pdfPaywall, setPdfPaywall] = useState(false);
 
   useEffect(() => {
     setTitle(session?.title ?? "");
@@ -406,6 +410,10 @@ export default function SessionPage() {
   };
 
   const savePdf = async () => {
+    if (!pro) {
+      setPdfPaywall(true);
+      return;
+    }
     setPreparingPdf(true);
     try {
       await downloadSessionPdf(session);
@@ -476,8 +484,8 @@ export default function SessionPage() {
             className="icon-btn"
             onClick={() => void savePdf()}
             disabled={preparingPdf || !hasContent}
-            title="Download a branded PDF"
-            aria-label="Download a branded PDF"
+            title={pro ? "Download a branded PDF" : "Branded PDF is part of Pro"}
+            aria-label={pro ? "Download a branded PDF" : "Branded PDF is part of Pro"}
           >
             {preparingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
           </button>
@@ -852,6 +860,12 @@ export default function SessionPage() {
 
       <ShareDialog session={session} open={shareOpen} onClose={() => setShareOpen(false)} />
       <FollowUpDialog session={session} open={followUpOpen} onClose={() => setFollowUpOpen(false)} />
+      <PaywallDialog
+        open={pdfPaywall}
+        onClose={() => setPdfPaywall(false)}
+        title="Branded PDF is part of Pro"
+        description="Copy, Markdown and print stay free. Pro adds the branded PDF you can send to a client."
+      />
       <NoticeDialog
         open={noticeOpen}
         onClose={() => setNoticeOpen(false)}

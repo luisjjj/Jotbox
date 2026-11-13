@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
+import { isProUser } from "./billing.mjs";
 import { answerOrganisationMemory } from "./memory-ai.mjs";
 import {
   HttpError,
@@ -850,6 +851,12 @@ async function queryMemory(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
   const member = await requireOrgMember(req, orgIdFrom(req));
+  if (!(await isProUser(member.user.id))) {
+    throw new HttpError(
+      402,
+      "Ask across organisation memory is part of Pro. You can still browse the workspace, sessions and audit trail on the free plan.",
+    );
+  }
   const body = await readJson(req, 32_000);
   const question = parse(
     z.string().trim().min(3, "Ask a question about the record.").max(500, "Keep the question under 500 characters."),

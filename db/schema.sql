@@ -222,6 +222,72 @@ insert into schema_migrations (version)
 values ('005_usage_metering')
 on conflict (version) do nothing;
 
+-- Payments are written down twice: once from the browser return, once from the
+-- Paystack webhook. The unique reference makes the second write a no-op, and a
+-- server-clamped period stops a stale or replayed event from extending Pro.
+alter table billing_subscriptions add column if not exists current_period_start timestamptz;
+alter table billing_subscriptions add column if not exists current_period_end timestamptz;
+alter table billing_subscriptions add column if not exists last_event_at timestamptz;
+alter table billing_subscriptions add column if not exists last_event_id text;
+alter table billing_subscriptions add column if not exists last_reconciled_at timestamptz;
+alter table billing_subscriptions add column if not exists provider_updated_at timestamptz;
+
+update billing_subscriptions
+   set current_period_start = coalesce(current_period_start, started_at),
+       current_period_end = coalesce(current_period_end, next_payment_at);
+
+create table if not exists billing_checkouts (
+  reference text primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  idempotency_key text,
+  amount integer not null check (amount > 0),
+  currency text not null default 'NGN',
+  status text not null default 'creating'
+    check (status in ('creating', 'open', 'paid', 'failed', 'expired')),
+  authorization_url text,
+  plan_code text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists billing_checkouts_open_idx
+  on billing_checkouts (user_id)
+  where status in ('creating', 'open');
+
+create unique index if not exists billing_checkouts_idempotency_idx
+  on billing_checkouts (user_id, idempotency_key)
+  where idempotency_key is not null;
+
+create table if not exists billing_transactions (
+  provider text not null default 'paystack',
+  reference text not null,
+  user_id uuid not null references users(id) on delete cascade,
+  plan_code text,
+  subscription_code text,
+  status text not null,
+  amount integer not null check (amount >= 0),
+  currency text not null default 'NGN',
+  channel text,
+  paid_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  applied_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (provider, reference)
+);
+
+create index if not exists billing_transactions_user_idx
+  on billing_transactions (user_id, created_at desc);
+
+alter table billing_events add column if not exists event_at timestamptz;
+alter table billing_events add column if not exists user_id uuid;
+alter table billing_events add column if not exists applied boolean not null default false;
+alter table billing_events add column if not exists ignored_reason text;
+
+insert into schema_migrations (version)
+values ('006_billing_hardening')
+on conflict (version) do nothing;
+
 create or replace function set_updated_at()
 returns trigger
 language plpgsql

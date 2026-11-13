@@ -28,8 +28,10 @@ export interface BillingSubscription {
   amount: number;
   interval: string;
   nextPaymentAt: number | null;
+  periodEnd: number | null;
   startedAt: number | null;
   cancelledAt: number | null;
+  reconciledAt: number | null;
 }
 
 export interface BillingUsage {
@@ -326,8 +328,12 @@ export const api = {
   getPublicShare: (token: string) =>
     request<{ capture: PublicShare }>(`/api/share?token=${encodeURIComponent(token)}`),
   billingStatus: () => request<BillingStatus>("/api/billing"),
+  reconcileBilling: () => request<BillingStatus>("/api/billing?action=reconcile"),
   startCheckout: () =>
-    request<CheckoutSession>("/api/billing?action=checkout", { method: "POST" }),
+    request<CheckoutSession>("/api/billing?action=checkout", {
+      method: "POST",
+      headers: { "Idempotency-Key": `checkout:${crypto.randomUUID()}` },
+    }),
   verifyCheckout: (reference: string) =>
     request<BillingStatus>("/api/billing?action=verify", {
       method: "POST",

@@ -111,16 +111,17 @@ const FREE_FEATURES = [
   "60 minutes of listening a month",
   "Written notes for every session",
   "Jottings and spoken words side by side",
-  "Notes stay on this device",
+  "Markdown, copy and print",
+  "One 7-day share link per session",
 ];
 
 const PRO_FEATURES = [
   "Unlimited listening",
-  "Pidgin and code-switching kept intact",
+  "Branded PDF export",
+  "Five share links, up to 30 days each",
+  "AI follow-up drafts",
+  "Ask across organisation memory",
   "Notes follow you across devices",
-  "Export to PDF and Markdown",
-  "Notes ready the moment you stop",
-  "Email support",
 ];
 
 const TEAM_FEATURES = [

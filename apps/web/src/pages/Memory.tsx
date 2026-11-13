@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import {
@@ -27,6 +28,7 @@ import { toast } from "react-hot-toast";
 import { useAuth } from "@/auth/AuthProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
+import { PaywallPanel } from "@/components/Paywall";
 import { Select } from "@/components/Select";
 import {
   ApiError,
@@ -45,6 +47,7 @@ import {
 } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { useSessions } from "@/lib/store";
+import { usePro } from "@/lib/usageStore";
 
 type Tab = "ask" | "workspace" | "audit";
 
@@ -196,7 +199,7 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-3 backdrop-blur-[2px] sm:p-6"
       onMouseDown={(event) => {
@@ -318,7 +321,8 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -340,6 +344,7 @@ function AskPanel({
   const [turns, setTurns] = useState<ChatEntry[]>([]);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState("");
+  const pro = usePro();
   const [voice, setVoice] = useState<"idle" | "listening" | "writing">("idle");
   const [canRecord] = useState(
     () =>
@@ -497,6 +502,16 @@ function AskPanel({
   };
 
   const lastTurnId = turns[turns.length - 1]?.id;
+
+  if (!pro) {
+    return (
+      <PaywallPanel
+        className="min-h-[26rem]"
+        title="Ask across organisation memory is part of Pro"
+        description="Search months of meetings, trace what changed, and see where every answer came from. The workspace, sessions and audit trail stay free."
+      />
+    );
+  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">

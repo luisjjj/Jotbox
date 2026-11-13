@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { requireSession } from "./auth.mjs";
+import { isProUser } from "./billing.mjs";
 import { HttpError, assertSameOrigin, clientIp, readJson, requireMethod, sendJson } from "./http.mjs";
 
 /**
@@ -1114,6 +1116,7 @@ const assistHistory = z
 export async function handleAssist(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
+  const { user } = await requireSession(req);
   rateLimit(req, 90);
   const body = await readJson(req, 1_500_000);
   if (!body || typeof body !== "object") throw new HttpError(400, "The request was empty.");
@@ -1142,6 +1145,12 @@ export async function handleAssist(req, res) {
   }
 
   if (mode === "followup") {
+    if (!(await isProUser(user.id))) {
+      throw new HttpError(
+        402,
+        "AI follow-up drafts are part of Pro. The draft built from your notes is still free, or upgrade to let JotBox write it.",
+      );
+    }
     const channel = z.enum(["whatsapp", "email", "recap"]).parse(body.channel);
     const language = z.enum(["english", "pidgin"]).parse(body.language);
     const session = assistSession.parse(body.session);

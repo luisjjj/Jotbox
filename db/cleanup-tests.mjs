@@ -23,7 +23,7 @@ const pool = new pg.Pool({
 try {
   const result = await pool.query(
     `delete from users
-      where email like 'test.%' or email like 'ui.test.%' or email like 'api.test.%' or email like 'live.test.%'
+      where email like 'test.%' or email like 'ui.test.%' or email like 'api.test.%' or email like 'live.test.%' or email like 'paywall.%@example.com'
       returning email`,
   );
   console.log("removed", result.rowCount, result.rows.map((row) => row.email).join(", "));

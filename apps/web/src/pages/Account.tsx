@@ -118,7 +118,7 @@ function PlanCard() {
         if (returning && reference) {
           const result = await api.verifyCheckout(reference);
           setBilling(result);
-          useUsage.getState().apply(result.usage);
+          useUsage.getState().applyStatus(result);
           if (result.payment === "success" && result.plan === "pro") {
             toast.success("Pro is active. Thank you.");
           } else {
@@ -127,7 +127,7 @@ function PlanCard() {
         } else {
           const result = await api.billingStatus();
           setBilling(result);
-          useUsage.getState().apply(result.usage);
+          useUsage.getState().applyStatus(result);
           if (returning) toast("No payment was made.");
         }
         setError(null);
@@ -165,6 +165,23 @@ function PlanCard() {
       toast.success("Renewal stopped. You keep Pro until the period ends.");
     } catch (cancelError) {
       const message = errorText(cancelError);
+      setError(message);
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const checkPayment = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.reconcileBilling();
+      setBilling(result);
+      useUsage.getState().applyStatus(result);
+      toast.success(result.plan === "pro" ? "Pro is active." : "Checked with Paystack. Nothing new yet.");
+    } catch (checkError) {
+      const message = errorText(checkError);
       setError(message);
       toast.error(message);
     } finally {
@@ -210,7 +227,7 @@ function PlanCard() {
                       : "chip border-line text-muted"
                   }
                 >
-                  {paid ? "Pro" : "Free"}
+                  {paid ? "Pro" : loading ? "Checking" : "Free"}
                 </span>
               </div>
               <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-muted">{summary}</p>
@@ -265,6 +282,18 @@ function PlanCard() {
                 >
                   {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                   Cancel renewal
+                </button>
+              )}
+              {billing.configured && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm w-full sm:w-auto"
+                  onClick={() => void checkPayment()}
+                  disabled={busy}
+                  title="Ask Paystack for the latest payment state"
+                >
+                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Check payment
                 </button>
               )}
             </div>

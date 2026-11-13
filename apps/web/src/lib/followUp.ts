@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { ApiError } from "./api";
 import { transcriptText } from "./format";
 import { OUTPUT_PRESETS } from "./presets";
 import type { Session } from "./types";
@@ -121,12 +122,16 @@ export async function draftFollowUp(input: {
         },
       }),
     });
-    if (!response.ok) throw new Error("followup");
+    if (!response.ok) {
+      if (response.status === 402) throw new ApiError("AI follow-up drafts are part of Pro.", 402);
+      throw new Error("followup");
+    }
     const data = (await response.json()) as { text?: string; provider?: string };
     const text = (data.text ?? "").trim();
     if (!text) throw new Error("empty");
     return { text, provider: data.provider || "studio" };
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 402) throw error;
     return localFollowUp(session, channel, language);
   }
 }

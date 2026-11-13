@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, type BillingUsage } from "./api";
+import { api, type BillingPricing, type BillingStatus, type BillingUsage } from "./api";
 
 const EMPTY: BillingUsage = {
   unlimited: false,
@@ -12,7 +12,10 @@ const EMPTY: BillingUsage = {
 
 interface UsageState extends BillingUsage {
   loaded: boolean;
-  apply: (usage: BillingUsage) => void;
+  plan: "free" | "pro";
+  configured: boolean;
+  pricing: BillingPricing | null;
+  applyStatus: (status: BillingStatus) => void;
   refresh: () => Promise<void>;
   reset: () => void;
 }
@@ -20,13 +23,33 @@ interface UsageState extends BillingUsage {
 export const useUsage = create<UsageState>()((set) => ({
   ...EMPTY,
   loaded: false,
-  apply: (usage) => set({ ...usage, loaded: true }),
+  plan: "free",
+  configured: false,
+  pricing: null,
+  applyStatus: (status) =>
+    set({
+      ...status.usage,
+      plan: status.plan,
+      configured: status.configured,
+      pricing: status.pricing,
+      loaded: true,
+    }),
   refresh: async () => {
     const status = await api.billingStatus();
-    set({ ...status.usage, loaded: true });
+    set({
+      ...status.usage,
+      plan: status.plan,
+      configured: status.configured,
+      pricing: status.pricing,
+      loaded: true,
+    });
   },
-  reset: () => set({ ...EMPTY, loaded: false }),
+  reset: () => set({ ...EMPTY, loaded: false, plan: "free", configured: false, pricing: null }),
 }));
+
+export function usePro() {
+  return useUsage((state) => state.plan === "pro");
+}
 
 export async function refreshUsage() {
   try {

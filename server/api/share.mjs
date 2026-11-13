@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { query } from "./pg.mjs";
 import { currentSession, requireSession } from "./auth.mjs";
+import { isProUser } from "./billing.mjs";
+import { shareLimits } from "./limits.mjs";
 import { token, tokenHash } from "./passwords.mjs";
 import {
   HttpError,
@@ -101,18 +103,27 @@ async function createLink(req, res, user) {
   const capture = owned.rows[0];
   if (!capture) throw new HttpError(404, "That session is not yours to share.");
 
+  const pro = await isProUser(user.id);
+  const limits = shareLimits(pro);
+  const days = Math.min(parsed.data.days, limits.days);
+
   const active = await query(
     `select count(*)::int as count
        from capture_share_links
       where capture_id = $1 and revoked_at is null and (expires_at is null or expires_at > now())`,
     [capture.id],
   );
-  if ((active.rows[0]?.count ?? 0) >= 5) {
-    throw new HttpError(429, "This session already has five live links. Turn one off first.");
+  if ((active.rows[0]?.count ?? 0) >= limits.links) {
+    throw new HttpError(
+      402,
+      pro
+        ? "This session already has five live links. Turn one off first."
+        : "Free sharing keeps one live link per session for 7 days. Pro gives you five links and 30 days.",
+    );
   }
 
   const raw = token();
-  const expiresAt = new Date(Date.now() + parsed.data.days * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   const inserted = await query(
     `insert into capture_share_links (capture_id, created_by, token_hash, token_hint, expires_at)
      values ($1, $2, $3, $4, $5)

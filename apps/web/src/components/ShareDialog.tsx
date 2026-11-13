@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Copy, Link2, Loader2, ShieldAlert, Trash2 } from "lucide-react";
+import { Copy, Link2, Loader2, Lock, ShieldAlert, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Modal } from "./Modal";
+import { PaywallDialog } from "./Paywall";
 import { api, ApiError, type ShareLink } from "@/lib/api";
+import { usePro } from "@/lib/usageStore";
 import type { Session } from "@/lib/types";
 
 export function ShareDialog({
@@ -21,6 +23,8 @@ export function ShareDialog({
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [paywall, setPaywall] = useState(false);
+  const pro = usePro();
 
   useEffect(() => {
     if (!open) return;
@@ -38,11 +42,15 @@ export function ShareDialog({
     setCreating(true);
     setError("");
     try {
-      const result = await api.createShareLink(session.id, days);
+      const result = await api.createShareLink(session.id, pro ? days : 7);
       setCreated(`${window.location.origin}/s/${result.token}`);
       setLinks((current) => [result.link, ...current]);
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "The link could not be made.");
+      if (caught instanceof ApiError && caught.status === 402) {
+        setPaywall(true);
+      } else {
+        setError(caught instanceof ApiError ? caught.message : "The link could not be made.");
+      }
     } finally {
       setCreating(false);
     }
@@ -73,6 +81,7 @@ export function ShareDialog({
   const guests = (session.participants ?? []).filter((person) => person.external);
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -87,19 +96,35 @@ export function ShareDialog({
             <p className="mt-0.5 text-[12.5px] text-muted">You can turn it off sooner.</p>
           </div>
           <div className="seg">
-            {[7, 30].map((value) => (
-              <button
-                key={value}
-                type="button"
-                className="seg-item"
-                data-active={days === value}
-                onClick={() => setDays(value)}
-              >
-                {value} days
-              </button>
-            ))}
+            {[7, 30].map((value) => {
+              const locked = value > 7 && !pro;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  className="seg-item"
+                  data-active={days === value}
+                  onClick={() => {
+                    if (locked) {
+                      setPaywall(true);
+                      return;
+                    }
+                    setDays(value);
+                  }}
+                >
+                  {value} days
+                  {locked && <Lock className="ml-1 inline h-3 w-3" />}
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        {!pro && (
+          <p className="text-[12.5px] leading-4 text-faint">
+            Free keeps one live link per session for 7 days. Pro gives you five links and lets them last 30 days.
+          </p>
+        )}
 
         {guests.length > 0 && (
           <div className="flex items-start gap-2 rounded-xl border border-line bg-highlight px-3.5 py-3 text-[13px] leading-5 text-soft">
@@ -181,5 +206,12 @@ export function ShareDialog({
         </div>
       </div>
     </Modal>
+    <PaywallDialog
+      open={paywall}
+      onClose={() => setPaywall(false)}
+      title="More sharing is part of Pro"
+      description="Free keeps one live link per session for 7 days. Pro gives you five links for up to 30 days."
+    />
+    </>
   );
 }
