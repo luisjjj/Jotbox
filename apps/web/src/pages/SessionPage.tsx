@@ -10,12 +10,15 @@ import {
   FileDown,
   FilePlus2,
   FileText,
+  Link2,
   Loader2,
+  Megaphone,
   Pause,
   PencilLine,
   Play,
   Plus,
   Printer,
+  Send,
   Sparkles,
   Trash2,
   Wand2,
@@ -25,6 +28,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
+import { FollowUpDialog } from "@/components/FollowUpDialog";
+import { NoticeDialog } from "@/components/NoticeDialog";
+import { PeopleCard } from "@/components/PeopleCard";
+import { SessionAsk } from "@/components/SessionAsk";
+import { ShareDialog } from "@/components/ShareDialog";
 import { KindBadge } from "@/components/KindBadge";
 import { SessionStatusChip } from "@/components/SessionRow";
 import { TranscriptView } from "@/components/TranscriptView";
@@ -33,6 +41,7 @@ import { buildNotes, studioAvailable } from "@/lib/buildNotes";
 import { copyNotes, downloadMarkdown, printSession } from "@/lib/exportNotes";
 import { downloadSessionPdf } from "@/lib/pdf";
 import { formatClock, isDefaultTitle, notesLookEmpty } from "@/lib/format";
+import { OUTPUT_PRESETS } from "@/lib/presets";
 import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { linesFromText } from "@/lib/transcript";
@@ -236,6 +245,9 @@ export default function SessionPage() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [savingTranscript, setSavingTranscript] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
 
   useEffect(() => {
     setTitle(session?.title ?? "");
@@ -249,6 +261,7 @@ export default function SessionPage() {
   }, [session?.title, session]);
 
   const openCount = session?.notes?.actions.filter((action) => !action.done).length ?? 0;
+  const preset = session ? OUTPUT_PRESETS[session.kind] : OUTPUT_PRESETS.meeting;
 
   const meta = useMemo(() => {
     if (!session) return null;
@@ -427,15 +440,15 @@ export default function SessionPage() {
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <Link to="/library" className="btn btn-ghost -ml-2">
           <ArrowLeft className="h-4 w-4" />
           Library
         </Link>
-        <div className="flex items-center gap-0.5">
+        <div className="ml-auto flex items-center gap-0.5">
           <button
             type="button"
-            className="icon-btn"
+            className="icon-btn hidden sm:inline-flex"
             onClick={() => void copy()}
             disabled={copying || !hasContent}
             title="Copy notes as Markdown"
@@ -445,7 +458,7 @@ export default function SessionPage() {
           </button>
           <button
             type="button"
-            className="icon-btn"
+            className="icon-btn hidden sm:inline-flex"
             onClick={() => {
               downloadMarkdown(session);
               toast.success("Markdown downloaded");
@@ -478,6 +491,35 @@ export default function SessionPage() {
             aria-label="Print or save as PDF"
           >
             <Printer className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setShareOpen(true)}
+            disabled={!hasContent}
+            title="Share a read-only link"
+            aria-label="Share a read-only link"
+          >
+            <Link2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setFollowUpOpen(true)}
+            disabled={!session.notes}
+            title="Send the follow-up"
+            aria-label="Send the follow-up"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setNoticeOpen(true)}
+            title="Listening notice"
+            aria-label="Listening notice"
+          >
+            <Megaphone className="h-4 w-4" />
           </button>
           <span className="mx-1 h-5 w-px bg-line" />
           <button
@@ -539,6 +581,8 @@ export default function SessionPage() {
 
       <div className="mt-6 grid gap-7 xl:grid-cols-[minmax(0,1fr)_330px] 2xl:grid-cols-[minmax(0,1fr)_370px] xl:gap-8">
         <div className="min-w-0">
+          {!processing && <SessionAsk session={session} />}
+
           {processing && (
             <div className="card p-5 sm:p-6">
               <div className="flex items-start gap-3">
@@ -605,7 +649,9 @@ export default function SessionPage() {
           {!processing && showNotes && session.notes && (
             <article className="mt-5">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">Summary</h2>
+                <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
+                  {preset.summaryLabel}
+                </h2>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm -mr-2 text-[13px]"
@@ -623,7 +669,9 @@ export default function SessionPage() {
 
               {session.notes.highlights.length > 0 && (
                 <section className="mt-8">
-                  <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">Key points</h2>
+                  <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
+                    {preset.highlightsLabel}
+                  </h2>
                   <ul className="mt-3 space-y-2.5">
                     {session.notes.highlights.map((highlight) => (
                       <li key={highlight} className="flex gap-3">
@@ -635,11 +683,27 @@ export default function SessionPage() {
                 </section>
               )}
 
+              {session.notes.decisions && session.notes.decisions.length > 0 && (
+                <section className="mt-8">
+                  <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
+                    {preset.decisionsLabel}
+                  </h2>
+                  <ul className="mt-3 space-y-2.5">
+                    {session.notes.decisions.map((decision) => (
+                      <li key={decision} className="flex gap-3">
+                        <Check className="mt-1 h-3.5 w-3.5 flex-none text-accent" strokeWidth={2.5} />
+                        <p className="text-[16px] leading-6 text-soft">{decision}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {session.notes.actions.length > 0 && (
                 <section className="mt-8">
                   <div className="flex items-center justify-between">
                     <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
-                      Action items
+                      {preset.actionsLabel}
                     </h2>
                     <span className="text-[12.5px] tabular-nums text-faint">
                       {openCount} of {session.notes.actions.length} open
@@ -780,8 +844,22 @@ export default function SessionPage() {
             session={session}
             onEditTranscript={openTranscriptEditor}
           />
+          <PeopleCard session={session} />
         </aside>
       </div>
+
+      <ShareDialog session={session} open={shareOpen} onClose={() => setShareOpen(false)} />
+      <FollowUpDialog session={session} open={followUpOpen} onClose={() => setFollowUpOpen(false)} />
+      <NoticeDialog
+        open={noticeOpen}
+        onClose={() => setNoticeOpen(false)}
+        input={{
+          title: session.title,
+          kind: session.kind,
+          createdAt: session.createdAt,
+          participants: session.participants,
+        }}
+      />
 
       <ConfirmDialog
         open={confirmDelete}

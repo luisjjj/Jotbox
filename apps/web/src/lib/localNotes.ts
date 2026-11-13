@@ -9,6 +9,9 @@ const STOP = new Set(
 const ACTION =
   /\b(i'll|i will|we'll|we will|let's|let us|please|need to|needs to|follow up|send|share|schedule|book|confirm|review|prepare|submit|email|call|finish|write|read|bring|make sure|by monday|by tuesday|by wednesday|by thursday|by friday|by tomorrow|next week)\b/i;
 
+const DECISION =
+  /\b(we agreed|we decided|we settled|the decision|decision is|make we|we go|no wahala|conclusion|final word|we will go with|we are going with)\b/i;
+
 function sentencesFrom(lines: TranscriptLine[]) {
   return lines
     .map((line) => line.text.replace(/\s+/g, " ").trim())
@@ -103,6 +106,17 @@ export function localNotes(input: {
     pushAction(speaker?.text ?? sentence, false, speaker?.owner);
   }
 
+  const decisions: string[] = [];
+  const decisionSeen = new Set<string>();
+  for (const sentence of [...marked, ...spoken]) {
+    if (!DECISION.test(sentence) || decisions.length >= 5) continue;
+    const clean = sentence.replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
+    const key = clean.toLowerCase();
+    if (!clean || decisionSeen.has(key)) continue;
+    decisionSeen.add(key);
+    decisions.push(clean);
+  }
+
   const ranked = scoreSentences(spoken);
   const highlights = (marked.length ? marked : ranked.map((item) => item.sentence)).slice(0, 5);
 
@@ -131,6 +145,7 @@ export function localNotes(input: {
   return {
     summary,
     highlights,
+    decisions,
     actions: input.kind === "lecture" ? actions.slice(0, 4) : actions,
     sections,
     source: "browser",

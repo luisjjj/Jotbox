@@ -1,4 +1,5 @@
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns";
+import { OUTPUT_PRESETS } from "./presets";
 import type { Session, SessionKind, SessionNotes, TranscriptLine } from "./types";
 
 export const KIND_META: Record<SessionKind, { label: string; hint: string }> = {
@@ -41,6 +42,7 @@ export function transcriptText(lines: TranscriptLine[]) {
 
 export function notesToMarkdown(session: Session) {
   const notes = session.notes;
+  const preset = OUTPUT_PRESETS[session.kind];
   const lines = [
     `# ${session.title}`,
     "",
@@ -48,13 +50,16 @@ export function notesToMarkdown(session: Session) {
     "",
   ];
   if (notes) {
-    lines.push("## Summary", "", notes.summary, "");
+    lines.push(`## ${preset.summaryLabel}`, "", notes.summary, "");
     if (notes.highlights.length) {
-      lines.push("## Highlights", "", ...notes.highlights.map((item) => `- ${item}`), "");
+      lines.push(`## ${preset.highlightsLabel}`, "", ...notes.highlights.map((item) => `- ${item}`), "");
+    }
+    if (notes.decisions?.length) {
+      lines.push(`## ${preset.decisionsLabel}`, "", ...notes.decisions.map((item) => `- ${item}`), "");
     }
     if (notes.actions.length) {
       lines.push(
-        "## Actions",
+        `## ${preset.actionsLabel}`,
         "",
         ...notes.actions.map((item) => `- [${item.done ? "x" : " "}] ${item.owner}: ${item.text}`),
         "",

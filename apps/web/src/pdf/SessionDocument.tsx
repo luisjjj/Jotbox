@@ -1,6 +1,7 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { formatClock } from "@/lib/format";
+import { OUTPUT_PRESETS } from "@/lib/presets";
 import type { Session, SessionKind } from "@/lib/types";
 
 const KIND_LABEL: Record<SessionKind, string> = {
@@ -144,9 +145,10 @@ function Label({ children, first = false }: { children: string; first?: boolean 
 
 export function SessionDocument({ session }: { session: Session }) {
   const notes = session.notes;
+  const preset = OUTPUT_PRESETS[session.kind];
   const date = format(session.createdAt, "EEEE, d MMMM yyyy · HH:mm");
   const kind = KIND_LABEL[session.kind] ?? "Meeting";
-  const hasNotes = Boolean(notes && (notes.summary.trim() || notes.highlights.length || notes.actions.length || notes.sections.length));
+  const hasNotes = Boolean(notes && (notes.summary.trim() || notes.highlights.length || notes.decisions?.length || notes.actions.length || notes.sections.length));
   let firstBlock = true;
   const takeFirst = () => {
     const value = firstBlock;
@@ -221,12 +223,12 @@ export function SessionDocument({ session }: { session: Session }) {
         <View style={styles.body}>
           {hasNotes && notes ? (
             <>
-              <Label first={takeFirst()}>Summary</Label>
+              <Label first={takeFirst()}>{preset.summaryLabel}</Label>
               <Text style={styles.summary}>{notes.summary}</Text>
 
               {notes.highlights.length > 0 && (
                 <>
-                  <Label first={takeFirst()}>Key points</Label>
+                  <Label first={takeFirst()}>{preset.highlightsLabel}</Label>
                   {notes.highlights.map((highlight) => (
                     <View key={highlight} style={styles.bulletRow} wrap={false}>
                       <View style={styles.bullet} />
@@ -236,9 +238,21 @@ export function SessionDocument({ session }: { session: Session }) {
                 </>
               )}
 
+              {notes.decisions && notes.decisions.length > 0 && (
+                <>
+                  <Label first={takeFirst()}>{preset.decisionsLabel}</Label>
+                  {notes.decisions.map((decision) => (
+                    <View key={decision} style={styles.bulletRow} wrap={false}>
+                      <View style={styles.bullet} />
+                      <Text style={styles.bulletText}>{decision}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
+
               {notes.actions.length > 0 && (
                 <>
-                  <Label first={takeFirst()}>Action items</Label>
+                  <Label first={takeFirst()}>{preset.actionsLabel}</Label>
                   {notes.actions.map((action, index) => (
                     <View
                       key={action.id || `${action.owner}-${index}`}

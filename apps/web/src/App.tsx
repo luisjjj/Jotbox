@@ -15,6 +15,7 @@ import Listen from "@/pages/Listen";
 import MemoryPage from "@/pages/Memory";
 import NotFound from "@/pages/NotFound";
 import SessionPage from "@/pages/SessionPage";
+import SharedPage from "@/pages/SharedPage";
 import Settings from "@/pages/Settings";
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/s/:token" element={<SharedPage />} />
           <Route
             element={
               <RequireAuth>

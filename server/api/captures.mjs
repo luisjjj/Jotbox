@@ -31,9 +31,21 @@ const noteSection = z.object({
 const notes = z.object({
   summary: z.string().max(40_000),
   highlights: z.array(z.string().max(8_000)).max(200),
+  decisions: z.array(z.string().max(8_000)).max(100).optional(),
   actions: z.array(actionItem).max(200),
   sections: z.array(noteSection).max(100),
   source: z.enum(["studio", "browser"]),
+});
+
+const participant = z.object({
+  id: z.string().max(120),
+  name: z.string().max(120),
+  external: z.boolean().optional(),
+});
+
+const liveInsights = z.object({
+  decisions: z.array(z.string().max(4_000)).max(20),
+  actions: z.array(z.object({ text: z.string().max(4_000), owner: z.string().max(160) })).max(20),
 });
 
 const session = z.object({
@@ -48,6 +60,8 @@ const session = z.object({
   notes: notes.nullable(),
   hasAudio: z.boolean(),
   error: z.string().max(4_000).optional(),
+  participants: z.array(participant).max(100).optional(),
+  live: liveInsights.nullable().optional(),
 });
 
 const EXPIRED_LIVE_ERROR =
@@ -65,6 +79,8 @@ function fromRow(row) {
     transcript: row.transcript ?? [],
     notes: row.notes ?? null,
     hasAudio: row.has_audio,
+    participants: row.participants ?? [],
+    ...(row.live ? { live: row.live } : {}),
     ...(row.error ? { error: row.error } : {}),
   };
 }
@@ -80,7 +96,7 @@ export async function handleCaptures(req, res) {
       [user.id, EXPIRED_LIVE_ERROR],
     );
     const result = await query(
-      `select id, title, kind, status, duration_sec, scratch, transcript, notes, has_audio, error, created_at
+      `select id, title, kind, status, duration_sec, scratch, transcript, notes, has_audio, error, participants, live, created_at
          from captures
         where user_id = $1
         order by created_at desc
@@ -100,8 +116,8 @@ export async function handleCaptures(req, res) {
     const item = parsed.data;
     const result = await query(
       `insert into captures
-         (id, user_id, title, kind, status, duration_sec, scratch, transcript, notes, has_audio, error, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12)
+         (id, user_id, title, kind, status, duration_sec, scratch, transcript, notes, has_audio, error, participants, live, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12::jsonb, $13::jsonb, $14)
        on conflict (id) do update set
          title = excluded.title,
          kind = excluded.kind,
@@ -112,6 +128,8 @@ export async function handleCaptures(req, res) {
          notes = excluded.notes,
          has_audio = excluded.has_audio,
          error = excluded.error,
+         participants = excluded.participants,
+         live = excluded.live,
          created_at = excluded.created_at,
          updated_at = now()
        where captures.user_id = excluded.user_id
@@ -128,6 +146,8 @@ export async function handleCaptures(req, res) {
         item.notes ? JSON.stringify(item.notes) : null,
         item.hasAudio,
         item.error ?? null,
+        JSON.stringify(item.participants ?? []),
+        item.live ? JSON.stringify(item.live) : null,
         new Date(item.createdAt).toISOString(),
       ],
     );

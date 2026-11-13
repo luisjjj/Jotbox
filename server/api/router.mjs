@@ -2,7 +2,8 @@ import { handleHealth } from "./health.mjs";
 import { handleLogin, handleLogout, handleMe, handleRegister } from "./auth.mjs";
 import { handleCaptures } from "./captures.mjs";
 import { handleOrgs } from "./orgs.mjs";
-import { handleEnhance, handleTranscribe } from "./ai.mjs";
+import { handleAssist, handleEnhance, handleTranscribe } from "./ai.mjs";
+import { handleShare } from "./share.mjs";
 
 /**
  * Shared dispatcher for the Vite dev/preview server. The Vercel deployment
@@ -45,6 +46,14 @@ export async function handleCoreApi(req, res) {
   }
   if (pathname === "/api/enhance") {
     await handleEnhance(req, res);
+    return true;
+  }
+  if (pathname === "/api/assist") {
+    await handleAssist(req, res);
+    return true;
+  }
+  if (pathname === "/api/share" || pathname.startsWith("/api/share/")) {
+    await handleShare(req, res);
     return true;
   }
   return false;

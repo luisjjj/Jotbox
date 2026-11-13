@@ -24,12 +24,24 @@ export interface NoteSection {
 export interface SessionNotes {
   summary: string;
   highlights: string[];
+  decisions?: string[];
   actions: ActionItem[];
   sections: NoteSection[];
   source: "studio" | "browser";
 }
 
 export type SessionStatus = "live" | "processing" | "ready" | "failed";
+
+export interface Participant {
+  id: string;
+  name: string;
+  external?: boolean;
+}
+
+export interface LiveInsights {
+  decisions: string[];
+  actions: { text: string; owner: string }[];
+}
 
 export interface Session {
   id: string;
@@ -43,6 +55,8 @@ export interface Session {
   notes: SessionNotes | null;
   hasAudio: boolean;
   error?: string;
+  participants?: Participant[];
+  live?: LiveInsights;
 }
 
 export interface SttWord {

@@ -149,6 +149,9 @@ function notesToText(notes) {
   for (const item of Array.isArray(notes.highlights) ? notes.highlights : []) {
     if (typeof item === "string" && item.trim()) parts.push(item);
   }
+  for (const item of Array.isArray(notes.decisions) ? notes.decisions : []) {
+    if (typeof item === "string" && item.trim()) parts.push(`Decision: ${item}`);
+  }
   for (const action of Array.isArray(notes.actions) ? notes.actions : []) {
     if (!action || typeof action.text !== "string" || !action.text.trim()) continue;
     parts.push(`Action: ${action.text}${action.owner ? ` (${action.owner})` : ""}`);

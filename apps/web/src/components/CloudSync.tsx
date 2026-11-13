@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { cloudSuspended, pullAndMerge } from "@/lib/cloud";
+import { pruneExpiredAudio } from "@/lib/retention";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
 import type { Session } from "@/lib/types";
@@ -24,6 +25,7 @@ export function CloudSync() {
   useEffect(() => {
     if (!user) {
       useSync.getState().reset();
+      void pruneExpiredAudio();
       return;
     }
 
@@ -109,7 +111,9 @@ export function CloudSync() {
       await start();
     };
 
-    void start();
+    void start().then(() => {
+      if (!disposed) void pruneExpiredAudio();
+    });
     window.addEventListener("jotbox:sync", onRequestSync);
 
     return () => {

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import clsx from "clsx";
 import {
   AlertCircle,
@@ -7,14 +7,18 @@ import {
   Check,
   FileAudio,
   Loader2,
+  Megaphone,
   Mic,
   MonitorUp,
   Pause,
   Pencil,
   Pin,
   Play,
+  Plus,
   Square,
   Upload,
+  UserRound,
+  Users,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -23,11 +27,13 @@ import { toast } from "react-hot-toast";
 import { APP_CONFIG } from "@jotbox/config";
 import { useEngine } from "@/engine/SessionEngine";
 import { useStudio } from "@/hooks/useStudio";
-import { formatClock, KIND_META } from "@/lib/format";
-import type { SessionKind } from "@/lib/types";
+import { defaultTitle, formatClock, KIND_META } from "@/lib/format";
+import type { Participant, SessionKind } from "@/lib/types";
 import { KindBadge, KindIcon } from "@/components/KindBadge";
 import { TranscriptView } from "@/components/TranscriptView";
 import { Waveform } from "@/components/Waveform";
+import { LiveBoard } from "@/components/LiveBoard";
+import { NoticeDialog } from "@/components/NoticeDialog";
 
 const KINDS: SessionKind[] = ["meeting", "seminar", "lecture", "voice"];
 
@@ -111,10 +117,95 @@ function SourceCard({
   );
 }
 
+
+function Roster({
+  people,
+  onChange,
+  compact = false,
+}: {
+  people: Participant[];
+  onChange: (people: Participant[]) => void;
+  compact?: boolean;
+}) {
+  const [name, setName] = useState("");
+
+  const add = (event: FormEvent) => {
+    event.preventDefault();
+    const clean = name.trim();
+    if (!clean) return;
+    if (people.some((person) => person.name.toLowerCase() === clean.toLowerCase())) {
+      toast.error("That person is already on the list.");
+      return;
+    }
+    onChange([...people, { id: crypto.randomUUID(), name: clean }]);
+    setName("");
+  };
+
+  return (
+    <div>
+      {!compact && <p className="label">Who is in the room? <span className="font-normal text-faint">(optional)</span></p>}
+      {people.length > 0 && (
+        <ul className="mb-2 flex flex-wrap gap-1.5">
+          {people.map((person) => (
+            <li key={person.id} className="flex items-center gap-1 rounded-full border border-line bg-raised py-0.5 pl-2.5 pr-1">
+              <UserRound className="h-3 w-3 text-faint" />
+              <span className="text-[12.5px] text-soft">{person.name}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  onChange(people.map((item) => (item.id === person.id ? { ...item, external: !item.external } : item)))
+                }
+                className={clsx(
+                  "rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.06em]",
+                  person.external ? "bg-highlight text-brass" : "text-faint hover:text-ink",
+                )}
+                title="Mark this person as a guest"
+              >
+                {person.external ? "Guest" : "Room"}
+              </button>
+              <button
+                type="button"
+                className="icon-btn h-5 w-5"
+                onClick={() => onChange(people.filter((item) => item.id !== person.id))}
+                aria-label={`Remove ${person.name}`}
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="flex items-center gap-1.5" onSubmit={add}>
+        <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-raised text-muted">
+          <Users className="h-4 w-4" />
+        </span>
+        <input
+          className="field h-9 min-w-0 flex-1"
+          placeholder={compact ? "Add a person" : "Add names, so the notes can say who spoke"}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          maxLength={80}
+          aria-label="Add a person"
+        />
+        <button
+          type="submit"
+          className="icon-btn h-9 w-9 flex-none border border-line"
+          disabled={!name.trim()}
+          aria-label="Add person"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function Setup() {
   const { kind, setKind, start, error, clearError, importFile, status } = useEngine();
   const studio = useStudio();
   const [title, setTitle] = useState("");
+  const [people, setPeople] = useState<Participant[]>([]);
+  const [noticeOpen, setNoticeOpen] = useState(false);
   const [busy, setBusy] = useState<"mic" | "tab" | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [canShare] = useState(
@@ -126,7 +217,7 @@ function Setup() {
     setBusy(source);
     clearError();
     try {
-      await start({ kind, source, title: title.trim() || undefined });
+      await start({ kind, source, title: title.trim() || undefined, participants: people });
     } finally {
       setBusy(null);
     }
@@ -194,6 +285,8 @@ function Setup() {
           />
         </div>
 
+        <Roster people={people} onChange={setPeople} />
+
         <div>
           <p className="label">How should JotBox hear it?</p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -229,6 +322,16 @@ function Setup() {
               out. The microphone still shows live words, and you can paste the words after the session.
             </p>
           )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-raised px-3.5 py-2.5">
+          <p className="flex items-center gap-2 text-[13px] leading-5 text-muted">
+            <Megaphone className="h-3.5 w-3.5 flex-none text-brass" />
+            Recording other people? Read them a short notice first.
+          </p>
+          <button type="button" className="btn btn-line btn-sm" onClick={() => setNoticeOpen(true)}>
+            Open notice
+          </button>
         </div>
 
         <div className="card-quiet flex flex-col items-start justify-between gap-3 p-4 sm:flex-row sm:items-center">
@@ -276,6 +379,17 @@ function Setup() {
           </div>
         </div>
       </div>
+
+      <NoticeDialog
+        open={noticeOpen}
+        onClose={() => setNoticeOpen(false)}
+        input={{
+          title: title.trim() || defaultTitle(kind),
+          kind,
+          createdAt: Date.now(),
+          participants: people,
+        }}
+      />
     </div>
   );
 }
@@ -288,10 +402,13 @@ function Studio() {
     title,
     scratch,
     lines,
+    live,
+    participants,
     interim,
     elapsed,
     captions,
     setScratch,
+    setParticipants,
     setTitle,
     pause,
     resume,
@@ -308,8 +425,17 @@ function Studio() {
     () => typeof window !== "undefined" && "documentPictureInPicture" in window,
   );
   const [busy, setBusy] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
 
   const sourceLabel = source === "tab" ? "Tab + mic" : source === "upload" ? "Upload" : "Microphone";
+
+  const keepInsight = (text: string, owner?: string) => {
+    const line = owner && owner !== "Unassigned" ? `- ${owner}: ${text}` : `- ${text}`;
+    const next = scratch.trim() ? `${scratch.trimEnd()}
+${line}` : line;
+    setScratch(next);
+    toast.success("Added to your jottings", { id: "keep-insight" });
+  };
 
   const handleStop = () => {
     toast.success("Writing your notes…", { id: "writing-notes" });
@@ -358,6 +484,16 @@ function Studio() {
 
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <Waveform active={!paused} bars={26} className="mr-auto hidden h-9 w-24 lg:flex" />
+          <button
+            type="button"
+            className="btn btn-line flex-none px-3"
+            onClick={() => setNoticeOpen(true)}
+            title="Show the room a recording notice"
+            aria-label="Listening notice"
+          >
+            <Megaphone className="h-4 w-4" />
+            <span className="hidden sm:inline">Notice</span>
+          </button>
           {canPin ? (
             <button
               type="button"
@@ -403,6 +539,21 @@ function Studio() {
           </button>
         </div>
       )}
+
+      <LiveBoard insights={live} onKeep={keepInsight} />
+
+      <div className="card-quiet mt-3 px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5 text-muted" />
+            <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-muted">People</h2>
+          </div>
+          <span className="text-[12px] text-faint">{participants.length || "No names yet"}</span>
+        </div>
+        <div className="mt-2">
+          <Roster people={participants} onChange={setParticipants} compact />
+        </div>
+      </div>
 
       <div className="mt-4 flex items-center justify-between gap-3 lg:hidden">
         <div className="seg w-full">
@@ -507,6 +658,17 @@ function Studio() {
       <p className="mt-3 text-center text-[12.5px] text-faint">
         Keep this tab open for live words. You can switch apps. The audio keeps recording.
       </p>
+
+      <NoticeDialog
+        open={noticeOpen}
+        onClose={() => setNoticeOpen(false)}
+        input={{
+          title: title || defaultTitle(kind),
+          kind,
+          createdAt: Date.now(),
+          participants,
+        }}
+      />
     </div>
   );
 }

@@ -13,10 +13,11 @@ import { toast } from "react-hot-toast";
 import { saveAudio } from "@/lib/audioStore";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
 import { defaultTitle, formatClock } from "@/lib/format";
+import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/lib/insights";
 import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
 import { useSessions } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
-import type { CaptureSource, SessionKind, TranscriptLine } from "@/lib/types";
+import type { CaptureSource, LiveInsights, Participant, Session, SessionKind, TranscriptLine } from "@/lib/types";
 
 type EngineStatus = "idle" | "recording" | "paused" | "processing";
 
@@ -49,6 +50,7 @@ interface StartOptions {
   kind: SessionKind;
   source: Exclude<CaptureSource, "upload">;
   title?: string;
+  participants?: Participant[];
 }
 
 interface EngineValue {
@@ -59,6 +61,8 @@ interface EngineValue {
   title: string;
   scratch: string;
   lines: TranscriptLine[];
+  live: LiveInsights;
+  participants: Participant[];
   interim: string;
   elapsed: number;
   error: string | null;
@@ -70,6 +74,7 @@ interface EngineValue {
   resume: () => void;
   stop: () => Promise<void>;
   setScratch: (value: string) => void;
+  setParticipants: (people: Participant[]) => void;
   setTitle: (value: string) => void;
   setKind: (kind: SessionKind) => void;
   importFile: (file: File, kind: SessionKind) => Promise<void>;
@@ -131,6 +136,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const [title, setTitleState] = useState("");
   const [scratch, setScratchState] = useState("");
   const [lines, setLines] = useState<TranscriptLine[]>([]);
+  const [live, setLive] = useState<LiveInsights>({ decisions: [], actions: [] });
+  const [participants, setParticipantsState] = useState<Participant[]>([]);
   const [interim, setInterim] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +166,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const stopRef = useRef<() => Promise<void>>(async () => {});
   const titledRef = useRef(false);
   const pipRef = useRef<Window | null>(null);
+  const liveRef = useRef<LiveInsights>({ decisions: [], actions: [] });
+  const participantsRef = useRef<Participant[]>([]);
+  const insightBusy = useRef(false);
+  const insightAt = useRef(0);
+  const insightCount = useRef(0);
 
   const setStatusBoth = (next: EngineStatus) => {
     statusRef.current = next;
@@ -184,6 +196,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       transcript: linesRef.current,
       notes: null,
       hasAudio: false,
+      live: liveRef.current,
+      participants: participantsRef.current,
     });
   }, []);
 
@@ -193,6 +207,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     titleTouched.current = false;
     scratchRef.current = "";
     linesRef.current = [];
+    liveRef.current = { decisions: [], actions: [] };
+    participantsRef.current = [];
+    insightCount.current = 0;
+    setLive({ decisions: [], actions: [] });
+    setParticipantsState([]);
     elapsedRef.current = 0;
     tickStart.current = null;
     chunks.current = [];
@@ -433,6 +452,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       transcript: linesNow,
       notes: null,
       hasAudio: Boolean(blob && blob.size > 0),
+      live: liveRef.current,
+      participants: participantsRef.current,
     });
     navigate(`/session/${id}`);
     try {
@@ -457,6 +478,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         transcript: result.lines,
         notes: result.notes,
         hasAudio: Boolean(blob && blob.size > 0),
+        live: liveRef.current,
+        participants: participantsRef.current,
       });
     } catch (caught) {
       useSessions.getState().upsert({
@@ -470,6 +493,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         transcript: linesNow,
         notes: null,
         hasAudio: Boolean(blob && blob.size > 0),
+        live: liveRef.current,
+        participants: participantsRef.current,
         error: caught instanceof Error ? caught.message : "The notes could not be written.",
       });
     }
@@ -507,6 +532,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         elapsedRef.current = 0;
         tickStart.current = Date.now();
         linesRef.current = [];
+        liveRef.current = { decisions: [], actions: [] };
+        participantsRef.current = options.participants ?? [];
+        insightCount.current = 0;
+        setLive({ decisions: [], actions: [] });
+        setParticipantsState(options.participants ?? []);
         setSessionId(id);
         setKindState(options.kind);
         setSource(options.source);
@@ -527,6 +557,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           transcript: [],
           notes: null,
           hasAudio: false,
+          live: { decisions: [], actions: [] },
+          participants: options.participants ?? [],
         });
         armSpeech();
       } catch (caught) {
@@ -697,6 +729,61 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     [persistLive],
   );
 
+  const setParticipants = useCallback((people: Participant[]) => {
+    participantsRef.current = people;
+    setParticipantsState(people);
+    const id = idRef.current;
+    if (id) useSessions.getState().patch(id, { participants: people });
+  }, []);
+
+  useEffect(() => {
+    if (status !== "recording" && status !== "paused") return;
+    if (!lines.length) return;
+
+    const merged = mergeInsights(liveRef.current, localInsights(lines));
+    if (insightsCount(merged) !== insightsCount(liveRef.current)) {
+      liveRef.current = merged;
+      setLive(merged);
+      persistLive();
+    }
+
+    const now = Date.now();
+    if (
+      insightBusy.current ||
+      lines.length < 4 ||
+      lines.length === insightCount.current ||
+      now - insightAt.current < 60_000
+    ) {
+      return;
+    }
+
+    insightBusy.current = true;
+    insightAt.current = now;
+    insightCount.current = lines.length;
+    const draft: Session = {
+      id: idRef.current ?? "",
+      title: titleRef.current || defaultTitle(kindRef.current),
+      kind: kindRef.current,
+      createdAt: createdRef.current,
+      durationSec: currentElapsed(),
+      status: "live",
+      scratch: scratchRef.current,
+      transcript: lines,
+      notes: null,
+      hasAudio: false,
+    };
+    void requestInsights(draft, liveRef.current).then((next) => {
+      insightBusy.current = false;
+      if (statusRef.current !== "recording" && statusRef.current !== "paused") return;
+      if (!insightsCount(next)) return;
+      const combined = mergeInsights(liveRef.current, next);
+      if (insightsCount(combined) === insightsCount(liveRef.current)) return;
+      liveRef.current = combined;
+      setLive(combined);
+      persistLive();
+    });
+  }, [lines, status, persistLive]);
+
   const setTitle = useCallback((value: string) => {
     titleRef.current = value;
     titleTouched.current = true;
@@ -824,6 +911,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       title,
       scratch,
       lines,
+      live,
+      participants,
       interim,
       elapsed,
       error,
@@ -835,6 +924,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       resume,
       stop,
       setScratch,
+      setParticipants,
       setTitle,
       setKind,
       importFile,
@@ -849,6 +939,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       title,
       scratch,
       lines,
+      live,
+      participants,
       interim,
       elapsed,
       error,
@@ -859,6 +951,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       resume,
       stop,
       setScratch,
+      setParticipants,
       setTitle,
       setKind,
       importFile,

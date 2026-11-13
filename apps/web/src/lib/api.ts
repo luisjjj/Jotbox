@@ -130,6 +130,29 @@ export interface SharedCaptureView {
   ownerName: string;
 }
 
+export interface ShareLink {
+  id: string;
+  hint: string;
+  createdAt: number;
+  expiresAt: number | null;
+  revokedAt: number | null;
+  views: number;
+}
+
+export interface PublicShare {
+  id: string;
+  title: string;
+  kind: Session["kind"];
+  status: Session["status"];
+  createdAt: number;
+  durationSec: number;
+  notes: Session["notes"];
+  transcript: Session["transcript"];
+  participants: NonNullable<Session["participants"]>;
+  ownerName: string;
+  expiresAt: number | null;
+}
+
 export interface ShareInput {
   captureId: string;
   visibility: CaptureVisibility;
@@ -242,4 +265,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ question, history }),
     }),
+  listShareLinks: async (captureId: string) =>
+    (
+      await request<{ links: ShareLink[] }>(
+        `/api/share?captureId=${encodeURIComponent(captureId)}`,
+      )
+    ).links,
+  createShareLink: (captureId: string, days: number) =>
+    request<{ link: ShareLink; token: string; url: string }>("/api/share", {
+      method: "POST",
+      body: JSON.stringify({ captureId, days }),
+    }),
+  revokeShareLink: (id: string) =>
+    request<{ id: string }>(`/api/share?id=${encodeURIComponent(id)}`, { method: "DELETE" }),
+  getPublicShare: (token: string) =>
+    request<{ capture: PublicShare }>(`/api/share?token=${encodeURIComponent(token)}`),
 };

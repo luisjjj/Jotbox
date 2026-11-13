@@ -28,6 +28,7 @@ interface StudioPayload {
   title: string;
   summary: string;
   highlights: string[];
+  decisions: string[];
   actions: { text: string; owner: string }[];
   sections: { heading: string; bullets: string[] }[];
 }
@@ -38,6 +39,9 @@ function asNotes(value: unknown): StudioPayload | null {
   if (typeof record.summary !== "string" || typeof record.title !== "string") return null;
   if (!Array.isArray(record.highlights) || !Array.isArray(record.actions) || !Array.isArray(record.sections)) return null;
   const highlights = record.highlights.filter((item): item is string => typeof item === "string");
+  const decisions = Array.isArray(record.decisions)
+    ? record.decisions.filter((item): item is string => typeof item === "string")
+    : [];
   const actions = record.actions.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const action = item as Record<string, unknown>;
@@ -55,7 +59,7 @@ function asNotes(value: unknown): StudioPayload | null {
       },
     ];
   });
-  return { title: record.title, summary: record.summary, highlights, actions, sections };
+  return { title: record.title, summary: record.summary, highlights, decisions, actions, sections };
 }
 
 async function transcribe(blob: Blob) {
@@ -100,6 +104,7 @@ async function studioNotes(input: {
   const notes: SessionNotes = {
     summary: parsed.summary,
     highlights: parsed.highlights,
+    decisions: parsed.decisions,
     sections: parsed.sections,
     source: "studio",
     actions: parsed.actions.map((action) => ({

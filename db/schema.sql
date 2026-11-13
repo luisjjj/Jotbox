@@ -132,6 +132,28 @@ create table if not exists audit_events (
 
 create index if not exists audit_events_org_created_idx on audit_events (org_id, created_at desc);
 
+alter table captures add column if not exists participants jsonb not null default '[]'::jsonb;
+alter table captures add column if not exists live jsonb;
+
+create table if not exists capture_share_links (
+  id uuid primary key default gen_random_uuid(),
+  capture_id uuid not null references captures(id) on delete cascade,
+  created_by uuid not null references users(id) on delete cascade,
+  token_hash text not null unique,
+  token_hint text not null,
+  expires_at timestamptz,
+  revoked_at timestamptz,
+  views integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists capture_share_links_capture_idx on capture_share_links (capture_id, created_at desc);
+create index if not exists capture_share_links_token_idx on capture_share_links (token_hash);
+
+insert into schema_migrations (version)
+values ('003_share_and_live')
+on conflict (version) do nothing;
+
 create or replace function set_updated_at()
 returns trigger
 language plpgsql

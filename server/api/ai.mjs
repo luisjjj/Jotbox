@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { HttpError, assertSameOrigin, clientIp, readJson, requireMethod, sendJson } from "./http.mjs";
 
 /**
@@ -61,17 +62,29 @@ Shape:
 - Title: specific, under 8 words, no quotation marks.
 - Summary: one short paragraph a person could send to someone who missed the session.
 - Highlights: the points worth keeping. Each one is a full sentence.
+- Decisions: choices the room actually settled, in the words that carry the decision. Use an empty list when no decision was made.
 - Actions: only real commitments and next steps. Owner is the person named, "You" when the listener took it, or "Unassigned". Use an empty list when there is nothing to do.
-- Sections follow the shape of the session. Meetings lean on decisions and discussion. Lectures and seminars follow the topics that were taught. Voice notes stay short.
+- Sections follow the shape of the session.
 - If the transcript is thin, write only from what is there.
 
 Return only a JSON object with this exact shape:
-{"title":"string","summary":"string","highlights":["string"],"actions":[{"text":"string","owner":"string"}],"sections":[{"heading":"string","bullets":["string"]}]}`;
+{"title":"string","summary":"string","highlights":["string"],"decisions":["string"],"actions":[{"text":"string","owner":"string"}],"sections":[{"heading":"string","bullets":["string"]}]}`;
 
 const TONE_HINT = {
   "warm-direct": "Write like a trusted colleague briefing you: clear, warm and direct. Keep the energy of the room.",
   concise: "Keep the summary and bullets tight. Prefer short sentences and no repeated point.",
   formal: "Use a calm, professional register, but keep Pidgin phrases that carry the decision or the tone.",
+};
+
+const KIND_SHAPE = {
+  meeting:
+    "This is a meeting. Lead with what was decided, who owns each next step, and what is still open. Sections should follow the agenda or the main threads.",
+  seminar:
+    "This is a seminar. Lead with the arguments, the evidence, and the questions that were left open. Sections should follow the talks or panels. Actions are follow-ups, not meeting chores.",
+  lecture:
+    "This is a lecture. Lead with the concepts, definitions, worked examples, and what a student should revise. Decisions are key definitions or settled interpretations. Actions are study tasks only when the lecturer set them.",
+  voice:
+    "This is a voice note. Keep it short. Lead with the point the speaker was making and the next move. Do not invent structure that was not there.",
 };
 
 function key(name) {
@@ -370,6 +383,7 @@ function notesMessages({ kind, title, scratch, transcript, tone }) {
       role: "user",
       content: [
         `Session kind: ${KIND_LABEL[kind] || "meeting"}`,
+        `Shape: ${KIND_SHAPE[kind] || KIND_SHAPE.meeting}`,
         `Tone: ${toneName}. ${TONE_HINT[toneName]}`,
         `Working title: ${title || "(none)"}`,
         "",
@@ -400,6 +414,9 @@ function parseNotes(content) {
     title: value.title.trim(),
     summary: value.summary.trim(),
     highlights: value.highlights.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()),
+    decisions: Array.isArray(value.decisions)
+      ? value.decisions.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim())
+      : [],
     actions: value.actions.flatMap((item) => {
       if (!item || typeof item !== "object" || typeof item.text !== "string" || !item.text.trim()) return [];
       return [{ text: item.text.trim(), owner: typeof item.owner === "string" && item.owner.trim() ? item.owner.trim() : "Unassigned" }];
@@ -502,6 +519,10 @@ function mockNotes({ kind, title, scratch, transcript }) {
       'The team agreed: "make we pause the same-day promise" until the cutoff holds.',
       "Support is carrying chats that are really one settlement problem.",
     ],
+    decisions: [
+      'Pause the same-day promise until the cutoff holds ("make we pause the same-day promise").',
+      "Tell merchants plainly what is happening today.",
+    ],
     actions: [
       { text: "Send the merchant note before 4pm in plain language", owner: "Ada" },
       { text: "Re-pull the two failed batches and confirm there are no duplicates", owner: "Chinedu" },
@@ -567,6 +588,447 @@ export async function enhanceSession({ kind, title, scratch, transcript, tone })
     502,
     "JotBox could not finish the notes just now. Try again, or add the words by hand.",
   );
+}
+
+const ASK_SYSTEM = `You are JotBox, answering a question about one recorded session.
+Use only the session notes, jottings and spoken words supplied. Never use outside knowledge. Never invent names, numbers, dates, decisions, quotes or owners.
+If the answer is not in the session, say plainly that it was not captured and suggest checking the spoken words. Do not guess.
+When the answer comes from the spoken words, quote the line and include its timestamp like [12:04]. Keep Nigerian Pidgin exactly as it was said; answer the question in clear English.
+Keep the answer short: one short paragraph, or up to four short bullets. Use plain punctuation, commas, colons and full stops. Never use em dashes.
+Return only a JSON object with this exact shape: {"answer":"string"}`;
+
+const INSIGHTS_SYSTEM = `You watch a live session for clear decisions and commitments.
+Return only decisions and actions that were explicitly said. Do not infer. Do not repeat items already on the board.
+Keep Nigerian Pidgin quotes exactly as said. Use plain punctuation and never use em dashes.
+An action owner is the named person, "You" when the listener took it, "Team" for a collective commitment, or "Unassigned".
+Return at most four decisions and four actions. If nothing new is clear, return empty lists.
+Return only a JSON object with this exact shape: {"decisions":["string"],"actions":[{"text":"string","owner":"string"}]}`;
+
+const FOLLOWUP_SYSTEM = `You write a follow-up message from a recorded session.
+Use only the notes, actions and words supplied. Never invent decisions, names, numbers or owners.
+Channel rules:
+- whatsapp: short and scannable, with a title line and a short next steps list.
+- email: a subject line, a greeting, two short paragraphs, then next steps and a sign-off.
+- recap: a plain recap with no greeting or subject.
+Language rules:
+- english: clear, direct English.
+- pidgin: natural Nigerian Pidgin. Keep names, amounts and quoted speech exact. Do not translate quoted Pidgin.
+Include only open actions. If there are none, say so plainly.
+Use plain punctuation, commas, colons and full stops. Never use em dashes. No praise, preamble or filler.
+Return only a JSON object with this exact shape: {"text":"string"}`;
+
+const KIND_LABELS = {
+  meeting: "meeting",
+  seminar: "seminar",
+  lecture: "lecture",
+  voice: "voice note",
+};
+
+function clipText(value, limit) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  return text.length > limit ? text.slice(0, limit) : text;
+}
+
+function jsonObject(content) {
+  if (typeof content !== "string" || !content.trim()) throw new Error("empty answer");
+  let text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) text = text.slice(start, end + 1);
+  return JSON.parse(text);
+}
+
+function noteLines(notes) {
+  if (!notes || typeof notes !== "object") return "(none)";
+  const parts = [];
+  if (typeof notes.summary === "string" && notes.summary.trim()) parts.push(notes.summary.trim());
+  for (const item of Array.isArray(notes.highlights) ? notes.highlights : []) {
+    if (typeof item === "string" && item.trim()) parts.push(`- ${item.trim()}`);
+  }
+  for (const item of Array.isArray(notes.decisions) ? notes.decisions : []) {
+    if (typeof item === "string" && item.trim()) parts.push(`Decision: ${item.trim()}`);
+  }
+  for (const action of Array.isArray(notes.actions) ? notes.actions : []) {
+    if (!action || typeof action.text !== "string") continue;
+    parts.push(`Action: ${action.text}${action.owner ? ` (${action.owner})` : ""}`);
+  }
+  for (const section of Array.isArray(notes.sections) ? notes.sections : []) {
+    if (!section || typeof section.heading !== "string") continue;
+    parts.push(`## ${section.heading}`);
+    for (const bullet of Array.isArray(section.bullets) ? section.bullets : []) {
+      if (typeof bullet === "string") parts.push(`- ${bullet}`);
+    }
+  }
+  return parts.join("\n") || "(none)";
+}
+
+function transcriptLinesForPrompt(transcript, limit = 42_000) {
+  const lines = [];
+  let total = 0;
+  for (const line of Array.isArray(transcript) ? transcript : []) {
+    if (!line || typeof line.text !== "string" || !line.text.trim()) continue;
+    const seconds = Number(line.at);
+    const stamp = Number.isFinite(seconds) && seconds > 0 ? `[${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}] ` : "";
+    const speaker = typeof line.speaker === "string" && line.speaker.trim() ? `${line.speaker.trim()}: ` : "";
+    const text = `${stamp}${speaker}${line.text.trim()}`;
+    if (total + text.length > limit) break;
+    lines.push(text);
+    total += text.length + 1;
+  }
+  return lines.join("\n") || "(none)";
+}
+
+function assistantMessagesForAsk({ question, history, session }) {
+  const turns = Array.isArray(history)
+    ? history
+        .filter((turn) => turn && (turn.role === "user" || turn.role === "assistant") && typeof turn.content === "string")
+        .slice(-6)
+        .map((turn) => ({ role: turn.role, content: clipText(turn.content, 4_000) }))
+    : [];
+  return [
+    { role: "system", content: ASK_SYSTEM },
+    ...turns,
+    {
+      role: "user",
+      content: [
+        `Question: ${clipText(question, 500)}`,
+        "",
+        `Session: ${clipText(session.title, 160) || "(untitled)"} (${KIND_LABELS[session.kind] || "meeting"})`,
+        "Written notes:",
+        noteLines(session.notes),
+        "",
+        "Jottings from the listener:",
+        clipText(session.scratch, 8_000) || "(none)",
+        "",
+        "Spoken words:",
+        transcriptLinesForPrompt(session.transcript),
+      ].join("\n"),
+    },
+  ];
+}
+
+function assistantMessagesForInsights({ session, existing }) {
+  const existingDecisions = Array.isArray(existing?.decisions) ? existing.decisions.filter((item) => typeof item === "string") : [];
+  const existingActions = Array.isArray(existing?.actions) ? existing.actions.filter((item) => item && typeof item.text === "string") : [];
+  return [
+    { role: "system", content: INSIGHTS_SYSTEM },
+    {
+      role: "user",
+      content: [
+        `Session: ${clipText(session.title, 160) || "(untitled)"} (${KIND_LABELS[session.kind] || "meeting"})`,
+        `Existing decisions: ${existingDecisions.length ? existingDecisions.join(" | ") : "(none)"}`,
+        `Existing actions: ${existingActions.length ? existingActions.map((item) => item.text).join(" | ") : "(none)"}`,
+        "",
+        "Jottings:",
+        clipText(session.scratch, 6_000) || "(none)",
+        "",
+        "Recent spoken words:",
+        transcriptLinesForPrompt(session.transcript, 16_000),
+      ].join("\n"),
+    },
+  ];
+}
+
+function assistantMessagesForFollowup({ session, channel, language }) {
+  return [
+    { role: "system", content: FOLLOWUP_SYSTEM },
+    {
+      role: "user",
+      content: [
+        `Channel: ${channel}`,
+        `Language: ${language}`,
+        `Session: ${clipText(session.title, 160) || "(untitled)"} (${KIND_LABELS[session.kind] || "meeting"})`,
+        "",
+        "Written notes:",
+        noteLines(session.notes),
+        "",
+        "Jottings:",
+        clipText(session.scratch, 6_000) || "(none)",
+        "",
+        "Spoken words:",
+        transcriptLinesForPrompt(session.transcript, 14_000),
+      ].join("\n"),
+    },
+  ];
+}
+
+function assistantProviders() {
+  const providers = [];
+  if (groqKey()) providers.push("groq");
+  if (openrouterKey()) providers.push("openrouter");
+  if (xaiKey()) providers.push("xai");
+  return providers;
+}
+
+async function chatJson({ messages, maxTokens = 900, temperature = 0.2 }) {
+  const providers = assistantProviders();
+  if (!providers.length) {
+    throw new HttpError(503, "JotBox cannot answer on this server yet. Use the answer from this device.");
+  }
+  let lastError;
+  for (const provider of providers) {
+    try {
+      if (provider === "groq") {
+        const configured = key("GROQ_NOTES_MODEL");
+        const models = [...new Set([configured, ...GROQ_NOTES_FALLBACKS].filter(Boolean))];
+        for (const model of models) {
+          try {
+            const response = await fetch(`${GROQ_BASE}/chat/completions`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey()}` },
+              body: JSON.stringify({
+                model,
+                temperature,
+                max_tokens: maxTokens,
+                messages,
+                response_format: { type: "json_object" },
+              }),
+              signal: AbortSignal.timeout(60_000),
+            });
+            if (!response.ok) throw new Error(`groq ${response.status}`);
+            const data = await response.json();
+            return { value: jsonObject(data?.choices?.[0]?.message?.content), provider, model };
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        continue;
+      }
+      const url = provider === "openrouter" ? OPENROUTER_URL : XAI_CHAT_URL;
+      const model =
+        provider === "openrouter"
+          ? key("OPENROUTER_NOTES_MODEL") || "meta-llama/llama-3.3-70b-instruct:free"
+          : key("XAI_NOTES_MODEL") || "grok-4.7";
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${provider === "openrouter" ? openrouterKey() : xaiKey()}` };
+      if (provider === "openrouter") {
+        headers["HTTP-Referer"] = key("JOTBOX_PUBLIC_URL") || "https://jotbox-eight.vercel.app";
+        headers["X-Title"] = "JotBox";
+      }
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          temperature,
+          max_tokens: maxTokens,
+          messages,
+          response_format: { type: "json_object" },
+        }),
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!response.ok) throw new Error(`${provider} ${response.status}`);
+      const data = await response.json();
+      return { value: jsonObject(data?.choices?.[0]?.message?.content), provider, model };
+    } catch (error) {
+      lastError = error;
+      console.error(`[jotbox-ai] ${provider} assist failed`, error instanceof Error ? error.message : error);
+    }
+  }
+  throw new HttpError(502, lastError?.message || "JotBox could not answer just now.");
+}
+
+function demoAsk({ question, session }) {
+  const stop = new Set(
+    "the and for was were what when where why who how our your their did does with from that this have has had are but not you about into then than them they there been being all any can could should would will just please tell me a an is it to of in on at by as do i we he she".split(
+      " ",
+    ),
+  );
+  const terms = [...new Set((String(question).toLowerCase().match(/[a-z0-9]{3,}/g) ?? []))].filter(
+    (term) => !stop.has(term),
+  );
+  const lines = Array.isArray(session.transcript) ? session.transcript : [];
+  const notes = session.notes && typeof session.notes === "object" ? session.notes : {};
+  const decisions = Array.isArray(notes.decisions) ? notes.decisions : [];
+  const actions = Array.isArray(notes.actions) ? notes.actions : [];
+  const highlights = Array.isArray(notes.highlights) ? notes.highlights : [];
+
+  const ranked = lines
+    .map((line) => {
+      const text = `${line.speaker ?? ""} ${line.text ?? ""}`.toLowerCase();
+      return { line, score: terms.reduce((score, term) => score + (text.includes(term) ? 1 : 0), 0) };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  if (ranked.length) {
+    return ranked
+      .map(
+        ({ line }) =>
+          `[${Math.floor(Number(line.at) / 60)}:${String(Math.floor(Number(line.at) % 60)).padStart(2, "0")}] ${
+            line.speaker ? `${line.speaker}: ` : ""
+          }${line.text}`,
+      )
+      .join(" ");
+  }
+
+  const facts = [
+    ...decisions.map((item) => `Decision: ${item}`),
+    ...actions
+      .filter((action) => action && typeof action.text === "string")
+      .map((action) => `Action: ${action.owner ? `${action.owner}: ` : ""}${action.text}`),
+    ...highlights.map((item) => `Point: ${item}`),
+    ...(typeof notes.summary === "string" && notes.summary.trim() ? [`Summary: ${notes.summary}`] : []),
+  ];
+  const matched = facts.filter((fact) => terms.some((term) => fact.toLowerCase().includes(term)));
+  if (matched.length) return matched.slice(0, 3).join("\n");
+
+  if (/\b(decision|decide|agreed|conclusion|action|next|owner|follow)/i.test(String(question))) {
+    const direct = [
+      ...decisions.map((item) => `Decision: ${item}`),
+      ...actions
+        .filter((action) => action && typeof action.text === "string")
+        .map((action) => `Action: ${action.owner ? `${action.owner}: ` : ""}${action.text}`),
+    ];
+    if (direct.length) return direct.slice(0, 4).join("\n");
+  }
+
+  return "That was not clear in this session. Check the spoken words, or ask about a person, number, or decision.";
+}
+
+function demoInsights({ session, existing }) {
+  const lines = Array.isArray(session.transcript) ? session.transcript : [];
+  const decisions = [];
+  const actions = [];
+  for (const line of lines) {
+    const text = clipText(line.text, 220);
+    if (!text) continue;
+    if (/\b(we agreed|we decided|make we|we go|no wahala)\b/i.test(text) && decisions.length < 3) decisions.push(text);
+    if (/\b(i go|send|re-pull|confirm|follow up|before)\b/i.test(text) && actions.length < 3) {
+      actions.push({ text, owner: /\bi go|i will|i'll\b/i.test(text) ? "You" : "Unassigned" });
+    }
+  }
+  const known = new Set((existing?.decisions ?? []).map((item) => String(item).toLowerCase()));
+  const knownActions = new Set((existing?.actions ?? []).map((item) => String(item?.text ?? "").toLowerCase()));
+  return {
+    decisions: decisions.filter((item) => !known.has(item.toLowerCase())),
+    actions: actions.filter((item) => !knownActions.has(item.text.toLowerCase())),
+  };
+}
+
+function demoFollowup({ session, channel, language }) {
+  const summary = clipText(noteLines(session.notes).split("\n")[0], 600) || "No written summary yet.";
+  const actions = (Array.isArray(session.notes?.actions) ? session.notes.actions : [])
+    .filter((action) => action && typeof action.text === "string")
+    .map((action) => `- ${action.owner ? `${action.owner}: ` : ""}${action.text}`);
+  const next = actions.length ? actions.join("\n") : "- No open actions were written down.";
+  if (language === "pidgin") {
+    return `How far. Here is wetin we talk about for "${session.title}".\n\n${summary}\n\nWetin dey next:\n${next}\n\nNo wahala.`;
+  }
+  if (channel === "email") {
+    return `Subject: Recap: ${session.title}\n\nHello,\n\n${summary}\n\nNext steps:\n${next}\n\nThanks.`;
+  }
+  return `${session.title}\n\n${summary}\n\nNext steps:\n${next}`;
+}
+
+export async function answerAboutSession({ question, history, session }) {
+  if (mockEnabled()) return { answer: demoAsk({ question, session }), provider: "demo" };
+  const { value, provider } = await chatJson({
+    messages: assistantMessagesForAsk({ question, history, session }),
+    maxTokens: 700,
+    temperature: 0.15,
+  });
+  const answer = typeof value?.answer === "string" ? value.answer.trim() : "";
+  if (!answer) throw new HttpError(502, "The answer came back empty. Try again.");
+  return { answer, provider };
+}
+
+export async function extractLiveInsights({ session, existing }) {
+  if (mockEnabled()) return { ...demoInsights({ session, existing }), provider: "demo" };
+  const { value, provider } = await chatJson({
+    messages: assistantMessagesForInsights({ session, existing }),
+    maxTokens: 650,
+    temperature: 0.1,
+  });
+  const decisions = Array.isArray(value?.decisions)
+    ? value.decisions.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()).slice(0, 4)
+    : [];
+  const actions = Array.isArray(value?.actions)
+    ? value.actions
+        .flatMap((item) => {
+          if (!item || typeof item.text !== "string" || !item.text.trim()) return [];
+          return [{ text: item.text.trim(), owner: typeof item.owner === "string" && item.owner.trim() ? item.owner.trim() : "Unassigned" }];
+        })
+        .slice(0, 4)
+    : [];
+  return { decisions, actions, provider };
+}
+
+export async function draftFollowUpMessage({ session, channel, language }) {
+  if (mockEnabled()) return { text: demoFollowup({ session, channel, language }), provider: "demo" };
+  const { value, provider } = await chatJson({
+    messages: assistantMessagesForFollowup({ session, channel, language }),
+    maxTokens: 900,
+    temperature: 0.35,
+  });
+  const text = typeof value?.text === "string" ? value.text.trim() : "";
+  if (!text) throw new HttpError(502, "The draft came back empty. Try again.");
+  return { text, provider };
+}
+
+const assistSession = z.object({
+  title: z.string().max(200).optional().default(""),
+  kind: z.enum(["meeting", "seminar", "lecture", "voice"]).optional().default("meeting"),
+  scratch: z.string().max(12_000).optional().default(""),
+  notes: z.unknown().optional().nullable(),
+  transcript: z
+    .array(
+      z.object({
+        at: z.number().finite().min(0).max(24 * 3600),
+        speaker: z.string().max(160).optional(),
+        text: z.string().max(8_000),
+      }),
+    )
+    .max(5_000)
+    .optional()
+    .default([]),
+});
+
+const assistHistory = z
+  .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(8_000) }))
+  .max(8)
+  .optional()
+  .default([]);
+
+export async function handleAssist(req, res) {
+  requireMethod(req, ["POST"]);
+  assertSameOrigin(req);
+  rateLimit(req, 90);
+  const body = await readJson(req, 1_500_000);
+  if (!body || typeof body !== "object") throw new HttpError(400, "The request was empty.");
+  const mode = body.mode;
+
+  if (mode === "ask") {
+    const question = z.string().trim().min(3).max(500).parse(body.question);
+    const history = assistHistory.parse(body.history);
+    const session = assistSession.parse(body.session);
+    sendJson(res, 200, await answerAboutSession({ question, history, session }));
+    return;
+  }
+
+  if (mode === "insights") {
+    const session = assistSession.parse(body.session);
+    const existing = z
+      .object({
+        decisions: z.array(z.string().max(500)).max(20).optional().default([]),
+        actions: z.array(z.object({ text: z.string().max(500), owner: z.string().max(120).optional() })).max(20).optional().default([]),
+      })
+      .optional()
+      .default({ decisions: [], actions: [] });
+    const parsed = existing.parse(body.existing ?? {});
+    sendJson(res, 200, await extractLiveInsights({ session, existing: parsed }));
+    return;
+  }
+
+  if (mode === "followup") {
+    const channel = z.enum(["whatsapp", "email", "recap"]).parse(body.channel);
+    const language = z.enum(["english", "pidgin"]).parse(body.language);
+    const session = assistSession.parse(body.session);
+    sendJson(res, 200, await draftFollowUpMessage({ session, channel, language }));
+    return;
+  }
+
+  throw new HttpError(400, "Choose ask, insights or followup.");
 }
 
 const buckets = new Map();

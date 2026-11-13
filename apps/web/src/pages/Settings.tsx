@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { APP_CONFIG } from "@jotbox/config";
 import { useAuth } from "@/auth/AuthProvider";
+import { RETENTION_OPTIONS, getAudioRetention, pruneExpiredAudio, setAudioRetention, type AudioRetention } from "@/lib/retention";
 import { loadSampleSessions } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
@@ -55,6 +56,7 @@ export default function Settings() {
   const { user } = useAuth();
   const syncStatus = useSync((state) => state.status);
   const [usage, setUsage] = useState<{ used: number; quota: number } | null>(null);
+  const [retention, setRetention] = useState<AudioRetention>(() => getAudioRetention());
 
   const audioCount = sessions.filter((session) => session.hasAudio).length;
 
@@ -174,6 +176,47 @@ export default function Settings() {
               <p className="mt-1 text-[20px] font-semibold tracking-[-0.03em] text-ink">
                 {usage ? mb(usage.used) : "Not known"}
               </p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-line bg-raised-2 p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-[14px] font-medium text-ink">Keep recordings for</p>
+                <p className="mt-0.5 text-[12.5px] leading-4 text-muted">
+                  Old audio is cleared the next time JotBox opens. Notes and words stay.
+                </p>
+              </div>
+              {retention > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-line btn-sm"
+                  onClick={() => {
+                    void pruneExpiredAudio().then((count) => {
+                      toast.success(count ? `${count} old recording${count === 1 ? "" : "s"} cleared` : "Nothing is old enough yet");
+                    });
+                  }}
+                >
+                  Clear old audio
+                </button>
+              )}
+            </div>
+            <div className="seg mt-2.5 w-full">
+              {RETENTION_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
+                  data-active={retention === option.value}
+                  onClick={() => {
+                    setRetention(option.value);
+                    setAudioRetention(option.value);
+                    toast.success("Audio setting saved");
+                  }}
+                >
+                  {option.value === 0 ? "Keep" : `${option.value} days`}
+                </button>
+              ))}
             </div>
           </div>
 

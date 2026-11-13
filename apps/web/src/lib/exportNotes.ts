@@ -1,4 +1,5 @@
 import { notesToMarkdown } from "./format";
+import { OUTPUT_PRESETS } from "./presets";
 import type { Session } from "./types";
 
 function download(name: string, content: string, type: string) {
@@ -44,6 +45,7 @@ function escapeHtml(value: string) {
 
 export function printSession(session: Session) {
   const notes = session.notes;
+  const preset = OUTPUT_PRESETS[session.kind];
   const parts: string[] = [];
   parts.push(
     `<header><p class="eyebrow">JotBox</p><h1>${escapeHtml(session.title)}</h1><p class="meta">${escapeHtml(
@@ -55,13 +57,20 @@ export function printSession(session: Session) {
   );
 
   if (notes) {
-    parts.push(`<h2>Summary</h2><p class="lead">${escapeHtml(notes.summary)}</p>`);
+    parts.push(`<h2>${escapeHtml(preset.summaryLabel)}</h2><p class="lead">${escapeHtml(notes.summary)}</p>`);
     if (notes.highlights.length) {
-      parts.push(`<h2>Key points</h2><ul>${notes.highlights.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`);
+      parts.push(
+        `<h2>${escapeHtml(preset.highlightsLabel)}</h2><ul>${notes.highlights.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`,
+      );
+    }
+    if (notes.decisions?.length) {
+      parts.push(
+        `<h2>${escapeHtml(preset.decisionsLabel)}</h2><ul>${notes.decisions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`,
+      );
     }
     if (notes.actions.length) {
       parts.push(
-        `<h2>Action items</h2><ul class="actions">${notes.actions
+        `<h2>${escapeHtml(preset.actionsLabel)}</h2><ul class="actions">${notes.actions
           .map((item) => `<li><span class="owner">${escapeHtml(item.owner)}</span> ${escapeHtml(item.text)}</li>`)
           .join("")}</ul>`,
       );
