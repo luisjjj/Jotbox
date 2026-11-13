@@ -13,10 +13,12 @@ import {
   History,
   Loader2,
   Lock,
+  Mic,
   Plus,
   Search,
   ShieldCheck,
   Sparkles,
+  Square,
   Trash2,
   UserPlus,
   Users,
@@ -337,8 +339,113 @@ function AskPanel({
   const [turns, setTurns] = useState<ChatEntry[]>([]);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState("");
+  const [voice, setVoice] = useState<"idle" | "listening" | "writing">("idle");
+  const [canRecord] = useState(
+    () =>
+      typeof navigator !== "undefined" &&
+      Boolean(navigator.mediaDevices?.getUserMedia) &&
+      typeof MediaRecorder !== "undefined",
+  );
   const endRef = useRef<HTMLDivElement | null>(null);
   const nextId = useRef(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<number | null>(null);
+  const cancelledRef = useRef(false);
+  const voiceRun = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      cancelledRef.current = true;
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  const transcribeVoice = async (blob: Blob, run: number) => {
+    try {
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": blob.type || "audio/webm" },
+        body: blob,
+      });
+      if (!response.ok) throw new Error("transcribe");
+      const data = (await response.json()) as { text?: string };
+      if (run !== voiceRun.current) return;
+      const text = (data.text || "").trim();
+      if (!text) {
+        setError("No words were picked up. Try again, or type the question.");
+        return;
+      }
+      setDraft((current) => [current.trim(), text].filter(Boolean).join(" "));
+      requestAnimationFrame(() => document.getElementById("memory-question")?.focus());
+    } catch {
+      if (run !== voiceRun.current) return;
+      setError("That recording could not be read. Try again, or type the question.");
+    } finally {
+      if (run === voiceRun.current) setVoice("idle");
+    }
+  };
+
+  const startVoice = async () => {
+    if (asking || voice !== "idle") return;
+    setError("");
+    cancelledRef.current = false;
+    const run = ++voiceRun.current;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (run !== voiceRun.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const mime =
+        ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) => MediaRecorder.isTypeSupported(type)) ??
+        "";
+      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      streamRef.current = stream;
+      recorderRef.current = recorder;
+      chunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        recorderRef.current = null;
+        if (timerRef.current) window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+        const blob = new Blob(chunksRef.current, { type: mime || "audio/webm" });
+        chunksRef.current = [];
+        if (cancelledRef.current) {
+          cancelledRef.current = false;
+          return;
+        }
+        if (!blob.size) {
+          setVoice("idle");
+          setError("No words were picked up. Try again, or type the question.");
+          return;
+        }
+        setVoice("writing");
+        void transcribeVoice(blob, run);
+      };
+      recorder.start();
+      setVoice("listening");
+      timerRef.current = window.setTimeout(() => {
+        if (recorder.state === "recording") recorder.stop();
+      }, 60_000);
+    } catch {
+      if (run === voiceRun.current) setVoice("idle");
+      setError("Allow the microphone from the address bar, then try again — or type the question.");
+    }
+  };
+
+  const stopVoice = () => {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state === "recording") recorder.stop();
+  };
 
   useEffect(() => {
     if (!turns.length && !asking) return;
@@ -378,6 +485,11 @@ function AskPanel({
   };
 
   const reset = () => {
+    voiceRun.current += 1;
+    cancelledRef.current = true;
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state === "recording") recorder.stop();
+    setVoice("idle");
     setTurns([]);
     setDraft("");
     setError("");
@@ -489,17 +601,46 @@ function AskPanel({
                 }
               }}
             />
+            {canRecord && (
+              <button
+                type="button"
+                className={clsx(
+                  "btn btn-line h-11 w-11 flex-none !px-0",
+                  voice === "listening" && "border-rec-line bg-rec-soft text-rec",
+                )}
+                onClick={voice === "listening" ? stopVoice : () => void startVoice()}
+                disabled={asking || voice === "writing"}
+                aria-label={voice === "listening" ? "Stop and use the words" : "Ask by voice"}
+                aria-pressed={voice === "listening"}
+                title={voice === "listening" ? "Stop and use the words" : "Ask by voice"}
+              >
+                {voice === "writing" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : voice === "listening" ? (
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </button>
+            )}
             <button
               type="submit"
               className="btn btn-primary h-11 w-11 flex-none !px-0"
-              disabled={asking || !draft.trim()}
+              disabled={asking || voice !== "idle" || !draft.trim()}
               aria-label="Send question"
             >
               {asking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             </button>
           </div>
           <p className="mt-2 text-[10px] leading-4 text-faint">
-            Uses only meetings you can open · kept for {org.org.retentionDays} days · recorded facts are cited
+            {voice === "listening" ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="live-dot !h-1.5 !w-1.5" />
+                Listening — press the mic again to use the words. The audio is not kept.
+              </span>
+            ) : (
+              <>Uses only meetings you can open · kept for {org.org.retentionDays} days · recorded facts are cited</>
+            )}
           </p>
         </form>
       </section>
