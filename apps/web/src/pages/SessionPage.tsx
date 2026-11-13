@@ -7,6 +7,7 @@ import {
   Check,
   Copy,
   Download,
+  FileDown,
   FilePlus2,
   FileText,
   Loader2,
@@ -30,6 +31,7 @@ import { TranscriptView } from "@/components/TranscriptView";
 import { deleteAudio, loadAudio } from "@/lib/audioStore";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
 import { copyNotes, downloadMarkdown, printSession } from "@/lib/exportNotes";
+import { downloadSessionPdf } from "@/lib/pdf";
 import { formatClock, isDefaultTitle, notesLookEmpty } from "@/lib/format";
 import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
@@ -226,6 +228,7 @@ export default function SessionPage() {
 
   const [title, setTitle] = useState(session?.title ?? "");
   const [copying, setCopying] = useState(false);
+  const [preparingPdf, setPreparingPdf] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -385,6 +388,18 @@ export default function SessionPage() {
     }
   };
 
+  const savePdf = async () => {
+    setPreparingPdf(true);
+    try {
+      await downloadSessionPdf(session);
+      toast.success("PDF downloaded");
+    } catch {
+      toast.error("The PDF could not be made. Try printing instead.");
+    } finally {
+      setPreparingPdf(false);
+    }
+  };
+
   const handleDelete = () => {
     setConfirmDelete(false);
     remove(session.id);
@@ -440,6 +455,16 @@ export default function SessionPage() {
           <button
             type="button"
             className="icon-btn"
+            onClick={() => void savePdf()}
+            disabled={preparingPdf || !hasContent}
+            title="Download a branded PDF"
+            aria-label="Download a branded PDF"
+          >
+            {preparingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            className="icon-btn hidden sm:inline-flex"
             onClick={() => {
               const opened = printSession(session);
               if (!opened) toast.error("Allow pop-ups to print or save as PDF.");

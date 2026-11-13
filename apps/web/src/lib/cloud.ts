@@ -36,11 +36,9 @@ export async function pullAndMerge() {
   const remoteIds = new Set(remote.map((session) => session.id));
   const local = syncableSessions();
 
-  for (const session of local) {
-    if (!remoteIds.has(session.id)) {
-      await api.saveCapture(session);
-    }
-  }
+  await Promise.allSettled(
+    local.filter((session) => !remoteIds.has(session.id)).map((session) => api.saveCapture(session)),
+  );
 
   for (const session of remote) {
     useSessions.getState().upsert(session);

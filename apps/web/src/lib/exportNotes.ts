@@ -13,7 +13,7 @@ function download(name: string, content: string, type: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-function slugFor(session: Session) {
+export function sessionSlug(session: Session) {
   const base = session.title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -23,11 +23,11 @@ function slugFor(session: Session) {
 }
 
 export function downloadMarkdown(session: Session) {
-  download(`${slugFor(session)}.md`, notesToMarkdown(session), "text/markdown");
+  download(`${sessionSlug(session)}.md`, notesToMarkdown(session), "text/markdown");
 }
 
 export function downloadText(session: Session) {
-  download(`${slugFor(session)}.txt`, notesToMarkdown(session), "text/plain");
+  download(`${sessionSlug(session)}.txt`, notesToMarkdown(session), "text/plain");
 }
 
 export async function copyNotes(session: Session) {
