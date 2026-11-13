@@ -24,6 +24,7 @@ import {
 } from "@/lib/listening";
 import { useSessions } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
+import { ensureUsage } from "@/lib/usageStore";
 import type { CaptureSource, LiveInsights, Participant, Session, SessionKind, TranscriptLine } from "@/lib/types";
 
 type EngineStatus = "idle" | "recording" | "paused" | "processing";
@@ -72,6 +73,7 @@ interface EngineValue {
   participants: Participant[];
   interim: string;
   elapsed: number;
+  freeRemainingSec: number | null;
   error: string | null;
   captions: boolean;
   pip: Window | null;
@@ -119,6 +121,33 @@ function pickMime() {
   const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
   return types.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
 }
+
+function audioDuration(file: File) {
+  return new Promise<number>((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = document.createElement("audio");
+    let settled = false;
+    let timer = 0;
+    const done = (seconds: number) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      audio.removeAttribute("src");
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(seconds) && seconds > 0 ? seconds : 0);
+    };
+    timer = window.setTimeout(() => done(0), 4000);
+    audio.addEventListener("loadedmetadata", () => done(audio.duration), { once: true });
+    audio.addEventListener("error", () => done(0), { once: true });
+    audio.preload = "metadata";
+    audio.src = url;
+  });
+}
+
+const FREE_LIMIT_ERROR =
+  "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening.";
+const UPLOAD_TOO_LONG =
+  "That recording is longer than the free listening time you have left this month. Upgrade to Pro to keep listening.";
 
 function shapeQuietVoices(input: AudioNode, context: AudioContext) {
   const highpass = context.createBiquadFilter();
@@ -172,6 +201,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [captions, setCaptions] = useState(true);
   const [pip, setPip] = useState<Window | null>(null);
+  const [allowance, setAllowance] = useState<{ limit: number; baseline: number } | null>(null);
 
   const statusRef = useRef<EngineStatus>("idle");
   const idRef = useRef<string | null>(null);
@@ -200,10 +230,16 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const insightBusy = useRef(false);
   const insightAt = useRef(0);
   const insightCount = useRef(0);
+  const allowanceRef = useRef<{ limit: number; baseline: number } | null>(null);
 
   const setStatusBoth = (next: EngineStatus) => {
     statusRef.current = next;
     setStatus(next);
+  };
+
+  const setAllowanceBoth = (next: { limit: number; baseline: number } | null) => {
+    allowanceRef.current = next;
+    setAllowance(next);
   };
 
   const currentElapsed = () => {
@@ -244,6 +280,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     elapsedRef.current = 0;
     tickStart.current = null;
     chunks.current = [];
+    setAllowanceBoth(null);
     setSessionId(null);
     setTitleState("");
     setScratchState("");
@@ -565,6 +602,15 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         return;
       }
       setError(null);
+      const usage = await ensureUsage();
+      if (usage.loaded && !usage.unlimited && (usage.remainingSeconds ?? 0) <= 0) {
+        setError(FREE_LIMIT_ERROR);
+        return;
+      }
+      const nextAllowance =
+        usage.loaded && !usage.unlimited && usage.limitSeconds !== null
+          ? { limit: usage.limitSeconds, baseline: usage.usedSeconds }
+          : null;
       const id = crypto.randomUUID();
       const createdAt = Date.now();
       const nextTitle = options.title?.trim() || titleRef.current.trim() || defaultTitle(options.kind);
@@ -599,6 +645,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         setLines([]);
         setInterim("");
         setElapsed(0);
+        setAllowanceBoth(nextAllowance);
         setStatusBoth("recording");
         useSessions.getState().setLastKind(options.kind);
         useSessions.getState().upsert({
@@ -619,6 +666,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       } catch (caught) {
         stopStreamRef.current();
         stopStreamRef.current = () => {};
+        setAllowanceBoth(null);
         setError(messageFor(caught, options.source));
         setStatusBoth("idle");
       }
@@ -646,6 +694,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
 
   const resume = useCallback(() => {
     if (statusRef.current !== "paused") return;
+    const left = allowanceRef.current;
+    if (left && left.limit - left.baseline - currentElapsed() <= 0) {
+      toast(FREE_LIMIT_ERROR, { id: "free-limit" });
+      return;
+    }
     tickStart.current = Date.now();
     if (recorderRef.current?.state === "paused") recorderRef.current.resume();
     listenRef.current = true;
@@ -663,6 +716,21 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         setError("Finish the current session first.");
         return;
       }
+      const usage = await ensureUsage();
+      if (usage.loaded && !usage.unlimited && usage.remainingSeconds !== null && usage.remainingSeconds <= 0) {
+        setError(FREE_LIMIT_ERROR);
+        return;
+      }
+      const duration = await audioDuration(file);
+      if (
+        usage.loaded &&
+        !usage.unlimited &&
+        usage.remainingSeconds !== null &&
+        duration > usage.remainingSeconds
+      ) {
+        setError(UPLOAD_TOO_LONG);
+        return;
+      }
       const id = crypto.randomUUID();
       const createdAt = Date.now();
       const nextTitle = file.name.replace(/\.[^.]+$/, "") || defaultTitle(nextKind);
@@ -673,7 +741,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         title: nextTitle,
         kind: nextKind,
         createdAt,
-        durationSec: 0,
+        durationSec: duration,
         status: "processing",
         scratch: "",
         transcript: [],
@@ -691,7 +759,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             title: nextTitle,
             kind: nextKind,
             createdAt,
-            durationSec: 0,
+            durationSec: duration,
             status: "failed",
             scratch: "",
             transcript: [],
@@ -719,7 +787,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           title: result.title,
           kind: nextKind,
           createdAt,
-          durationSec: 0,
+          durationSec: duration,
           status: wrote ? "ready" : "failed",
           scratch: "",
           transcript: result.lines,
@@ -734,7 +802,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           title: nextTitle,
           kind: nextKind,
           createdAt,
-          durationSec: 0,
+          durationSec: duration,
           status: "failed",
           scratch: "",
           transcript: [],
@@ -905,6 +973,14 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         void stopRef.current();
         return;
       }
+      const allowance = allowanceRef.current;
+      if (allowance && statusRef.current === "recording") {
+        if (allowance.limit - allowance.baseline - currentElapsed() <= 0) {
+          toast(FREE_LIMIT_ERROR, { id: "free-limit" });
+          void stopRef.current();
+          return;
+        }
+      }
       if (statusRef.current === "recording") setElapsed(currentElapsed());
     }, 250);
     return () => window.clearInterval(id);
@@ -962,6 +1038,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     pip.document.documentElement.classList.toggle("dark", document.documentElement.classList.contains("dark"));
   }, [pip, theme]);
 
+  const freeRemainingSec = allowance
+    ? Math.max(0, Math.ceil(allowance.limit - allowance.baseline - elapsed))
+    : null;
+
   const value = useMemo<EngineValue>(
     () => ({
       status,
@@ -975,6 +1055,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       participants,
       interim,
       elapsed,
+      freeRemainingSec,
       error,
       captions,
       pip,
@@ -1003,6 +1084,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       participants,
       interim,
       elapsed,
+      freeRemainingSec,
       error,
       captions,
       pip,

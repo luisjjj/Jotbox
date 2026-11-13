@@ -17,6 +17,7 @@ import {
   Plus,
   SlidersHorizontal,
   Square,
+  Timer,
   Upload,
   UserRound,
   Users,
@@ -28,7 +29,8 @@ import { toast } from "react-hot-toast";
 import { APP_CONFIG } from "@jotbox/config";
 import { useEngine } from "@/engine/SessionEngine";
 import { useStudio } from "@/hooks/useStudio";
-import { defaultTitle, formatClock, KIND_META } from "@/lib/format";
+import { defaultTitle, formatClock, formatMinutes, KIND_META } from "@/lib/format";
+import { useUsage } from "@/lib/usageStore";
 import {
   FOCUS_OPTIONS,
   PICKUP_OPTIONS,
@@ -47,6 +49,9 @@ import { LiveBoard } from "@/components/LiveBoard";
 import { NoticeDialog } from "@/components/NoticeDialog";
 
 const KINDS: SessionKind[] = ["meeting", "seminar", "lecture", "voice"];
+
+const FREE_LIMIT_NOTICE =
+  "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening.";
 
 function KindSelector({ kind, onChange }: { kind: SessionKind; onChange: (kind: SessionKind) => void }) {
   return (
@@ -214,6 +219,9 @@ function Roster({
 function Setup() {
   const { kind, setKind, start, error, clearError, importFile, status } = useEngine();
   const studio = useStudio();
+  const usage = useUsage();
+  const freeLeft = usage.loaded && !usage.unlimited ? usage.remainingSeconds : null;
+  const outOfTime = freeLeft !== null && freeLeft <= 0;
   const [title, setTitle] = useState("");
   const [people, setPeople] = useState<Participant[]>([]);
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
@@ -274,6 +282,27 @@ function Setup() {
               <button type="button" className="icon-btn h-6 w-6" onClick={clearError} aria-label="Dismiss">
                 <X className="h-3.5 w-3.5" />
               </button>
+            </div>
+          )}
+
+          {freeLeft !== null && (
+            <div
+              className={clsx(
+                "mb-4 flex flex-col gap-2.5 rounded-xl border p-3 sm:flex-row sm:items-center",
+                outOfTime ? "border-rec-line bg-rec-soft" : "border-line bg-raised",
+              )}
+            >
+              <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                <Timer className={clsx("mt-0.5 h-4 w-4 flex-none", outOfTime ? "text-rec" : "text-accent")} />
+                <p className="min-w-0 flex-1 text-[13.5px] leading-5 text-soft">
+                  {outOfTime
+                    ? FREE_LIMIT_NOTICE
+                    : `${formatMinutes(freeLeft)} left on the free plan this month. Pro keeps you listening without a cap.`}
+                </p>
+              </div>
+              <Link to="/account" className="btn btn-line btn-sm w-full justify-center sm:w-auto sm:flex-none">
+                {outOfTime ? "Upgrade to Pro" : "Your plan"}
+              </Link>
             </div>
           )}
 
@@ -364,7 +393,7 @@ function Setup() {
               note="Mic"
               onClick={() => void launch("mic")}
               busy={busy === "mic"}
-              disabled={Boolean(busy) || uploading}
+              disabled={Boolean(busy) || uploading || outOfTime}
             />
             <SourceCard
               Icon={MonitorUp}
@@ -374,7 +403,7 @@ function Setup() {
               note="Call audio"
               onClick={() => void launch("tab")}
               busy={busy === "tab"}
-              disabled={!canShare || Boolean(busy) || uploading}
+              disabled={!canShare || Boolean(busy) || uploading || outOfTime}
             />
           </div>
           {!canShare && (
@@ -424,7 +453,7 @@ function Setup() {
             type="button"
             className="btn btn-line w-full flex-none sm:w-auto"
             onClick={() => fileRef.current?.click()}
-            disabled={uploading || Boolean(busy) || status === "processing"}
+            disabled={uploading || Boolean(busy) || status === "processing" || outOfTime}
           >
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             {uploading ? "Reading…" : "Upload audio"}
@@ -472,6 +501,7 @@ function Studio() {
     participants,
     interim,
     elapsed,
+    freeRemainingSec,
     captions,
     setScratch,
     setParticipants,
@@ -535,6 +565,17 @@ ${line}` : line;
               <AudioLines className="h-3.5 w-3.5" />
               {sourceLabel}
             </span>
+            {freeRemainingSec !== null && (
+              <span
+                className={clsx(
+                  "chip",
+                  freeRemainingSec <= 60 ? "border-transparent bg-rec-soft text-rec" : "text-muted",
+                )}
+              >
+                <Timer className="h-3 w-3" />
+                {formatMinutes(freeRemainingSec)} left
+              </span>
+            )}
           </div>
           <div className="mt-2.5 flex items-center gap-2">
             <KindBadge kind={kind} />
@@ -603,6 +644,16 @@ ${line}` : line;
           <button type="button" className="icon-btn h-6 w-6" onClick={clearError} aria-label="Dismiss">
             <X className="h-3.5 w-3.5" />
           </button>
+        </div>
+      )}
+
+      {freeRemainingSec !== null && freeRemainingSec <= 60 && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-line bg-raised-2 px-3.5 py-2.5">
+          <Timer className="mt-0.5 h-3.5 w-3.5 flex-none text-brass" />
+          <p className="text-[13.5px] leading-5 text-muted">
+            About a minute of free listening left. When it reaches zero, JotBox stops and writes the notes from what it
+            heard.
+          </p>
         </div>
       )}
 

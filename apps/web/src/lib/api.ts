@@ -32,11 +32,21 @@ export interface BillingSubscription {
   cancelledAt: number | null;
 }
 
+export interface BillingUsage {
+  unlimited: boolean;
+  usedSeconds: number;
+  limitSeconds: number | null;
+  remainingSeconds: number | null;
+  periodStart: number | null;
+  periodEnd: number | null;
+}
+
 export interface BillingStatus {
   configured: boolean;
   plan: "free" | "pro";
   subscription: BillingSubscription | null;
   pricing: BillingPricing;
+  usage: BillingUsage;
   payment?: string;
 }
 

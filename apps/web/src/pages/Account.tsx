@@ -18,8 +18,10 @@ import { useAuth } from "@/auth/AuthProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { requestCloudSync } from "@/components/CloudSync";
 import { api, type BillingStatus, type CloudUser } from "@/lib/api";
+import { formatMinutes } from "@/lib/format";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
+import { useUsage } from "@/lib/usageStore";
 
 function initialsFor(user: CloudUser) {
   const source = user.name.trim() || user.email;
@@ -116,13 +118,16 @@ function PlanCard() {
         if (returning && reference) {
           const result = await api.verifyCheckout(reference);
           setBilling(result);
+          useUsage.getState().apply(result.usage);
           if (result.payment === "success" && result.plan === "pro") {
             toast.success("Pro is active. Thank you.");
           } else {
             toast.error("That payment was not completed.");
           }
         } else {
-          setBilling(await api.billingStatus());
+          const result = await api.billingStatus();
+          setBilling(result);
+          useUsage.getState().apply(result.usage);
           if (returning) toast("No payment was made.");
         }
         setError(null);
@@ -171,6 +176,13 @@ function PlanCard() {
   const status = billing?.subscription ?? null;
   const canCancel = paid && status?.status === "active";
   const price = billing ? naira.format(billing.pricing.naira) : "";
+  const usage = billing?.usage ?? null;
+  const freeLeft = usage && !usage.unlimited ? usage.remainingSeconds : null;
+  const freeLimitMinutes = usage?.limitSeconds ? Math.max(1, Math.round(usage.limitSeconds / 60)) : null;
+  const usedPct =
+    usage?.limitSeconds && usage.limitSeconds > 0
+      ? Math.min(100, Math.round((usage.usedSeconds / usage.limitSeconds) * 100))
+      : 0;
 
   const summary = loading
     ? "Checking your plan."
@@ -178,7 +190,7 @@ function PlanCard() {
       ? status
         ? planNote(status)
         : "Pro is active."
-      : "Free covers 60 minutes a month, and every note stays yours.";
+      : `Free covers ${freeLimitMinutes ?? 60} minutes a month, and every note stays yours.`;
 
   return (
     <>
@@ -202,6 +214,21 @@ function PlanCard() {
                 </span>
               </div>
               <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-muted">{summary}</p>
+              {freeLeft !== null && freeLimitMinutes !== null && (
+                <div className="mt-2 max-w-[320px]">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-raised-2">
+                    <div
+                      className={freeLeft > 0 ? "h-full rounded-full bg-accent" : "h-full rounded-full bg-rec"}
+                      style={{ width: `${freeLeft <= 0 ? 100 : usedPct}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-[12.5px] leading-4 text-faint">
+                    {freeLeft <= 0
+                      ? "Free minutes are finished for this month. Pro lifts the cap."
+                      : `${formatMinutes(freeLeft)} left of ${freeLimitMinutes} minutes this month.`}
+                  </p>
+                </div>
+              )}
               {billing && paid && (
                 <p className="mt-1 text-[12.5px] text-faint">
                   {price} a month. Billed in {billing.pricing.currency === "NGN" ? "Naira" : billing.pricing.currency}.

@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { useAuth } from "@/auth/AuthProvider";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { cloudSuspended, pullAndMerge } from "@/lib/cloud";
 import { pruneExpiredAudio } from "@/lib/retention";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
+import { refreshUsage, useUsage } from "@/lib/usageStore";
 import type { Session } from "@/lib/types";
 
 function snapshot() {
@@ -25,6 +26,7 @@ export function CloudSync() {
   useEffect(() => {
     if (!user) {
       useSync.getState().reset();
+      useUsage.getState().reset();
       void pruneExpiredAudio();
       return;
     }
@@ -54,13 +56,22 @@ export function CloudSync() {
         ]);
         for (const id of ids) dirty.delete(id);
         for (const id of gone) removed.delete(id);
-        if (!disposed) useSync.getState().setSynced();
+        if (!disposed) {
+          useSync.getState().setSynced();
+          if (!useSessions.getState().sessions.some((session) => session.status === "live")) {
+            void refreshUsage();
+          }
+        }
       } catch (error) {
         if (!disposed) {
           useSync.getState().setError(errorMessage(error));
-          window.setTimeout(() => {
-            if (!disposed) void flush();
-          }, 6000);
+          // A plan limit will not clear by retrying. The next edit or a plan
+          // change asks the server again.
+          if (!(error instanceof ApiError && error.status === 402)) {
+            window.setTimeout(() => {
+              if (!disposed) void flush();
+            }, 6000);
+          }
         }
       } finally {
         inFlight = false;
@@ -83,6 +94,7 @@ export function CloudSync() {
         dirty.clear();
         removed.clear();
         useSync.getState().setSynced();
+        void refreshUsage();
       } catch (error) {
         if (!disposed) useSync.getState().setError(errorMessage(error));
       }

@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
+import { usageView } from "./usage.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -181,14 +182,20 @@ async function getSubscription(userId) {
   return result.rows[0] ?? null;
 }
 
+export async function isProUser(userId) {
+  return isEntitled(await getSubscription(userId));
+}
+
 async function statusFor(userId) {
   const config = billingConfig();
   const row = await getSubscription(userId);
+  const pro = isEntitled(row);
   return {
     configured: config.configured,
-    plan: isEntitled(row) ? "pro" : "free",
+    plan: pro ? "pro" : "free",
     subscription: subscriptionView(row),
     pricing: publicPricing(config),
+    usage: await usageView(userId, { unlimited: pro }),
   };
 }
 

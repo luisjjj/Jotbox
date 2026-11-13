@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
+import { isProUser } from "./billing.mjs";
+import { freeMonthlySeconds, monthlyUsageSeconds } from "./usage.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -67,6 +69,10 @@ const session = z.object({
 const EXPIRED_LIVE_ERROR =
   "This capture stayed open for more than 4 hours, so JotBox ended it. The words that were saved are here. Write the notes from them.";
 
+// The recorder stops itself at the limit. A few seconds of grace covers the
+// final tick, so an honest capture is never refused for stopping on time.
+const OVERAGE_GRACE_SECONDS = 10;
+
 function fromRow(row) {
   return {
     id: row.id,
@@ -114,6 +120,19 @@ export async function handleCaptures(req, res) {
       throw new HttpError(400, parsed.error.issues[0]?.message || "That session could not be saved.");
     }
     const item = parsed.data;
+
+    if (!(await isProUser(user.id))) {
+      const limit = freeMonthlySeconds();
+      const used = await monthlyUsageSeconds(user.id, { excludeId: item.id });
+      if (used + item.durationSec > limit + OVERAGE_GRACE_SECONDS) {
+        const message =
+          used >= limit
+            ? "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening. Your notes are still saved on this device."
+            : "This capture is longer than the free listening time you have left this month. Upgrade to Pro to keep listening. Your notes are still saved on this device.";
+        throw new HttpError(402, message);
+      }
+    }
+
     const result = await query(
       `insert into captures
          (id, user_id, title, kind, status, duration_sec, scratch, transcript, notes, has_audio, error, participants, live, created_at)

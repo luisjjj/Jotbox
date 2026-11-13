@@ -41,6 +41,7 @@ const REQUIRED_COLUMNS = {
     "notes",
     "has_audio",
     "created_at",
+    "recorded_at",
     "org_id",
     "department_id",
     "visibility",
@@ -96,6 +97,7 @@ test("database schema supports recordings, org memory and audit", { skip: pool ?
   assert.ok(applied.includes("002_org_memory"));
   assert.ok(applied.includes("003_share_and_live"));
   assert.ok(applied.includes("004_billing"));
+  assert.ok(applied.includes("005_usage_metering"));
 
   const constraints = await pool.query(
     `select conname from pg_constraint where conrelid = 'captures'::regclass and contype = 'c'`,

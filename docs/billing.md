@@ -21,6 +21,7 @@ The status card on `/account` reads `GET /api/billing`. Every billing action req
 | `PAYSTACK_PLAN_CODE` | Optional. Use an existing monthly NGN plan instead of letting JotBox create and cache one. |
 | `PAYSTACK_PRO_AMOUNT_NGN` | Naira charged each month. Defaults to `$7 × JOTBOX_USD_TO_NGN`. |
 | `JOTBOX_USD_TO_NGN` | Display and fallback conversion rate. Defaults to `1600`. |
+| `JOTBOX_FREE_MONTH_MINUTES` | Free listening each calendar month. Defaults to `60`; Pro is unlimited. |
 | `JOTBOX_PUBLIC_URL` | Public origin used for the Paystack callback. Falls back to the request host. |
 
 Never add the secret key to a `VITE_` variable, and never commit `.env`. Add the same names to Vercel Production, Preview, and Development as sensitive values.
@@ -42,10 +43,22 @@ JotBox creates a plan named `JotBox Pro NGN <amount> monthly` the first time som
 - `billing_subscriptions`: one row per person, with status, amount, next payment date, and the Paystack subscription and email tokens.
 - `billing_events`: webhook receipts keyed by event id, used for idempotency.
 
+Migration `005_usage_metering` adds `captures.recorded_at`, a server-set timestamp used to count listening minutes per calendar month. A client cannot move usage into another month by editing `created_at`.
+
 Run `npm run db:migrate` after pulling this change.
 
 ## Entitlement
 
 `isEntitled()` treats `active`, `attention` (a failed renewal that Paystack is retrying), and `non-renewing` as Pro. A cancelled subscription keeps Pro until `next_payment_at`. The account card uses the same status to decide whether to show **Upgrade to Pro** or **Cancel renewal**. A new checkout is refused while a plan is still entitled, so a failed renewal cannot create a second subscription.
 
-The free listening limit is not enforced in this change. The plan status is recorded and shown, so gating can be added without changing the payment flow.
+## Free listening limit
+
+`GET /api/billing` returns a `usage` object with `usedSeconds`, `limitSeconds`, `remainingSeconds`, and the calendar-month period. Pro returns `unlimited: true`.
+
+The limit is enforced in three places:
+
+1. Before a capture or upload starts, the app checks the remaining time. At zero it explains the cap and links to `/account`.
+2. While recording, the app counts the local elapsed time against the amount left. At zero it stops the recorder, keeps the audio and words heard so far, and writes the notes. Pausing cannot extend the allowance.
+3. `POST /api/captures` checks the month's usage with the server clock and refuses a free capture that would pass the limit. Clearing local data or calling the API directly does not bypass this. The capture stays in the local cache so it can sync after an upgrade.
+
+The server counts every capture row, including live and failed rows, so abandoned recordings still use time. Deleting a capture removes its minutes, because the notes are deleted with it. Uploaded audio counts by its real duration.

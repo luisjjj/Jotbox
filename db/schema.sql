@@ -47,6 +47,7 @@ create table if not exists captures (
   has_audio boolean not null default false,
   error text,
   created_at timestamptz not null,
+  recorded_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint captures_title_length check (length(title) <= 200),
   constraint captures_scratch_length check (length(scratch) <= 200000)
@@ -207,6 +208,18 @@ on conflict (version) do nothing;
 
 insert into schema_migrations (version)
 values ('004_billing')
+on conflict (version) do nothing;
+
+-- Listening minutes are metered by a server-set timestamp, so a client cannot
+-- move its usage into another month by changing created_at.
+alter table captures add column if not exists recorded_at timestamptz;
+update captures set recorded_at = created_at where recorded_at is null;
+alter table captures alter column recorded_at set default now();
+alter table captures alter column recorded_at set not null;
+create index if not exists captures_user_recorded_idx on captures (user_id, recorded_at);
+
+insert into schema_migrations (version)
+values ('005_usage_metering')
 on conflict (version) do nothing;
 
 create or replace function set_updated_at()

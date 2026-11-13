@@ -9,6 +9,11 @@ export const KIND_META: Record<SessionKind, { label: string; hint: string }> = {
   voice: { label: "Voice note", hint: "A memo, a call, a thought" },
 };
 
+export function formatMinutes(seconds: number) {
+  const minutes = Math.max(0, Math.ceil(seconds / 60));
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+}
+
 export function formatClock(seconds: number) {
   const total = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(total / 3600);

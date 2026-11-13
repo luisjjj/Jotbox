@@ -11,7 +11,7 @@
     "typecheck": "turbo run typecheck",
     "test": "npm run test:web && npm run test:server",
     "test:web": "npm run test -w @jotbox/web",
-    "test:server": "node --test tests/ai.test.mjs tests/memory.test.mjs tests/billing.test.mjs tests/db.test.mjs",
+    "test:server": "node --test tests/ai.test.mjs tests/memory.test.mjs tests/billing.test.mjs tests/usage.test.mjs tests/db.test.mjs",
     "dev:web": "npm run dev -w @jotbox/web",
     "build:web": "npm run build -w @jotbox/web",
     "preview:web": "npm run preview -w @jotbox/web",
