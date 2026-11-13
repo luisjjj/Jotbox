@@ -9,9 +9,11 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 import { saveAudio } from "@/lib/audioStore";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
 import { defaultTitle, formatClock } from "@/lib/format";
+import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
 import { useSessions } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 import type { CaptureSource, SessionKind, TranscriptLine } from "@/lib/types";
@@ -713,12 +715,9 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const store = useSessions.getState();
     for (const item of store.sessions) {
-      if (item.status === "live") {
-        store.patch(item.id, {
-          status: "failed",
-          error:
-            "This capture was interrupted when the page closed. The spoken words and jottings that survived are still here — write the notes from them.",
-        });
+      const closed = closeLiveSession(item);
+      if (closed) {
+        store.patch(item.id, { status: closed.status, error: closed.error });
       } else if (item.status === "processing") {
         store.patch(item.id, {
           status: "failed",
@@ -753,6 +752,12 @@ export function EngineProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const id = window.setInterval(() => {
+      if (statusRef.current !== "recording" && statusRef.current !== "paused") return;
+      if (createdRef.current && liveExpired(createdRef.current)) {
+        toast("Four hours is the limit, so this capture has ended.");
+        void stopRef.current();
+        return;
+      }
       if (statusRef.current === "recording") setElapsed(currentElapsed());
     }, 250);
     return () => window.clearInterval(id);

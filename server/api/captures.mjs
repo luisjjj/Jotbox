@@ -50,6 +50,9 @@ const session = z.object({
   error: z.string().max(4_000).optional(),
 });
 
+const EXPIRED_LIVE_ERROR =
+  "This capture stayed open for more than 4 hours, so JotBox ended it. The words that were saved are here — write the notes from them.";
+
 function fromRow(row) {
   return {
     id: row.id,
@@ -70,6 +73,12 @@ export async function handleCaptures(req, res) {
   const { user } = await requireSession(req);
 
   if (req.method === "GET") {
+    await query(
+      `update captures
+          set status = 'failed', error = $2, updated_at = now()
+        where user_id = $1 and status = 'live' and created_at < now() - interval '4 hours'`,
+      [user.id, EXPIRED_LIVE_ERROR],
+    );
     const result = await query(
       `select id, title, kind, status, duration_sec, scratch, transcript, notes, has_audio, error, created_at
          from captures

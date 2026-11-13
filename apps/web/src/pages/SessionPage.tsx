@@ -37,6 +37,7 @@ import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { linesFromText } from "@/lib/transcript";
 import type { Session, TranscriptLine } from "@/lib/types";
+import { useEngine } from "@/engine/SessionEngine";
 import { useAudioUrl } from "@/hooks/useAudio";
 
 interface AudioHandle {
@@ -225,6 +226,7 @@ export default function SessionPage() {
   const patch = useSessions((state) => state.patch);
   const toggleAction = useSessions((state) => state.toggleAction);
   const remove = useSessions((state) => state.remove);
+  const engine = useEngine();
 
   const [title, setTitle] = useState(session?.title ?? "");
   const [copying, setCopying] = useState(false);
@@ -417,7 +419,9 @@ export default function SessionPage() {
       : "The notes could not be written";
   const processing = session.status === "processing";
   const failed = session.status === "failed";
-  const orphanedLive = session.status === "live";
+  const orphanedLive =
+    session.status === "live" &&
+    !(engine.sessionId === session.id && (engine.status === "recording" || engine.status === "paused"));
   const notesEmpty = notesLookEmpty(session.notes);
   const showNotes = session.notes && !notesEmpty;
 
