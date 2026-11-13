@@ -123,6 +123,20 @@ npm run ai:sample  # writes .shots/ai-sample.wav for a local smoke test
 
 `JOTBOX_AI_MOCK=1` runs the deterministic demo provider in development. It is ignored on Vercel deployments so a demo response can never reach production.
 
+### Payments (Paystack)
+
+Pro is $7 a month on the site and is charged in Naira at checkout, because a Paystack plan is tied to one currency. JotBox creates and caches the monthly NGN plan on the first upgrade. Add the secret key on the server:
+
+```env
+PAYSTACK_SECRET_KEY=sk_test_...
+PAYSTACK_PRO_AMOUNT_NGN=11200
+JOTBOX_USD_TO_NGN=1600
+```
+
+Set the Paystack webhook to `https://your-domain/api/billing`, then run `npm run db:migrate`. Checkout, verification, cancellation, and webhook handling live in [`server/api/billing.mjs`](server/api/billing.mjs); the account card is on `/account`. The full setup and test checklist is in [docs/billing.md](docs/billing.md).
+
+Never put the secret key in a `VITE_` variable or commit `.env`.
+
 ### Production build
 
 ```bash
@@ -141,7 +155,7 @@ vercel env add DATABASE_URL production --sensitive   # the jotbox_app URL
 vercel --prod
 ```
 
-Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `logout`, `me`), `captures`, `health`, `transcribe`, `enhance`, and `orgs` (organisations, members, departments, sharing, audit, and memory; `/api/orgs/*` is rewritten to one shared handler to stay under the Hobby plan's 12-function limit). Set `DATABASE_URL` to the **app role** URL in Vercel Production, Preview, and Development. Never add `DATABASE_URL_OWNER` to Vercel. Add the provider keys you intend to use (`GROQ_API_KEY`, `WHISPER_BASE_URL`, `OPENROUTER_API_KEY`, `XAI_API_KEY`) as sensitive environment variables.
+Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `logout`, `me`), `billing`, `captures`, `health`, `transcribe`, `enhance`, `assist`, `share`, and `orgs` (organisations, members, departments, sharing, audit, and memory; `/api/orgs/*` is rewritten to one shared handler to stay under the Hobby plan's 12-function limit). Set `DATABASE_URL` to the **app role** URL in Vercel Production, Preview, and Development. Never add `DATABASE_URL_OWNER` to Vercel. Add the provider keys you intend to use (`GROQ_API_KEY`, `WHISPER_BASE_URL`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `PAYSTACK_SECRET_KEY`) as sensitive environment variables.
 
 **Request size:** Vercel Functions cap a request body at roughly **4.5 MB**, so long recordings must go through the self-hosted worker directly or through object storage. Short clips work through `/api/transcribe` as-is. See [docs/ai-providers.md](docs/ai-providers.md) for the options.
 

@@ -23,6 +23,9 @@ const REQUIRED_TABLES = [
   "org_members",
   "capture_grants",
   "audit_events",
+  "billing_plans",
+  "billing_subscriptions",
+  "billing_events",
 ];
 
 const REQUIRED_COLUMNS = {
@@ -46,6 +49,25 @@ const REQUIRED_COLUMNS = {
   org_members: ["org_id", "user_id", "role", "department_id", "joined_at"],
   capture_grants: ["capture_id", "user_id", "granted_by", "created_at"],
   audit_events: ["id", "org_id", "actor_id", "action", "capture_id", "metadata", "created_at"],
+  billing_plans: ["provider", "plan_key", "code", "currency", "amount", "interval", "created_at"],
+  billing_subscriptions: [
+    "user_id",
+    "provider",
+    "plan_key",
+    "plan_code",
+    "subscription_code",
+    "email_token",
+    "status",
+    "currency",
+    "amount",
+    "interval",
+    "customer_code",
+    "reference",
+    "next_payment_at",
+    "started_at",
+    "cancelled_at",
+  ],
+  billing_events: ["id", "provider", "event", "reference", "payload", "created_at"],
 };
 
 test("database schema supports recordings, org memory and audit", { skip: pool ? false : "DATABASE_URL is not set" }, async () => {
@@ -72,6 +94,8 @@ test("database schema supports recordings, org memory and audit", { skip: pool ?
   const applied = versions.rows.map((row) => row.version);
   assert.ok(applied.includes("001_initial"));
   assert.ok(applied.includes("002_org_memory"));
+  assert.ok(applied.includes("003_share_and_live"));
+  assert.ok(applied.includes("004_billing"));
 
   const constraints = await pool.query(
     `select conname from pg_constraint where conrelid = 'captures'::regclass and contype = 'c'`,

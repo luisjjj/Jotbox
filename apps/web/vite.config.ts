@@ -31,6 +31,10 @@ const SERVER_ENV = [
   "JOTBOX_NOTES_MAX_TOKENS",
   "JOTBOX_AI_NO_RATE_LIMIT",
   "JOTBOX_PUBLIC_URL",
+  "PAYSTACK_SECRET_KEY",
+  "PAYSTACK_PLAN_CODE",
+  "PAYSTACK_PRO_AMOUNT_NGN",
+  "JOTBOX_USD_TO_NGN",
 ];
 
 export default defineConfig(({ mode }) => {

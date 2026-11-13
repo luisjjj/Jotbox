@@ -11,6 +11,41 @@ export type OrgRole = "owner" | "admin" | "manager" | "member";
 export type CaptureVisibility = "private" | "department" | "organisation";
 export type CaptureSensitivity = "standard" | "confidential";
 
+export type BillingPlanStatus = "active" | "attention" | "non-renewing" | "cancelled" | "completed";
+
+export interface BillingPricing {
+  usd: number;
+  naira: number;
+  ngnPerUsd: number;
+  currency: string;
+  interval: string;
+}
+
+export interface BillingSubscription {
+  planKey: string;
+  status: BillingPlanStatus;
+  currency: string;
+  amount: number;
+  interval: string;
+  nextPaymentAt: number | null;
+  startedAt: number | null;
+  cancelledAt: number | null;
+}
+
+export interface BillingStatus {
+  configured: boolean;
+  plan: "free" | "pro";
+  subscription: BillingSubscription | null;
+  pricing: BillingPricing;
+  payment?: string;
+}
+
+export interface CheckoutSession {
+  authorizationUrl: string;
+  reference: string;
+  pricing: BillingPricing;
+}
+
 export interface Organisation {
   id: string;
   name: string;
@@ -280,4 +315,14 @@ export const api = {
     request<{ id: string }>(`/api/share?id=${encodeURIComponent(id)}`, { method: "DELETE" }),
   getPublicShare: (token: string) =>
     request<{ capture: PublicShare }>(`/api/share?token=${encodeURIComponent(token)}`),
+  billingStatus: () => request<BillingStatus>("/api/billing"),
+  startCheckout: () =>
+    request<CheckoutSession>("/api/billing?action=checkout", { method: "POST" }),
+  verifyCheckout: (reference: string) =>
+    request<BillingStatus>("/api/billing?action=verify", {
+      method: "POST",
+      body: JSON.stringify({ reference }),
+    }),
+  cancelSubscription: () =>
+    request<BillingStatus>("/api/billing?action=cancel", { method: "POST" }),
 };

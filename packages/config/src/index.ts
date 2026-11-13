@@ -8,6 +8,11 @@ export const APP_CONFIG = {
   supportedAudioExtensions: ['.webm', '.mp4', '.m4a', '.mp3', '.wav', '.ogg'],
 } as const;
 
+export const BILLING_CONFIG = {
+  proUsd: 7,
+  usdToNgn: 1600,
+} as const;
+
 export const SESSION_KINDS = ['meeting', 'seminar', 'lecture', 'voice'] as const;
 
 export type SessionKind = (typeof SESSION_KINDS)[number];

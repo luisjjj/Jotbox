@@ -150,8 +150,63 @@ create table if not exists capture_share_links (
 create index if not exists capture_share_links_capture_idx on capture_share_links (capture_id, created_at desc);
 create index if not exists capture_share_links_token_idx on capture_share_links (token_hash);
 
+-- Billing: Paystack plans, one live subscription per person, and webhook receipts.
+
+create table if not exists billing_plans (
+  provider text not null default 'paystack',
+  plan_key text not null default 'pro',
+  code text not null,
+  currency text not null default 'NGN',
+  amount integer not null check (amount > 0),
+  interval text not null default 'monthly',
+  created_at timestamptz not null default now(),
+  primary key (provider, plan_key)
+);
+
+create table if not exists billing_subscriptions (
+  user_id uuid primary key references users(id) on delete cascade,
+  provider text not null default 'paystack',
+  plan_key text not null default 'pro',
+  plan_code text,
+  subscription_code text,
+  email_token text,
+  status text not null default 'active'
+    check (status in ('active', 'attention', 'non-renewing', 'cancelled', 'completed')),
+  currency text not null default 'NGN',
+  amount integer not null default 0 check (amount >= 0),
+  interval text not null default 'monthly',
+  customer_code text,
+  reference text,
+  next_payment_at timestamptz,
+  started_at timestamptz not null default now(),
+  cancelled_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists billing_subscriptions_code_idx
+  on billing_subscriptions (provider, subscription_code)
+  where subscription_code is not null;
+
+create index if not exists billing_subscriptions_status_idx
+  on billing_subscriptions (status, next_payment_at);
+
+create table if not exists billing_events (
+  id text primary key,
+  provider text not null default 'paystack',
+  event text not null,
+  reference text,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists billing_events_created_idx on billing_events (created_at desc);
+
 insert into schema_migrations (version)
 values ('003_share_and_live')
+on conflict (version) do nothing;
+
+insert into schema_migrations (version)
+values ('004_billing')
 on conflict (version) do nothing;
 
 create or replace function set_updated_at()
@@ -177,6 +232,11 @@ for each row execute function set_updated_at();
 drop trigger if exists organisations_set_updated_at on organisations;
 create trigger organisations_set_updated_at
 before update on organisations
+for each row execute function set_updated_at();
+
+drop trigger if exists billing_subscriptions_set_updated_at on billing_subscriptions;
+create trigger billing_subscriptions_set_updated_at
+before update on billing_subscriptions
 for each row execute function set_updated_at();
 
 insert into schema_migrations (version)

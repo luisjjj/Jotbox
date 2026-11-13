@@ -17,6 +17,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/orgs",
+      "destination": "/api/orgs-handler"
+    },
+    {
       "source": "/api/orgs/(.*)",
       "destination": "/api/orgs-handler?orgPath=$1"
     },

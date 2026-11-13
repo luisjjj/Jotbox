@@ -3,6 +3,7 @@ import { handleLogin, handleLogout, handleMe, handleRegister } from "./auth.mjs"
 import { handleCaptures } from "./captures.mjs";
 import { handleOrgs } from "./orgs.mjs";
 import { handleAssist, handleEnhance, handleTranscribe } from "./ai.mjs";
+import { handleBilling } from "./billing.mjs";
 import { handleShare } from "./share.mjs";
 
 /**
@@ -54,6 +55,10 @@ export async function handleCoreApi(req, res) {
   }
   if (pathname === "/api/share" || pathname.startsWith("/api/share/")) {
     await handleShare(req, res);
+    return true;
+  }
+  if (pathname === "/api/billing" || pathname.startsWith("/api/billing/")) {
+    await handleBilling(req, res);
     return true;
   }
   return false;

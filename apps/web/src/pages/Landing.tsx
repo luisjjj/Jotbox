@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { BILLING_CONFIG } from "@jotbox/config";
 import { useAuth } from "@/auth/AuthProvider";
 import { Brand, BrandMark } from "@/components/Brand";
 import { Reveal } from "@/components/Reveal";
@@ -42,6 +43,13 @@ const LIVE_LINES = [
   { who: "Ada", text: "No wahala, make we pause the same-day promise." },
   { who: "You", text: "I go send the merchant note before four." },
 ];
+
+const PRO_NAIRA = BILLING_CONFIG.proUsd * BILLING_CONFIG.usdToNgn;
+const naira = new Intl.NumberFormat("en-NG", {
+  style: "currency",
+  currency: "NGN",
+  maximumFractionDigits: 0,
+});
 
 const MARQUEE = [
   "Meetings",
@@ -709,6 +717,9 @@ export default function Landing() {
                     <span className="text-[46px] font-semibold leading-none tracking-[-0.05em] text-ink">$7</span>
                     <span className="text-[14px] text-muted">/ month</span>
                   </div>
+                  <p className="mt-2 text-[12.5px] font-medium text-accent">
+                    {naira.format(PRO_NAIRA)} in Naira at checkout
+                  </p>
                   <p className="mt-2 text-[14px] leading-5 text-muted">For one person who listens for a living.</p>
                   <ul className="mt-5 flex-1 space-y-2.5">
                     {PRO_FEATURES.map((feature) => (
@@ -762,7 +773,7 @@ export default function Landing() {
 
           <Reveal delay={120}>
             <p className="mt-5 text-center text-[12.5px] leading-5 text-faint">
-              Prices in US dollars. Teams can pay yearly and save two months.
+              Prices shown in US dollars. Pro is charged in Naira at checkout. Teams can pay yearly and save two months.
             </p>
           </Reveal>
         </section>

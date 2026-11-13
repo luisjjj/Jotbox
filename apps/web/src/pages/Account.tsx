@@ -1,14 +1,25 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNowStrict } from "date-fns";
-import { AlertCircle, ArrowRight, Check, Cloud, Loader2, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  Check,
+  Cloud,
+  CreditCard,
+  Loader2,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/auth/AuthProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { requestCloudSync } from "@/components/CloudSync";
+import { api, type BillingStatus, type CloudUser } from "@/lib/api";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
-import type { CloudUser } from "@/lib/api";
 
 function initialsFor(user: CloudUser) {
   const source = user.name.trim() || user.email;
@@ -50,6 +61,231 @@ function SyncChip() {
   );
 }
 
+const naira = new Intl.NumberFormat("en-NG", {
+  style: "currency",
+  currency: "NGN",
+  maximumFractionDigits: 0,
+});
+
+function errorText(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong. Try again.";
+}
+
+function planNote(status: BillingStatus["subscription"]): string {
+  if (!status) return "";
+  if (status.status === "active") {
+    return status.nextPaymentAt
+      ? `Renews on ${format(status.nextPaymentAt, "d MMM yyyy")}.`
+      : "Renews every month.";
+  }
+  if (status.status === "attention") {
+    return "The last payment did not go through. Paystack will retry, and we will let you know if it needs you.";
+  }
+  if (status.status === "non-renewing") {
+    return status.nextPaymentAt
+      ? `Ends on ${format(status.nextPaymentAt, "d MMM yyyy")}. It will not renew.`
+      : "It will not renew.";
+  }
+  if (status.status === "cancelled") {
+    return status.nextPaymentAt
+      ? `Pro stays on until ${format(status.nextPaymentAt, "d MMM yyyy")}. It will not renew.`
+      : "This plan has ended.";
+  }
+  return "This plan has ended.";
+}
+
+function PlanCard() {
+  const navigate = useNavigate();
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get("reference") || params.get("trxref") || "";
+    const returning = params.get("billing") === "callback" || Boolean(reference);
+
+    const load = async () => {
+      try {
+        if (returning && reference) {
+          const result = await api.verifyCheckout(reference);
+          setBilling(result);
+          if (result.payment === "success" && result.plan === "pro") {
+            toast.success("Pro is active. Thank you.");
+          } else {
+            toast.error("That payment was not completed.");
+          }
+        } else {
+          setBilling(await api.billingStatus());
+          if (returning) toast("No payment was made.");
+        }
+        setError(null);
+      } catch (loadError) {
+        setError(errorText(loadError));
+      } finally {
+        setLoading(false);
+        if (returning) navigate("/account", { replace: true });
+      }
+    };
+
+    void load();
+  }, [navigate]);
+
+  const upgrade = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const session = await api.startCheckout();
+      window.location.assign(session.authorizationUrl);
+    } catch (upgradeError) {
+      const message = errorText(upgradeError);
+      setError(message);
+      toast.error(message);
+      setBusy(false);
+    }
+  };
+
+  const stopRenewal = async () => {
+    setConfirmCancel(false);
+    setBusy(true);
+    setError(null);
+    try {
+      setBilling(await api.cancelSubscription());
+      toast.success("Renewal stopped. You keep Pro until the period ends.");
+    } catch (cancelError) {
+      const message = errorText(cancelError);
+      setError(message);
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const paid = billing?.plan === "pro";
+  const status = billing?.subscription ?? null;
+  const canCancel = paid && status?.status === "active";
+  const price = billing ? naira.format(billing.pricing.naira) : "";
+
+  const summary = loading
+    ? "Checking your plan."
+    : paid
+      ? status
+        ? planNote(status)
+        : "Pro is active."
+      : "Free covers 60 minutes a month, and every note stays yours.";
+
+  return (
+    <>
+      <section className="card mt-6 p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3.5">
+            <span className="grid h-11 w-11 flex-none place-items-center rounded-2xl bg-accent-soft text-accent">
+              {paid ? <Sparkles className="h-5 w-5" /> : <CreditCard className="h-5 w-5" />}
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-ink">Your plan</h2>
+                <span
+                  className={
+                    paid
+                      ? "chip border-transparent bg-accent-soft text-accent"
+                      : "chip border-line text-muted"
+                  }
+                >
+                  {paid ? "Pro" : "Free"}
+                </span>
+              </div>
+              <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-muted">{summary}</p>
+              {billing && paid && (
+                <p className="mt-1 text-[12.5px] text-faint">
+                  {price} a month. Billed in {billing.pricing.currency === "NGN" ? "Naira" : billing.pricing.currency}.
+                </p>
+              )}
+              {billing && !paid && (
+                <p className="mt-1 text-[12.5px] text-faint">
+                  Pro is {price} a month, about ${billing.pricing.usd}. Billed in{" "}
+                  {billing.pricing.currency === "NGN" ? "Naira" : billing.pricing.currency}.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {!loading && billing && (
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              {!paid && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm w-full sm:w-auto"
+                  onClick={() => void upgrade()}
+                  disabled={busy || !billing.configured}
+                >
+                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                  Upgrade to Pro
+                </button>
+              )}
+              {canCancel && (
+                <button
+                  type="button"
+                  className="btn btn-line btn-sm w-full sm:w-auto"
+                  onClick={() => setConfirmCancel(true)}
+                  disabled={busy || !billing.configured}
+                >
+                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  Cancel renewal
+                </button>
+              )}
+            </div>
+          )}
+
+          {loading && (
+            <span className="flex items-center gap-2 self-start rounded-full border border-line bg-raised-2 px-3 py-1.5 text-[12.5px] text-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Checking
+            </span>
+          )}
+        </div>
+
+        {billing && !billing.configured && !paid && (
+          <div className="mt-4 rounded-xl border border-line bg-raised-2 p-3.5">
+            <p className="text-[13.5px] leading-5 text-soft">
+              Payments are not switched on yet. Your free plan keeps working, and Pro will appear here once it is
+              ready.
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
+            <p className="text-[13px] leading-5 text-soft">{error}</p>
+          </div>
+        )}
+
+        <p className="mt-4 flex items-start gap-1.5 text-[12px] leading-4 text-faint">
+          <ShieldCheck className="mt-px h-3 w-3 flex-none" />
+          Payments are handled by Paystack. JotBox never sees your card details.
+        </p>
+      </section>
+
+      <ConfirmDialog
+        open={confirmCancel}
+        title="Stop your Pro renewal?"
+        description="You keep Pro until the end of the period you already paid for. After that, the free plan takes over and your notes stay yours."
+        confirmLabel="Stop renewal"
+        tone="danger"
+        onConfirm={() => void stopRenewal()}
+        onCancel={() => setConfirmCancel(false)}
+      />
+    </>
+  );
+}
+
 function AccountView({ user }: { user: CloudUser }) {
   const { signOut } = useAuth();
   const navigate = useNavigate();
@@ -82,7 +318,9 @@ function AccountView({ user }: { user: CloudUser }) {
       </h1>
       <p className="mt-1 text-[15px] text-muted">Your notes follow you. Recordings stay on this device.</p>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr] xl:gap-6">
+      <PlanCard />
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr] xl:gap-6">
         <section className="card p-5 sm:p-6">
           <div className="flex items-start gap-3.5">
             <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-accent text-[17px] font-semibold text-accent-ink">
