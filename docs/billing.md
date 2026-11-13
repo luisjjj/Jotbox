@@ -82,7 +82,7 @@ Events also carry an order. `saveSubscription` ignores an event older than `last
 - On demand from **Check payment** on `/account`, which forces a check.
 - Daily from Vercel Cron at 03:00 (`/api/billing?action=reconcile`), for up to five subscriptions that have not been checked in the last hour.
 
-Cron access requires `Authorization: Bearer $CRON_SECRET` (or `?secret=`). Without the secret, the endpoint only reconciles the signed-in person.
+Cron access requires `Authorization: Bearer $CRON_SECRET` (or `?secret=`). Set `CRON_SECRET` in Vercel Production so the daily sweep can run. Without it, the scheduled call has no session and does nothing; page-load and **Check payment** reconciliation still work for each signed-in person.
 
 ## Entitlement
 
