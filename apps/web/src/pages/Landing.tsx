@@ -314,11 +314,7 @@ export default function Landing() {
           <div className="relative mx-auto max-w-[1320px] px-4 pb-8 pt-7 sm:px-6 sm:pb-12 sm:pt-10 lg:px-8 lg:pb-16 lg:pt-14">
             <div className="grid gap-9 lg:grid-cols-[1.04fr_0.96fr] lg:items-center">
               <div className="fade-up flex flex-col items-start">
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-2.5 py-1 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#e7e2d3]">
-                  <span className="live-dot" />
-                  Live capture
-                </span>
-                <h1 className="mt-5 max-w-[18ch] text-[2.7rem] font-semibold leading-[1.02] tracking-[-0.05em] text-[#f5f1e4] sm:text-[3.6rem]">
+                <h1 className="max-w-[18ch] text-[2.7rem] font-semibold leading-[1.02] tracking-[-0.05em] text-[#f5f1e4] sm:text-[3.6rem]">
                   The notes are written <em className="font-normal italic text-[#dcc69b]">while you listen.</em>
                 </h1>
                 <p className="mt-4 max-w-[42ch] text-[15.5px] leading-6 text-[#c5d0c7] sm:text-[16.5px] sm:leading-7">

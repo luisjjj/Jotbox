@@ -5,7 +5,7 @@ export function BrandMark({ className }: { className?: string }) {
   return (
     <span
       className={clsx(
-        "grid flex-none place-items-center rounded-[0.7rem] bg-accent text-accent-ink shadow-sm",
+        "brand-mark grid flex-none place-items-center rounded-[0.7rem] shadow-sm",
         className ?? "h-8 w-8",
       )}
       aria-hidden="true"
