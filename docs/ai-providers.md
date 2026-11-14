@@ -271,6 +271,12 @@ hint, not a dictionary; a long list crowds out the actual audio context. It is
 also the right place for Nigerian names, towns and workplace acronyms that the
 room shortens in speech.
 
+Groq rejects a speech prompt longer than **896 characters** with
+`invalid_prompt`, and that rejection happens before the audio is decoded. The
+gateway keeps the full prompt inside that budget: the instruction text is capped,
+then names and vocabulary are added one term at a time until the space is full.
+A request that is too long fails the whole recording, so do not raise the cap.
+
 ### Audio before the model
 
 The order is deliberate: condition the room, then transcribe, then edit.

@@ -83,7 +83,18 @@ async function transcribe(blob: Blob, context: { title: string; kind: SessionKin
     },
     180_000,
   );
-  if (!response.ok) return null;
+  if (!response.ok) {
+    let message = "JotBox could not read that recording.";
+    if (response.status < 500) {
+      try {
+        const data = (await response.json()) as { error?: unknown };
+        if (typeof data?.error === "string" && data.error.trim()) message = data.error;
+      } catch {
+        // Keep the plain message when the server did not send JSON.
+      }
+    }
+    throw new Error(message);
+  }
   const data = (await response.json()) as { text?: string; words?: SttWord[] };
   return wordsToLines(data.words, data.text ?? "");
 }
@@ -149,6 +160,7 @@ export async function buildNotes(input: {
   });
   const focus = getFocusMode();
   let lines = input.lines;
+  let readFailed = false;
   if (input.ai && input.audio && input.audio.size > 0) {
     try {
       const fromAudio = await transcribe(input.audio, {
@@ -157,12 +169,19 @@ export async function buildNotes(input: {
         names: knownNames(participants),
         focus,
       });
-      if (fromAudio && fromAudio.length) lines = fromAudio;
+      if (fromAudio.length) lines = fromAudio;
     } catch {
+      readFailed = true;
       lines = input.lines;
     }
   }
   lines = filterLines(lines, context, focus).kept;
+
+  if (readFailed && !lines.length && !input.scratch.trim()) {
+    throw new Error(
+      "JotBox could not read that recording. The audio is saved on this device, so try again, or add the words by hand.",
+    );
+  }
 
   if (input.ai && (lines.length || input.scratch.trim())) {
     try {

@@ -44,10 +44,10 @@ const ai = await import("../server/api/ai.mjs");
 test("speech prompt treats Pidgin as normal speech and takes room vocabulary", () => {
   const prompt = ai.sttPrompt();
   assert.match(prompt, /Nigerian Pidgin/);
-  assert.match(prompt, /Do not translate Pidgin/);
+  assert.match(prompt, /do not translate or correct it/);
   assert.match(prompt, /Keep names, places, amounts and dates/);
-  assert.match(prompt, /soft, far from the microphone, fast/);
-  assert.match(prompt, /acronyms are often shortened/);
+  assert.match(prompt, /soft, far or fast speakers/);
+  assert.match(prompt, /spell names and acronyms the way the room says them/);
 
   process.env.JOTBOX_STT_VOCAB = "Chinedu, Ibadan, NIPOST";
   assert.match(ai.sttPrompt(), /Chinedu, Ibadan, NIPOST/);
@@ -55,6 +55,18 @@ test("speech prompt treats Pidgin as normal speech and takes room vocabulary", (
   process.env.JOTBOX_STT_PROMPT = "Transcribe the room verbatim.";
   const override = ai.sttPrompt();
   assert.match(override, /^Transcribe the room verbatim\./);
+});
+
+test("speech prompt stays inside the Groq character limit under a full room", () => {
+  process.env.JOTBOX_STT_VOCAB = Array.from({ length: 60 }, (_, index) => `Ibadan term ${index}`).join(", ");
+  const prompt = ai.sttPrompt({
+    title: "Quarterly earnings review for the whole commercial team",
+    kind: "meeting",
+    names: Array.from({ length: 20 }, (_, index) => `Colleague ${index}`),
+    focus: "balanced",
+  });
+  assert.ok(prompt.length <= 896, `prompt was ${prompt.length} characters`);
+  assert.match(prompt, /Colleague 0/);
 });
 
 test("speech prompt carries the session title, focus and roster names", () => {
@@ -68,7 +80,7 @@ test("speech prompt carries the session title, focus and roster names", () => {
   assert.match(prompt, /Only transcribe speech that belongs to this session/);
   assert.match(prompt, /Leave out side conversations, background media and room noise/);
   assert.match(prompt, /Ada, Chinedu/);
-  assert.match(prompt, /faint|distant/i);
+  assert.match(prompt, /soft, far or fast/i);
 
   const open = ai.sttPrompt({ title: "Lecture notes", kind: "lecture", names: [], focus: "off" });
   assert.doesNotMatch(open, /Only transcribe speech that belongs to this session/);

@@ -41,18 +41,16 @@ const KIND_LABEL = {
 };
 
 const STT_PROMPT = [
-  "Transcribe the room verbatim. Keep every speaker's words exactly as spoken.",
-  "The speakers may use Nigerian Pidgin, standard English, or a mix with Yoruba, Igbo and Hausa.",
-  "Keep Pidgin grammar, slang and code-switching intact: words like wetin, dey, na, sha, abeg, wahala, oga, no wahala, e go, make we.",
-  "Do not translate Pidgin into formal English. Do not correct grammar. Keep names, places, amounts and dates.",
-  "Some speakers are soft, far from the microphone, fast, or switching between English and Pidgin inside one sentence. Follow them through the switch.",
-  "Nigerian names, towns and workplace acronyms are often shortened in speech. Spell each one the way the room says it, and keep the acronym.",
-  "Leave out background media, laughter, noise and side talk that is not part of this session.",
-  "A faint, fast, soft or distant speaker still matters: read them carefully instead of skipping the words.",
+  "Transcribe verbatim. Keep each speaker's exact words.",
+  "Speakers may mix Nigerian Pidgin, English, Yoruba, Igbo and Hausa in one sentence. Keep Pidgin as spoken; do not translate or correct it.",
+  "Keep names, places, amounts and dates, and spell names and acronyms the way the room says them.",
+  "Follow soft, far or fast speakers through language switches.",
+  "Leave out background media, laughter and side talk.",
 ].join(" ");
 
+const STT_PROMPT_LIMIT = 896;
+const STT_BASE_LIMIT = 560;
 const STT_VOCAB_LIMIT = 720;
-const STT_CONTEXT_LIMIT = 1200;
 
 const DEFAULT_GROQ_STT = "whisper-large-v3";
 const WORKER_STT_DEFAULT = "Systran/faster-whisper-small";
@@ -162,7 +160,7 @@ export function sanitizeSttContext(input) {
 }
 
 export function sttPrompt(context) {
-  const base = key("JOTBOX_STT_PROMPT") || STT_PROMPT;
+  const base = (key("JOTBOX_STT_PROMPT") || STT_PROMPT).slice(0, STT_BASE_LIMIT);
   const vocab = sttVocabulary();
   const room = sanitizeSttContext(context);
   const kind = room?.kind && KIND_LABEL[room.kind] ? KIND_LABEL[room.kind] : "session";
@@ -171,16 +169,26 @@ export function sttPrompt(context) {
     room?.focus === "off"
       ? ""
       : "Only transcribe speech that belongs to this session. Leave out side conversations, background media and room noise.";
-  const names = [...new Set([...(room?.names ?? []), ...vocab.split(", ").filter(Boolean)])].join(", ");
-  return [
-    base,
-    topic,
-    focus,
-    names ? `The people and terms below may appear. Spell them the way they say them: ${names}.` : "",
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .slice(0, STT_CONTEXT_LIMIT);
+  const terms = [...new Set([...(room?.names ?? []), ...vocab.split(", ").filter(Boolean)])];
+  const lead = [base, topic, focus].filter(Boolean).join(" ");
+
+  // Groq rejects speech prompts longer than 896 characters, so the room
+  // vocabulary is added term by term until the budget is full.
+  const hint = "Spell these names and terms the way the room says them: ";
+  let names = "";
+  if (terms.length) {
+    let budget = STT_PROMPT_LIMIT - lead.length - hint.length - 1;
+    const picked = [];
+    for (const term of terms) {
+      const cost = picked.length ? term.length + 2 : term.length;
+      if (cost > budget) break;
+      picked.push(term);
+      budget -= cost;
+    }
+    if (picked.length) names = `${hint}${picked.join(", ")}.`;
+  }
+
+  return [lead, names].filter(Boolean).join(" ").slice(0, STT_PROMPT_LIMIT).trim();
 }
 
 function mockEnabled() {
