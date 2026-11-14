@@ -45,8 +45,10 @@ const STT_PROMPT = [
   "The speakers may use Nigerian Pidgin, standard English, or a mix with Yoruba, Igbo and Hausa.",
   "Keep Pidgin grammar, slang and code-switching intact: words like wetin, dey, na, sha, abeg, wahala, oga, no wahala, e go, make we.",
   "Do not translate Pidgin into formal English. Do not correct grammar. Keep names, places, amounts and dates.",
+  "Some speakers are soft, far from the microphone, fast, or switching between English and Pidgin inside one sentence. Follow them through the switch.",
+  "Nigerian names, towns and workplace acronyms are often shortened in speech. Spell each one the way the room says it, and keep the acronym.",
   "Leave out background media, laughter, noise and side talk that is not part of this session.",
-  "A faint, fast or distant speaker still matters: read them carefully instead of skipping the words.",
+  "A faint, fast, soft or distant speaker still matters: read them carefully instead of skipping the words.",
 ].join(" ");
 
 const STT_VOCAB_LIMIT = 720;
@@ -60,12 +62,14 @@ The transcript is what was said. The scratch notes are what the listener marked.
 
 Language and tone:
 - Speakers may use Nigerian Pidgin, standard English, or a mix with Yoruba, Igbo and Hausa. Treat Pidgin as a full language, not as broken English.
-- Do not translate or "correct" Pidgin into corporate English. Keep the room's warmth, directness, humour and urgency.
-- Write the notes themselves in clear, simple English. When a Pidgin phrase carries meaning, emotion or a decision, keep it in quotation marks and let the surrounding sentence carry the meaning.
+- Pidgin is the room's voice, not a problem to fix. Never rewrite or "correct" it. Quote the Pidgin phrase that carries a decision, objection, warning or joke.
+- Read idioms, proverbs, sarcasm and understatement for their real intent. A dry "no wahala" can hide a blocker; write the blocker, not just the joke.
+- Write the notes in clear, simple English. State each decision plainly, then keep the Pidgin words that carry it in quotation marks.
 - Use plain punctuation: commas, colons and full stops. Never use em dashes.
 - Never invent names, numbers, decisions, quotes, owners or assignments.
+- When words are faint or only partly heard, do not fill the gap with a guess. Write only what is clear.
 - Do not add praise, preamble, warnings or filler.
-- Leave out side talk that has nothing to do with the session, such as wifi, lunch, travel or unrelated jokes, unless it changes a decision or an action.
+- Leave out greetings, small talk, football, lunch orders, travel and side jokes, unless they change a decision or an action.
 - Use the spellings of the people listed for the room. Never invent a person who is not in the transcript or that list.
 
 Shape:

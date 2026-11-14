@@ -46,6 +46,8 @@ test("speech prompt treats Pidgin as normal speech and takes room vocabulary", (
   assert.match(prompt, /Nigerian Pidgin/);
   assert.match(prompt, /Do not translate Pidgin/);
   assert.match(prompt, /Keep names, places, amounts and dates/);
+  assert.match(prompt, /soft, far from the microphone, fast/);
+  assert.match(prompt, /acronyms are often shortened/);
 
   process.env.JOTBOX_STT_VOCAB = "Chinedu, Ibadan, NIPOST";
   assert.match(ai.sttPrompt(), /Chinedu, Ibadan, NIPOST/);
@@ -283,7 +285,9 @@ test("notes parse fenced JSON, drop empty items and fail over between models", a
   assert.equal(calls[1].body.model, "openai/gpt-oss-20b");
   assert.equal(calls[1].body.response_format.type, "json_object");
   assert.match(calls[1].body.messages[0].content, /Nigerian Pidgin/);
-  assert.match(calls[1].body.messages[0].content, /Leave out side talk/);
+  assert.match(calls[1].body.messages[0].content, /Leave out greetings, small talk, football/);
+  assert.match(calls[1].body.messages[0].content, /sarcasm and understatement/);
+  assert.match(calls[1].body.messages[0].content, /write the blocker/);
   assert.match(calls[1].body.messages[0].content, /Use the spellings of the people listed/);
   assert.match(calls[1].body.messages[1].content, /People in the room: Ada, Chinedu/);
   assert.match(calls[1].body.messages[1].content, /Transcript:\nSpeaker 1: The bank acknowledged/);

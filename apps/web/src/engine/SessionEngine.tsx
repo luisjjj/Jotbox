@@ -11,6 +11,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { saveAudio } from "@/lib/audioStore";
+import { conditionStream, shapeRoomAudio } from "@/lib/audioConditioning";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
 import { defaultTitle, formatClock } from "@/lib/format";
 import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/lib/insights";
@@ -148,28 +149,6 @@ const FREE_LIMIT_ERROR =
   "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening.";
 const UPLOAD_TOO_LONG =
   "That recording is longer than the free listening time you have left this month. Upgrade to Pro to keep listening.";
-
-function shapeQuietVoices(input: AudioNode, context: AudioContext) {
-  const highpass = context.createBiquadFilter();
-  highpass.type = "highpass";
-  highpass.frequency.value = 85;
-  const compressor = context.createDynamicsCompressor();
-  compressor.threshold.value = -34;
-  compressor.knee.value = 18;
-  compressor.ratio.value = 4;
-  compressor.attack.value = 0.005;
-  compressor.release.value = 0.24;
-  input.connect(highpass);
-  highpass.connect(compressor);
-  return compressor;
-}
-
-function farMicStream(stream: MediaStream, context: AudioContext) {
-  const source = context.createMediaStreamSource(stream);
-  const destination = context.createMediaStreamDestination();
-  shapeQuietVoices(source, context).connect(destination);
-  return destination.stream;
-}
 
 function copyStyles(target: Document) {
   document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
@@ -316,10 +295,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     if (nextSource === "mic") {
       const mic = await navigator.mediaDevices.getUserMedia({ audio: pickupConstraints(pickup) });
       let recorded = mic;
-      if (pickup === "far" && audioContext) {
+      if (audioContext) {
         try {
           await audioContext.resume();
-          if (audioContext.state === "running") recorded = farMicStream(mic, audioContext);
+          if (audioContext.state === "running") recorded = conditionStream(mic, audioContext, pickup);
         } catch {
           recorded = mic;
         }
@@ -376,7 +355,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           audioContext.createMediaStreamSource(mic).connect(micGain);
           micGain.connect(bus);
         }
-        const output = pickup === "far" ? shapeQuietVoices(bus, audioContext) : bus;
+        const output = shapeRoomAudio(bus, audioContext, pickup);
         output.connect(destination);
         output.connect(analyser);
         return destination.stream;

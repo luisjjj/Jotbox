@@ -240,9 +240,20 @@ with the session title, roster names and focus mode. The gateway appends it to
 the speech prompt, so names are spelled the way the room spells them and the
 model is told to leave out side conversations. The browser's **Session focus**
 (`off`, `balanced`, `strict`) then drops clear asides before the notes are
-written, and **Pickup** (`balanced`, `far voices`) chooses between noise
-suppression and extra gain plus gentle compression for faint or distant
-speakers. Both are available in capture setup and Settings.
+written.
+
+**Pickup** (`balanced`, `far voices`) changes both the microphone constraints and
+the audio conditioning. In both modes the recorded stream passes through a
+high-pass filter (removes desk rumble and generator hum), a dynamics compressor
+and a makeup gain, so a person across the table and a person beside the laptop
+reach Whisper at a similar level. `balanced` keeps browser noise suppression on
+and uses a gentler profile. `far voices` turns noise suppression off, lowers the
+compressor threshold and adds more makeup gain, because aggressive noise
+suppression can swallow a soft, distant speaker.
+
+The conditioning is real Web Audio processing, not a post-recording volume
+change, and it applies to both microphone-only captures and the mic plus tab
+audio mix. Both are available in capture setup and Settings.
 
 Example:
 
@@ -256,11 +267,43 @@ GROQ_STT_MODEL=whisper-large-v3
 ```
 
 Keep the vocabulary under about 60 terms. Whisper's prompt is a short context
-hint, not a dictionary; a long list crowds out the actual audio context.
+hint, not a dictionary; a long list crowds out the actual audio context. It is
+also the right place for Nigerian names, towns and workplace acronyms that the
+room shortens in speech.
+
+### Audio before the model
+
+The order is deliberate: condition the room, then transcribe, then edit.
+
+1. **Browser capture.** `getUserMedia` asks for `echoCancellation` and
+   `autoGainControl` in every mode. `noiseSuppression` is on for `balanced` and
+   off for `far voices`.
+2. **Web Audio conditioning.** `apps/web/src/lib/audioConditioning.ts` adds the
+   high-pass, compressor and makeup gain described above. If the browser cannot
+   start an `AudioContext`, the raw microphone is used instead.
+3. **Voice activity detection.** The self-hosted Speaches / `faster-whisper`
+   worker receives `vad_filter=true` with a 0.35 threshold, 350 ms silence and
+   400 ms speech padding. This removes dead air and stops the model inventing
+   words during silence. Vercel cannot run an ffmpeg binary, so the hosted Groq
+   path relies on Whisper's own no-speech handling plus the segment filters in
+   the gateway.
+4. **Prompt conditioning.** The speech prompt names Pidgin, code-switching,
+   soft, fast and distant speech, and asks for local names and acronyms to keep
+   their spelling.
+5. **The editor.** The notes model reads idioms, proverbs, sarcasm and
+   understatement for their intent, keeps Pidgin quotes, and drops greetings,
+   football, lunch orders and side jokes unless they change a decision.
+
+If you run the worker yourself and want a second loudness stage, put
+`ffmpeg -af dynaudnorm` or `loudnorm` in front of Speaches, or add the same
+filter to the proxy that forwards audio to it. Do not add that step to the
+browser: the Web Audio conditioning already runs in real time and a second
+compression pass can pump the room tone.
 
 Do not add a post-processing step that rewrites Pidgin into standard English.
 The transcript is evidence for the memory layer, so it stays verbatim. The
-notes prompt already understands Pidgin and quotes it instead of flattening it.
+notes prompt may explain the intent of a Pidgin line in clear English, but it
+keeps the original words in quotation marks rather than flattening the room.
 
 ### Fine-tuning a self-hosted worker
 
