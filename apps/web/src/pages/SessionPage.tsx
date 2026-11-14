@@ -303,20 +303,33 @@ export default function SessionPage() {
   const regenerate = async (lines?: TranscriptLine[], scratch?: string) => {
     const useLines = lines ?? session.transcript;
     const useScratch = scratch ?? session.scratch;
-    if (!useLines.length && !useScratch.trim()) {
+    let audio: Blob | null = null;
+    if (!useLines.length && !useScratch.trim() && session.hasAudio) {
+      try {
+        const saved = await loadAudio(session.id);
+        audio = saved && saved.size > 0 ? saved : null;
+      } catch {
+        audio = null;
+      }
+    }
+    if (!useLines.length && !useScratch.trim() && !audio) {
       toast.error("Record audio, or add the spoken words, before asking for notes.");
       return false;
     }
     setRebuilding(true);
     try {
       const ai = await studioAvailable();
+      if (audio && !ai) {
+        toast.error("Automatic words are off. Add or paste the spoken words instead.");
+        return false;
+      }
       const result = await buildNotes({
         kind: session.kind,
         title: session.title,
         titleIsDefault: isDefaultTitle(session.title, session.kind),
         scratch: useScratch,
         lines: useLines,
-        audio: null,
+        audio,
         ai,
         participants: session.participants ?? [],
       });
@@ -327,7 +340,7 @@ export default function SessionPage() {
         transcript: result.lines,
         title: result.title,
       });
-      toast.success(ai ? "Notes rewritten" : "Notes written on this device");
+      toast.success(audio ? "Words and notes are ready" : ai ? "Notes rewritten" : "Notes written on this device");
       return true;
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "The notes could not be written.");
