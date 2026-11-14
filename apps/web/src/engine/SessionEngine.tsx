@@ -13,6 +13,7 @@ import { toast } from "react-hot-toast";
 import { saveAudio } from "@/lib/audioStore";
 import { conditionStream, shapeRoomAudio } from "@/lib/audioConditioning";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
+import { desktopBridge } from "@/lib/desktop";
 import { defaultTitle, formatClock } from "@/lib/format";
 import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/lib/insights";
 import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
@@ -164,6 +165,7 @@ function copyStyles(target: Document) {
 
 export function EngineProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const desktop = desktopBridge();
   const lastKind = useSessions((state) => state.lastKind);
   const theme = useTheme();
   const [status, setStatus] = useState<EngineStatus>("idle");
@@ -798,6 +800,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   );
 
   const pin = useCallback(async () => {
+    if (desktop?.isDesktop) {
+      toast.success("JotBox is already floating in its island.", { id: "island-pinned" });
+      return;
+    }
     const host = window as unknown as {
       documentPictureInPicture?: {
         requestWindow: (options?: {
@@ -820,7 +826,38 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     pipWindow.addEventListener("pagehide", () => setPip(null));
     pipRef.current = pipWindow;
     setPip(pipWindow);
-  }, []);
+  }, [desktop]);
+
+  useEffect(() => {
+    if (!desktop) return;
+    desktop.publishState({
+      status,
+      elapsed,
+      title: title || defaultTitle(kind),
+      interim,
+      lines: lines.slice(-2).map(({ speaker, text }) => ({ speaker, text })),
+      captions,
+      kind,
+      level: levelRef.current,
+      at: Date.now(),
+    });
+  }, [desktop, status, elapsed, title, kind, interim, lines, captions]);
+
+  useEffect(() => {
+    if (!desktop) return;
+    return desktop.onCommand((command) => {
+      if (command === "pause") pause();
+      else if (command === "resume") resume();
+      else if (command === "stop") void stopRef.current();
+      else if (command === "toggle-listen") {
+        if (statusRef.current === "recording" || statusRef.current === "paused") {
+          void stopRef.current();
+        } else if (statusRef.current === "idle") {
+          void start({ kind: kindRef.current, source: "mic" });
+        }
+      }
+    });
+  }, [desktop, pause, resume, start]);
 
   useEffect(() => {
     pipRef.current = pip;

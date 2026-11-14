@@ -30,6 +30,7 @@ import { APP_CONFIG } from "@jotbox/config";
 import { useEngine } from "@/engine/SessionEngine";
 import { useStudio } from "@/hooks/useStudio";
 import { defaultTitle, formatClock, formatMinutes, KIND_META } from "@/lib/format";
+import { isDesktop } from "@/lib/desktop";
 import { useUsage } from "@/lib/usageStore";
 import {
   FOCUS_OPTIONS,
@@ -228,6 +229,7 @@ function Setup() {
   const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [busy, setBusy] = useState<"mic" | "tab" | null>(null);
+  const [onDesktop] = useState(() => isDesktop());
   const fileRef = useRef<HTMLInputElement>(null);
   const [canShare] = useState(
     () => typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getDisplayMedia),
@@ -398,8 +400,12 @@ function Setup() {
             <SourceCard
               Icon={MonitorUp}
               title="On a call or a tab"
-              body="Share a Meet, Zoom, or Teams tab. JotBox records the tab's audio and mixes in your microphone when you speak."
-              action={canShare ? "Share a tab" : "Use a computer"}
+              body={
+                onDesktop
+                  ? "Choose the Meet, Zoom, or Teams window. JotBox records the call's sound and mixes in your microphone when you speak."
+                  : "Share a Meet, Zoom, or Teams tab. JotBox records the tab's audio and mixes in your microphone when you speak."
+              }
+              action={onDesktop ? "Share a call" : canShare ? "Share a tab" : "Use a computer"}
               note="Call audio"
               onClick={() => void launch("tab")}
               busy={busy === "tab"}
@@ -463,12 +469,21 @@ function Setup() {
         <div className="flex items-start gap-2 rounded-xl border border-line bg-raised-2 px-3.5 py-3">
           <Pin className="mt-0.5 h-3.5 w-3.5 flex-none text-faint" />
           <p className="text-[13.5px] leading-5 text-muted">
-            Need to keep working? Start here, then{" "}
-            <Link to="/float" className="font-medium text-ink underline decoration-line-strong underline-offset-2">
-              pin the pill
-            </Link>{" "}
-            above your other apps. Audio is stored on this device. When JotBox writes the words for you, the recording
-            is sent only for that session.
+            {onDesktop ? (
+              <>
+                JotBox floats above your other apps in its island. Start here, then hover the island to pause or stop.
+              </>
+            ) : (
+              <>
+                Need to keep working? Start here, then{" "}
+                <Link to="/float" className="font-medium text-ink underline decoration-line-strong underline-offset-2">
+                  pin the pill
+                </Link>{" "}
+                above your other apps.
+              </>
+            )}{" "}
+            Audio is stored on this device. When JotBox writes the words for you, the recording is sent only for that
+            session.
           </p>
         </div>
           </div>
@@ -517,8 +532,9 @@ function Studio() {
   const [pane, setPane] = useState<"notes" | "transcript">("notes");
   const paused = status === "paused";
   const words = useMemo(() => (scratch.trim() ? scratch.trim().split(/\s+/).length : 0), [scratch]);
+  const [onDesktop] = useState(() => isDesktop());
   const [canPin] = useState(
-    () => typeof window !== "undefined" && "documentPictureInPicture" in window,
+    () => isDesktop() || (typeof window !== "undefined" && "documentPictureInPicture" in window),
   );
   const [busy, setBusy] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
@@ -601,7 +617,15 @@ ${line}` : line;
             <Megaphone className="h-4 w-4" />
             <span className="hidden sm:inline">Notice</span>
           </button>
-          {canPin ? (
+          {onDesktop ? (
+            <span
+              className="chip flex-none border-transparent bg-accent-soft text-accent"
+              title="The JotBox island floats above your other apps"
+            >
+              <Check className="h-3 w-3" />
+              Island on
+            </span>
+          ) : canPin ? (
             <button
               type="button"
               className="btn btn-line flex-1 sm:flex-none"

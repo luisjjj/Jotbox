@@ -2,7 +2,7 @@
 
 **The notes are written while you listen.**
 
-JotBox is a mobile-first notetaker for meetings, seminars, lectures, and voice notes. It listens through the microphone or a shared call tab, keeps a live transcript, lets you jot a line or two, and writes the summary, key points, actions, and sections when you stop. On a computer it can float above your other apps.
+JotBox is a mobile-first notetaker for meetings, seminars, lectures, and voice notes. It listens through the microphone or a shared call tab, keeps a live transcript, lets you jot a line or two, and writes the summary, key points, actions, and sections when you stop. On a computer it can float above your other apps, and the Windows desktop app keeps a live hover island above every window.
 
 Guest-first. Sign in when you want your notes on another device: sessions, jottings, and transcripts sync through a Neon Postgres database; audio stays on the device.
 
@@ -22,7 +22,7 @@ Four session shapes set the tone of the notes: **Meeting**, **Seminar**, **Lectu
 - **Live studio** with two panes: your jottings and the live transcript. On a phone the panes become tabs.
 - **Written notes** with a summary, key points, action items (checkboxes and owners), and topic sections.
 - **Repair paths** when a recording fails: paste or edit a transcript, retry transcription from the saved audio, or rewrite the notes from what was captured.
-- **Floating companion** using Document Picture-in-Picture, so the timer, transcript, and scratchpad stay on top of other apps on desktop Chrome/Edge.
+- **Floating companion**: the Windows desktop app shows a transparent island above every window that expands on hover with the timer, latest words, pause, stop, and a way back into JotBox. In the browser, Document Picture-in-Picture does the same job on desktop Chrome/Edge.
 - **Library** with full-text search, session-type filters, and date groups.
 - **Exports**: copy as Markdown, download `.md`, print, or save as PDF.
 - **Guest mode**: recording, local notes, and the full UI work without an account.
@@ -161,6 +161,18 @@ Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `lo
 
 For the recommended low-cost path (Groq for short clips and a self-hosted Whisper worker for long lectures), see **[docs/ai-providers.md](docs/ai-providers.md)**. It includes the Groq key steps, a ready-to-run [`worker/docker-compose.yml`](worker/docker-compose.yml), deployment notes, and the Vercel size-limit caveat.
 
+### Desktop app (Windows)
+
+The Electron shell in [`apps/desktop`](apps/desktop) loads the deployed web app and adds the island: a transparent, always-on-top window that stays click-through until you hover the pill. Closing the main window hides it to the tray and keeps the capture running.
+
+```bash
+npm run dev --workspace @jotbox/desktop   # loads http://localhost:5173 after npm run dev:web
+npm run smoke --workspace @jotbox/desktop # hidden-window island check plus screenshots
+npm run dist --workspace @jotbox/desktop  # apps/desktop/release/JotBox-Setup-0.1.0.exe
+```
+
+Shortcuts: `Ctrl+Shift+J` opens JotBox, `Ctrl+Shift+L` starts or stops a microphone capture. Call audio goes through a built-in window picker with Windows loopback audio. The app is unsigned for now, so SmartScreen warns on first run. Full details, including how the island bridges state and how to point it at a preview deployment, are in **[docs/desktop.md](docs/desktop.md)**.
+
 ## Screens
 
 | Screen | What it does |
@@ -173,7 +185,8 @@ For the recommended low-cost path (Groq for short clips and a self-hosted Whispe
 | Notes (`/session/:id`) | The written document, audio + spoken-words panel, exports, rewrite |
 | Library (`/library`) | Search, type filters, date groups |
 | Account (`/account`) | Cloud status, profile, plan, sign out |
-| Float mode (`/float`) | How the floating pill works on desktop and what is possible on a phone |
+| Float mode (`/float`) | How the island works on desktop, plus what is possible on a phone |
+| Island (`/island`) | The desktop-only overlay route: transparent surface, hover to expand, pause/stop, open JotBox. Also renders a preview with `?preview=1` |
 | Settings (`/settings`) | Account, appearance, local data usage, exports, privacy |
 
 ![Written notes on desktop](docs/screenshots/notes-desktop.png)
@@ -237,6 +250,7 @@ Client types:
 - React Router
 - Neon Postgres + `pg` (app role; server-side only)
 - Vercel Functions for auth, captures, health, transcription, and notes
+- Electron + electron-builder for the Windows desktop island
 - Groq Whisper + LLaMA, self-hosted Speaches/faster-whisper, OpenRouter free notes, xAI fallback
 - `vite-plugin-pwa` (Workbox)
 - Self-hosted SF Pro Display for the interface
@@ -253,16 +267,21 @@ apps/web/
   server/apiPlugin.ts       Vite dev/preview middleware (shared handlers + AI)
   src/auth/                 auth context, RequireAuth guard
   src/components/           shell, words view, sync, account UI, scroll progress
-  src/engine/               capture engine (mic/tab, MediaRecorder, Web Speech, PiP)
-  src/lib/                  notes, API client, cloud sync, formatting, exports
-  src/pages/                Landing, Auth, Home, Listen, Session, Library, Account, Float, Settings
+  src/engine/               capture engine (mic/tab, MediaRecorder, Web Speech, desktop island publishing)
+  src/lib/                  notes, API client, cloud sync, desktop bridge, formatting, exports
+  src/pages/                Landing, Auth, Home, Listen, Session, Library, Account, Float, Island, Settings
   public/fonts/             SF Pro Display WOFF files
+apps/desktop/
+  main.cjs                  Electron shell: windows, tray, shortcuts, overlay state, call picker
+  preload.cjs               contextBridge for the island state and commands
+  picker.html               window/screen picker for call audio
+  assets/                   app and tray icons
 docs/screenshots/
 ```
 
 ## Limits worth knowing
 
-- **The floating pill is desktop-only.** It uses Document Picture-in-Picture in Chrome/Edge 116+ to keep a small pill above other windows and websites. It is not injected into the website itself; browsers do not allow a site to draw its own overlay inside another site. iOS and Android do not let a browser window float over native apps. The phone experience is an installable PWA that keeps recording when you switch apps; live words need JotBox in view.
+- **The island is desktop-only.** The Windows app keeps a transparent island above other windows; closing the main window hides it to the tray. In the browser, the fallback is Document Picture-in-Picture in Chrome/Edge 116+, which cannot draw over other websites or apps. iOS and Android do not let a browser window float over native apps. The phone experience is an installable PWA that keeps recording when you switch apps; live words need JotBox in view.
 - **Live words are browser speech, not the recording pass.** They are provisional and can stop when the tab is backgrounded. The recording itself continues; the transcription provider cleans it up afterwards.
 - **Audio does not sync.** Notes, jottings, and spoken words sync. Audio stays on the device that recorded it, so the spoken words are the cross-device source.
 - **Long audio needs the worker or storage.** Vercel Functions cap requests near 4.5 MB. Short clips work through `/api/transcribe`; long lectures need the self-hosted worker or an upload-to-storage flow.

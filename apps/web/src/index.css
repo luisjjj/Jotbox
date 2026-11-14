@@ -496,6 +496,18 @@
     transform: scale(0.94);
   }
 
+  html.island-surface,
+  html.island-surface body,
+  html.island-surface #root {
+    background: transparent !important;
+    overflow: hidden;
+  }
+
+  html.island-surface {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .island,
     .island-body,

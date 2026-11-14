@@ -1,0 +1,57 @@
+{
+  "name": "@jotbox/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JotBox desktop app with the floating listening island",
+  "author": "JotBox",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "smoke": "electron . --smoke-test",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.jotbox.desktop",
+    "productName": "JotBox",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "picker-preload.cjs",
+      "picker.html",
+      "picker.js",
+      "picker.css",
+      "assets/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "artifactName": "JotBox-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "JotBox",
+      "artifactName": "JotBox-Setup-${version}.${ext}"
+    }
+  }
+}

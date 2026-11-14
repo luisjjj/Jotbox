@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { useEngine } from "@/engine/SessionEngine";
 import { StaticBars } from "@/components/Waveform";
+import { isDesktop } from "@/lib/desktop";
 import { formatClock } from "@/lib/format";
 
 function DesktopMock() {
@@ -93,9 +94,16 @@ export default function FloatPage() {
   const { status, elapsed, title, pip, pin, pause, resume, stop, error, clearError } = useEngine();
   const recording = status === "recording" || status === "paused";
   const paused = status === "paused";
-  const [canPin] = useState(() => typeof window !== "undefined" && "documentPictureInPicture" in window);
+  const [onDesktop] = useState(() => isDesktop());
+  const [canPin] = useState(
+    () => isDesktop() || (typeof window !== "undefined" && "documentPictureInPicture" in window),
+  );
 
   const handlePin = async () => {
+    if (onDesktop) {
+      toast.success("The island is already on. Hover it to expand.", { id: "island-on" });
+      return;
+    }
     try {
       if (pip) {
         pip.focus();
@@ -153,10 +161,10 @@ export default function FloatPage() {
               Stop
             </button>
           </div>
-          {pip && (
+          {(pip || onDesktop) && (
             <span className="chip w-full justify-center border-transparent bg-accent-soft text-accent sm:w-auto">
               <Check className="h-3 w-3" />
-              Floating now
+              Island on
             </span>
           )}
         </div>
@@ -182,20 +190,28 @@ export default function FloatPage() {
               A small pill, above everything else.
             </h2>
             <p className="mt-3.5 max-w-[40ch] text-[15px] leading-6 text-muted">
-              Press Float while a session runs. JotBox opens a small pill with the timer and the latest words, and it
-              stays above your other windows and websites while you work.
+              {onDesktop
+                ? "When a session runs, JotBox shows a small island above your other windows. Hover it for the timer, the latest words, and the pause and stop controls."
+                : "Press Float while a session runs. JotBox opens a small pill with the timer and the latest words, and it stays above your other windows and websites while you work."}
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-2">
               {recording ? (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => void handlePin()}
-                  disabled={!canPin}
-                >
-                  <Pin className="h-4 w-4" />
-                  {pip ? "Focus the pill" : "Pin the pill"}
-                </button>
+                onDesktop ? (
+                  <span className="chip border-transparent bg-accent-soft text-accent">
+                    <Check className="h-3 w-3" />
+                    Island is on
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => void handlePin()}
+                    disabled={!canPin}
+                  >
+                    <Pin className="h-4 w-4" />
+                    {pip ? "Focus the pill" : "Pin the pill"}
+                  </button>
+                )
               ) : (
                 <Link to="/listen" className="btn btn-primary">
                   <Mic className="h-4 w-4" />
@@ -208,9 +224,11 @@ export default function FloatPage() {
             </div>
             <p className="mt-4 flex items-start gap-1.5 text-[12.5px] leading-4 text-faint">
               <Laptop className="mt-px h-3.5 w-3.5 flex-none" />
-              {canPin
-                ? "Float works on a computer, in the browser you already use. Nothing to install."
-                : "Floating needs a computer browser. On this device, keep JotBox open while it listens."}
+              {onDesktop
+                ? "The JotBox desktop app keeps the island above every window, with no pinning or pop-ups."
+                : canPin
+                  ? "Float works on a computer, in the browser you already use. Nothing to install."
+                  : "Floating needs a computer browser. On this device, keep JotBox open while it listens."}
             </p>
           </div>
           <div className="hidden lg:block">
@@ -238,12 +256,20 @@ export default function FloatPage() {
             <span className="chip">Computer</span>
           </div>
           <ol className="mt-4 space-y-3.5">
-            {[
-              "Start a capture from the microphone, or share a call tab.",
-              "Press Float while a session runs. The pill opens above your work.",
-              "Keep working. The timer and the latest words stay visible.",
-              "Press Stop when the room is done; the notes are written for you.",
-            ].map((step, index) => (
+            {(onDesktop
+              ? [
+                  "Start a capture from the microphone, or share a call tab.",
+                  "The island appears at the top of your screen while the session runs.",
+                  "Hover the island for the timer, the latest words, and the controls.",
+                  "Press Stop when the room is done; the notes are written for you.",
+                ]
+              : [
+                  "Start a capture from the microphone, or share a call tab.",
+                  "Press Float while a session runs. The pill opens above your work.",
+                  "Keep working. The timer and the latest words stay visible.",
+                  "Press Stop when the room is done; the notes are written for you.",
+                ]
+            ).map((step, index) => (
               <li key={step} className="flex gap-3">
                 <span className="grid h-6 w-6 flex-none place-items-center rounded-full border border-line bg-raised-2 text-[12px] font-semibold text-muted">
                   {index + 1}

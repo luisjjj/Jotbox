@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'"
+    />
+    <title>Choose what JotBox should hear</title>
+    <link rel="stylesheet" href="picker.css" />
+  </head>
+  <body>
+    <header class="head">
+      <div>
+        <p class="kicker">Share a call</p>
+        <h1>Choose what JotBox should hear</h1>
+        <p class="sub">
+          Pick the Meet, Zoom, or Teams window. JotBox hears the call and mixes in your microphone.
+        </p>
+      </div>
+      <button type="button" class="ghost" id="cancel">Cancel</button>
+    </header>
+
+    <nav class="tabs" id="tabs">
+      <button type="button" class="tab" data-tab="window">Windows</button>
+      <button type="button" class="tab" data-tab="screen">Screens</button>
+    </nav>
+
+    <main class="grid" id="grid" aria-live="polite"></main>
+
+    <p class="empty" id="empty" hidden>
+      Nothing to share yet. Open the call in another window, then share again.
+    </p>
+
+    <footer class="foot">
+      <span class="dot"></span>
+      Sound from the chosen window stays on this device until JotBox writes the notes.
+    </footer>
+
+    <script src="picker.js"></script>
+  </body>
+</html>
