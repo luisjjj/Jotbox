@@ -163,15 +163,16 @@ For the recommended low-cost path (Groq for short clips and a self-hosted Whispe
 
 ### Desktop app (Windows)
 
-The Electron shell in [`apps/desktop`](apps/desktop) loads the deployed web app and adds the island: a transparent, always-on-top window that stays click-through until you hover the pill. Closing the main window hides it to the tray and keeps the capture running.
+The Electron shell in [`apps/desktop`](apps/desktop) loads the deployed web app and adds the island: a transparent, always-on-top window that stays click-through until you hover the pill. It opens with a short splash, then a compact desktop sign-in card instead of the marketing site. Closing the main window hides it to the tray and keeps the capture running.
 
 ```bash
 npm run dev --workspace @jotbox/desktop   # loads http://localhost:5173 after npm run dev:web
-npm run smoke --workspace @jotbox/desktop # hidden-window island check plus screenshots
-npm run dist --workspace @jotbox/desktop  # apps/desktop/release/JotBox-Setup-0.1.0.exe
+npm run smoke --workspace @jotbox/desktop # island, splash, and desktop sign-in checks plus screenshots
+npm run dist --workspace @jotbox/desktop  # signed installer in apps/desktop/release
+npm run dist:unsigned --workspace @jotbox/desktop
 ```
 
-Shortcuts: `Ctrl+Shift+J` opens JotBox, `Ctrl+Shift+L` starts or stops a microphone capture. Call audio goes through a built-in window picker with Windows loopback audio. The app is unsigned for now, so SmartScreen warns on first run. Full details, including how the island bridges state and how to point it at a preview deployment, are in **[docs/desktop.md](docs/desktop.md)**.
+Shortcuts: `Ctrl+Shift+J` opens JotBox, `Ctrl+Shift+L` starts or stops a microphone capture. Call audio goes through a built-in window picker with Windows loopback audio. `npm run dist` creates a local self-signed certificate and signs the app and installer; because Windows does not trust that root by default, SmartScreen still warns on other PCs. Trust it on this PC with the one-line command in **[docs/desktop.md](docs/desktop.md)**, which also covers the island state bridge and pointing the shell at a preview deployment.
 
 ## Screens
 
@@ -186,6 +187,7 @@ Shortcuts: `Ctrl+Shift+J` opens JotBox, `Ctrl+Shift+L` starts or stops a microph
 | Library (`/library`) | Search, type filters, date groups |
 | Account (`/account`) | Cloud status, profile, plan, sign out |
 | Float mode (`/float`) | How the island works on desktop, plus what is possible on a phone |
+| Desktop sign-in (`/auth`) | Compact desktop card inside the Electron shell; the web version keeps the marketing layout |
 | Island (`/island`) | The desktop-only overlay route: transparent surface, hover to expand, pause/stop, open JotBox. Also renders a preview with `?preview=1` |
 | Settings (`/settings`) | Account, appearance, local data usage, exports, privacy |
 

@@ -10,7 +10,9 @@
     "dev": "electron . --dev",
     "smoke": "electron . --smoke-test",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win nsis"
+    "dist": "node signing.cjs --win nsis",
+    "dist:unsigned": "electron-builder --win nsis",
+    "sign:cert": "node signing.cjs --cert-only"
   },
   "devDependencies": {
     "electron": "33.4.11",
@@ -31,6 +33,8 @@
       "picker.html",
       "picker.js",
       "picker.css",
+      "splash.html",
+      "splash.css",
       "assets/**"
     ],
     "win": {

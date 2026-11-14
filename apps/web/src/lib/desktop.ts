@@ -29,6 +29,7 @@ export interface JotBoxDesktopBridge {
   command: (command: IslandCommand) => void;
   setInteractive: (interactive: boolean) => void;
   openMain: () => void;
+  shellReady: () => void;
 }
 
 declare global {

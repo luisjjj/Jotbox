@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/auth/AuthProvider";
@@ -18,6 +18,7 @@ import NotFound from "@/pages/NotFound";
 import SessionPage from "@/pages/SessionPage";
 import SharedPage from "@/pages/SharedPage";
 import Settings from "@/pages/Settings";
+import { isDesktop } from "@/lib/desktop";
 
 export default function App() {
   return (
@@ -45,7 +46,7 @@ export default function App() {
         />
         <Analytics />
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={isDesktop() ? <Navigate to="/app" replace /> : <Landing />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/s/:token" element={<SharedPage />} />
           <Route

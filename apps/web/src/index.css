@@ -1065,6 +1065,54 @@
   }
 }
 
+/* ---------- desktop auth ---------- */
+
+.desktop-auth {
+  position: relative;
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(20px, 5vh, 56px) 20px;
+  overflow: auto;
+  background:
+    radial-gradient(120% 90% at 50% -10%, #1c3126 0%, transparent 58%),
+    linear-gradient(180deg, #0d1712 0%, #070c09 100%);
+}
+
+.desktop-auth::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(80% 70% at 50% 0%, #000 20%, transparent 75%);
+}
+
+.desktop-auth-card {
+  position: relative;
+  width: 100%;
+  max-width: 432px;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 24px;
+  background: var(--raised);
+  box-shadow:
+    0 32px 80px -24px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+@media (max-width: 420px) {
+  .desktop-auth-card {
+    padding: 22px;
+    border-radius: 20px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

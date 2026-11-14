@@ -13,11 +13,15 @@ const {
 } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
 
 const PROD_URL = "https://jotbox-eight.vercel.app";
 const DEV_URL = "http://localhost:5173";
 const SMOKE = process.argv.includes("--smoke-test");
 const DEV = process.argv.includes("--dev");
+
+// Keep smoke runs away from an installed JotBox that already holds the lock.
+if (SMOKE) app.setPath("userData", path.join(os.tmpdir(), "jotbox-smoke"));
 
 const BASE_URL = (
   SMOKE
@@ -28,6 +32,8 @@ const BASE_URL = (
 const APP_ORIGIN = new URL(BASE_URL).origin;
 const ISLAND_WIDTH = 460;
 const ISLAND_HEIGHT = 220;
+const SPLASH_WIDTH = 400;
+const SPLASH_HEIGHT = 240;
 const ALLOWED_PERMISSIONS = new Set([
   "media",
   "display-capture",
@@ -40,6 +46,10 @@ const ASSETS = path.join(__dirname, "assets");
 let mainWindow = null;
 let islandWindow = null;
 let islandShown = false;
+let splashWindow = null;
+let splashDone = false;
+let splashOpenedAt = 0;
+let splashTimer = null;
 let pickerWindow = null;
 let pickerSources = [];
 let pickerResolver = null;
@@ -220,6 +230,53 @@ function chooseDisplaySource() {
   })();
 }
 
+function createSplashWindow() {
+  splashOpenedAt = Date.now();
+  const win = new BrowserWindow({
+    width: SPLASH_WIDTH,
+    height: SPLASH_HEIGHT,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    resizable: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    alwaysOnTop: true,
+    show: false,
+    title: "JotBox",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  splashWindow = win;
+  win.setAlwaysOnTop(true, "screen-saver");
+  win.once("ready-to-show", () => {
+    if (!win.isDestroyed()) win.show();
+  });
+  win.on("closed", () => {
+    if (splashWindow === win) splashWindow = null;
+  });
+  void win.loadFile(path.join(__dirname, "splash.html"));
+}
+
+function finishSplash() {
+  if (splashDone) return;
+  splashDone = true;
+  clearTimeout(splashTimer);
+  const remaining = Math.max(0, 900 - (Date.now() - splashOpenedAt));
+  setTimeout(() => {
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
+    splashWindow = null;
+    showMain();
+  }, remaining);
+}
+
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1320,
@@ -245,6 +302,12 @@ function createMainWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
 
+  mainWindow.webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
+    if (!isMainFrame) return;
+    console.warn(`JotBox could not load ${url}: ${description} (${code})`);
+    finishSplash();
+  });
+
   mainWindow.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
@@ -252,7 +315,8 @@ function createMainWindow() {
   });
 
   guardNavigation(mainWindow);
-  void mainWindow.loadURL(BASE_URL);
+  // The desktop shell skips the marketing site and opens the sign-in screen.
+  void mainWindow.loadURL(`${BASE_URL}/auth`);
 }
 
 function createIslandWindow() {
@@ -294,6 +358,7 @@ function createIslandWindow() {
 
 function showMain() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  finishSplash();
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
@@ -353,6 +418,10 @@ function registerShortcuts() {
 function watchedChannels() {
   ipcMain.on("desktop:version", (event) => {
     event.returnValue = app.getVersion();
+  });
+
+  ipcMain.on("shell:ready", (event) => {
+    if (mainWindow && event.sender === mainWindow.webContents) finishSplash();
   });
 
   ipcMain.on("island:state", (event, state) => {
@@ -500,7 +569,95 @@ async function runSmoke() {
     await wait(600);
     const returned = await win.webContents.executeJavaScript(measure);
 
-    console.log(`SMOKE ${JSON.stringify({ open, closed, hovered, returned, interactiveCalls })}`);
+    const shell = new BrowserWindow({
+      width: 1180,
+      height: 820,
+      show: false,
+      frame: false,
+      transparent: true,
+      title: "JotBox shell smoke",
+      backgroundColor: "#00000000",
+      webPreferences: {
+        partition: "jotbox-smoke",
+        offscreen: true,
+        preload: path.join(__dirname, "preload.cjs"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        backgroundThrottling: false,
+      },
+    });
+    await shell.loadFile(path.join(__dirname, "splash.html"));
+    shell.setSize(SPLASH_WIDTH, SPLASH_HEIGHT);
+    await wait(400);
+    shell.webContents.invalidate();
+    await wait(200);
+    const splash = await shell.webContents.executeJavaScript(
+      `(() => {
+        const card = document.querySelector(".splash");
+        return { card: Boolean(card), text: document.body.innerText.replace(/\\s+/g, " ").trim().slice(0, 120) };
+      })()`,
+    );
+    fs.writeFileSync(path.join(shotDir, "desktop-splash.png"), (await shell.capturePage()).toPNG());
+
+    shell.setSize(1180, 820);
+    await shell.loadURL(`${BASE_URL}/auth`);
+    await wait(2500);
+    await shell.webContents.executeJavaScript(
+      `(() => {
+        const style = document.createElement("style");
+        style.textContent = "*,*::before,*::after{animation:none!important;transition:none!important}";
+        document.head.appendChild(style);
+        return true;
+      })()`,
+    );
+    await wait(150);
+    shell.webContents.invalidate();
+    await wait(250);
+    const auth = await shell.webContents.executeJavaScript(
+      `(() => {
+        const card = document.querySelector("[data-desktop-auth]");
+        const panel = document.querySelector(".desktop-auth-card");
+        const rect = panel ? panel.getBoundingClientRect() : null;
+        const style = panel ? getComputedStyle(panel) : null;
+        return {
+          desktop: Boolean(card),
+          email: Boolean(document.querySelector("#auth-email")),
+          heading: card ? card.querySelector("h1").textContent.trim() : "",
+          visible: document.visibilityState,
+          panel: rect
+            ? {
+                x: Math.round(rect.x),
+                y: Math.round(rect.y),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+                opacity: style.opacity,
+                display: style.display,
+                visibility: style.visibility,
+                background: style.backgroundColor,
+                animation: style.animationName,
+              }
+            : null,
+        };
+      })()`,
+    );
+    const authShot = await shell.capturePage();
+    const authBitmap = authShot.getBitmap();
+    const authSize = authShot.getSize();
+    const centerIndex = (Math.floor(authSize.height / 2) * authSize.width + Math.floor(authSize.width / 2)) * 4;
+    const authCenter = [authBitmap[centerIndex + 2], authBitmap[centerIndex + 1], authBitmap[centerIndex]];
+    fs.writeFileSync(path.join(shotDir, "desktop-auth.png"), authShot.toPNG());
+
+    shell.setSize(380, 700);
+    await wait(400);
+    shell.webContents.invalidate();
+    await wait(250);
+    const narrow = await shell.webContents.executeJavaScript(
+      `({ width: innerWidth, overflow: document.documentElement.scrollWidth > innerWidth + 1 })`,
+    );
+    fs.writeFileSync(path.join(shotDir, "desktop-auth-narrow.png"), (await shell.capturePage()).toPNG());
+
+    console.log(`SMOKE ${JSON.stringify({ open, closed, hovered, returned, interactiveCalls, splash, auth, narrow, authCenter })}`);
     const pass =
       open.root &&
       open.status === "recording" &&
@@ -512,7 +669,13 @@ async function runSmoke() {
       closed.open === false &&
       hovered.open === true &&
       returned.open === false &&
-      interactiveCalls > 0;
+      interactiveCalls > 0 &&
+      splash.card &&
+      auth.desktop &&
+      auth.email &&
+      auth.heading.length > 0 &&
+      authCenter.every((channel) => channel > 200) &&
+      !narrow.overflow;
     ipcMain.removeListener("island:interactive", onInteractive);
     app.exit(pass ? 0 : 1);
   } catch (error) {
@@ -532,6 +695,8 @@ async function boot() {
     return;
   }
 
+  createSplashWindow();
+  splashTimer = setTimeout(finishSplash, 10000);
   createMainWindow();
   createIslandWindow();
   createTray();

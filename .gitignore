@@ -12,3 +12,4 @@ dist
 .env*
 
 release
+apps/desktop/signing/

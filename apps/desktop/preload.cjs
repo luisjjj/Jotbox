@@ -16,4 +16,5 @@ contextBridge.exposeInMainWorld("jotboxDesktop", {
   command: (command) => ipcRenderer.send("island:command", command),
   setInteractive: (interactive) => ipcRenderer.send("island:interactive", Boolean(interactive)),
   openMain: () => ipcRenderer.send("main:open"),
+  shellReady: () => ipcRenderer.send("shell:ready"),
 });

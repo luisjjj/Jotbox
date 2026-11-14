@@ -6,7 +6,9 @@ Windows is the first target. The installer is an NSIS setup in `apps/desktop/rel
 
 ## What the shell does
 
-- **Main window** loads `https://jotbox-eight.vercel.app` (or `JOTBOX_DESKTOP_URL`). Closing it hides it to the tray; the capture keeps running.
+- **Splash window** is a local, frameless card shown while the web app starts. It closes when the sign-in screen reports that the session check finished, with a 10 second fallback.
+- **Main window** opens `https://jotbox-eight.vercel.app/auth` (or `JOTBOX_DESKTOP_URL`), never the marketing site. Signed-in users are redirected to `/app`. Closing it hides it to the tray; the capture keeps running.
+- **Desktop sign-in** replaces the web marketing layout with a compact card, the app version, and the same fields. None of the landing page links appear inside the shell, because the root route redirects to `/app`.
 - **Island window** loads `/island` in a frameless, transparent, non-focusable window above every other app. It ignores mouse clicks until the pointer is over the pill, so you can work underneath it.
 - **State bridge** in `preload.cjs` publishes the engine state (`status`, `elapsed`, `title`, `interim`, the last two lines, the audio level) to the island and relays island commands back to the main window.
 - **Tray** with Open JotBox, Start/Stop listening, and Quit.
@@ -45,7 +47,16 @@ The engine publishes its state from the main window, so the island only updates 
 
 ## Smoke test
 
-The smoke test loads the island in a hidden window, checks the expanded and collapsed states, drives the hover enter/leave handlers, and writes screenshots to `.shots/`.
+The smoke test loads the island in a hidden window, checks the expanded and collapsed states, drives the hover enter/leave handlers, then loads the splash and the desktop sign-in screen. It writes screenshots to `.shots/`:
+
+- `desktop-island-open.png`
+- `desktop-island-pill.png`
+- `desktop-island-hover.png`
+- `desktop-splash.png`
+- `desktop-auth.png`
+- `desktop-auth-narrow.png`
+
+The shell window uses offscreen rendering so the sign-in card is painted even while the window is hidden, and the test checks a center pixel so an invisible card fails the run.
 
 ```bash
 npm run build:web
@@ -59,7 +70,7 @@ Set `JOTBOX_SMOKE_URL` to test the deployed site instead of the local preview:
 JOTBOX_SMOKE_URL=https://jotbox-eight.vercel.app npm run smoke --workspace @jotbox/desktop
 ```
 
-Exit code 0 means the island rendered, the status was `recording`, the surface was transparent, and the hover handlers toggled the expanded state.
+Exit code 0 means the island rendered, the status was `recording`, the surface was transparent, the hover handlers toggled the expanded state, the splash card was present, the desktop sign-in card rendered at wide and narrow widths, and no horizontal overflow appeared at 380px.
 
 ## Build the installer
 
@@ -67,7 +78,41 @@ Exit code 0 means the island rendered, the status was `recording`, the surface w
 npm run dist --workspace @jotbox/desktop
 ```
 
-Output: `apps/desktop/release/JotBox-Setup-0.1.0.exe` (about 78 MB). The app is unsigned, so Windows SmartScreen will warn on first run. Code signing needs a Windows certificate; add it under `win.certificateFile` when there is one.
+This signs the app exe, the uninstaller, and the installer with a local self-signed certificate. The first run creates the certificate and writes these ignored files under `apps/desktop/signing/`:
+
+- `jotbox-self-signed.pfx` (private key, never commit)
+- `jotbox-self-signed.cer` (public certificate)
+- `password.txt` (generated password for the pfx)
+
+Output: `apps/desktop/release/JotBox-Setup-0.1.0.exe` (about 78 MB).
+
+To create only the certificate:
+
+```bash
+npm run sign:cert --workspace @jotbox/desktop
+```
+
+To build without signing:
+
+```bash
+npm run dist:unsigned --workspace @jotbox/desktop
+```
+
+### What self-signing does and does not do
+
+A self-signed certificate proves the files were not changed after signing, but Windows does not trust the root by default. Other PCs still show "Unknown publisher", and SmartScreen still warns. That is expected with a free certificate.
+
+To trust it on this PC, import the public certificate into the current user's root store:
+
+```powershell
+Import-Certificate `
+  -FilePath "apps\desktop\signing\jotbox-self-signed.cer" `
+  -CertStoreLocation Cert:\CurrentUser\Root
+```
+
+After that, `Get-AuthenticodeSignature` reports `Valid` on this machine. Remove it later with `Remove-Item Cert:\CurrentUser\Root\<thumbprint>`.
+
+A publicly trusted certificate (Azure Trusted Signing, or an OV/EV certificate from a CA) is still needed before other people see a verified publisher.
 
 `npmRebuild` is off because the app has no native dependencies. This also avoids npm pruning the workspace's dev dependencies during packaging.
 
