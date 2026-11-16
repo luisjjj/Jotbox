@@ -16,6 +16,15 @@
     },
     "api/orgs-handler.mjs": {
       "maxDuration": 120
+    },
+    "api/utility.mjs": {
+      "maxDuration": 60
+    },
+    "api/integrations.mjs": {
+      "maxDuration": 60
+    },
+    "api/integrations-callback.mjs": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
@@ -34,6 +43,22 @@
     {
       "source": "/api/auth/reset-password",
       "destination": "/api/utility?route=reset"
+    },
+    {
+      "source": "/api/auth/(.*)",
+      "destination": "/api/auth-handler?action=$1"
+    },
+    {
+      "source": "/api/integrations/google/callback",
+      "destination": "/api/integrations-callback"
+    },
+    {
+      "source": "/api/integrations/outlook/callback",
+      "destination": "/api/integrations-callback"
+    },
+    {
+      "source": "/api/integrations/jira/callback",
+      "destination": "/api/integrations-callback"
     },
     {
       "source": "/api/onboarding",

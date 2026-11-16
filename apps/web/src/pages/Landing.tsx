@@ -125,6 +125,8 @@ const PRO_FEATURES = [
   "Pre-Meeting Brief from your last notes",
   "Ask across organisation memory",
   "Notes follow you across devices",
+  "Google Calendar and Outlook, next up on Home",
+  "Send session action items to Jira",
 ];
 
 const TEAM_FEATURES = [
@@ -842,7 +844,7 @@ export default function Landing() {
                     { Icon: Lock, text: "Recordings stay in this browser, not a JotBox library." },
                     { Icon: Cloud, text: "Notes and jottings follow you only after you sign in." },
                     { Icon: Sparkles, text: "Notes are written only when you ask for them." },
-                    { Icon: MonitorUp, text: "No meeting bot. No calendar access. No ad tracking." },
+                    { Icon: MonitorUp, text: "No meeting bot. No ad tracking. Calendar is opt-in." },
                   ].map((item) => (
                     <div
                       key={item.text}

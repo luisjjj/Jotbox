@@ -15,6 +15,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { EmptyState } from "@/components/EmptyState";
 import { SessionRow } from "@/components/SessionRow";
+import { UpcomingMeetings } from "@/components/UpcomingMeetings";
 import { useSessions } from "@/lib/store";
 import { loadSampleSessions } from "@/lib/seed";
 
@@ -145,6 +146,10 @@ export default function Home() {
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </section>
+
+          <div className="mt-3.5">
+            <UpcomingMeetings />
+          </div>
 
           <div className="mt-3.5 xl:hidden">
             <StatsGrid stats={stats} />

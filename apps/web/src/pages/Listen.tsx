@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import clsx from "clsx";
 import {
   AlertCircle,
   ArrowRight,
   AudioLines,
+  CalendarDays,
   Check,
   FileAudio,
   Loader2,
@@ -24,7 +25,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { APP_CONFIG } from "@jotbox/config";
 import { useEngine } from "@/engine/SessionEngine";
@@ -222,9 +223,12 @@ function Setup() {
   const { kind, setKind, start, error, clearError, importFile, status } = useEngine();
   const studio = useStudio();
   const usage = useUsage();
+  const [params] = useSearchParams();
+  const prefillTitle = params.get("title") ?? "";
+  const prefillKind = params.get("kind");
   const freeLeft = usage.loaded && !usage.unlimited ? usage.remainingSeconds : null;
   const outOfTime = freeLeft !== null && freeLeft <= 0;
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(prefillTitle);
   const [people, setPeople] = useState<Participant[]>([]);
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
   const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
@@ -236,6 +240,12 @@ function Setup() {
     () => typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getDisplayMedia),
   );
   const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    if (prefillKind && (KINDS as string[]).includes(prefillKind)) {
+      setKind(prefillKind as SessionKind);
+    }
+  }, [prefillKind, setKind]);
 
   const launch = async (source: "mic" | "tab") => {
     setBusy(source);
@@ -328,6 +338,12 @@ function Setup() {
             autoComplete="off"
             maxLength={120}
           />
+          {prefillTitle && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-faint">
+              <CalendarDays className="h-3 w-3 flex-none" />
+              Prefilled from your calendar.
+            </p>
+          )}
         </div>
 
         <PreMeetingBrief

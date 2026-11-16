@@ -14,6 +14,7 @@ import { handleBilling } from "./billing.mjs";
 import { handleShare } from "./share.mjs";
 import { handleDownloadWindows } from "./download.mjs";
 import { handleOnboarding } from "./onboarding.mjs";
+import { handleIntegrationCallback, handleIntegrations } from "./integrations.mjs";
 
 /**
  * Shared dispatcher for the Vite dev/preview server. The Vercel deployment
@@ -88,6 +89,14 @@ export async function handleCoreApi(req, res) {
       : "";
     if (token) req.url = `/api/onboarding?token=${encodeURIComponent(token)}`;
     await handleOnboarding(req, res);
+    return true;
+  }
+  if (pathname === "/api/integrations") {
+    await handleIntegrations(req, res);
+    return true;
+  }
+  if (/^\/api\/integrations\/(google|outlook|jira)\/callback$/.test(pathname)) {
+    await handleIntegrationCallback(req, res);
     return true;
   }
   return false;

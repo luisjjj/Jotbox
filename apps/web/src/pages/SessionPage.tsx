@@ -7,6 +7,7 @@ import {
   Check,
   Copy,
   Download,
+  ExternalLink,
   FileDown,
   FilePlus2,
   FileText,
@@ -29,6 +30,7 @@ import { toast } from "react-hot-toast";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FollowUpDialog } from "@/components/FollowUpDialog";
+import { JiraHandoffDialog } from "@/components/JiraHandoffDialog";
 import { NoticeDialog } from "@/components/NoticeDialog";
 import { PaywallDialog } from "@/components/Paywall";
 import { PeopleCard } from "@/components/PeopleCard";
@@ -38,6 +40,7 @@ import { KindBadge } from "@/components/KindBadge";
 import { SessionStatusChip } from "@/components/SessionRow";
 import { TranscriptView } from "@/components/TranscriptView";
 import { deleteAudio, loadAudio } from "@/lib/audioStore";
+import { api, type JiraHandoffLink } from "@/lib/api";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
 import { copyNotes, downloadMarkdown, printSession } from "@/lib/exportNotes";
 import { downloadSessionPdf } from "@/lib/pdf";
@@ -252,6 +255,23 @@ export default function SessionPage() {
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [pdfPaywall, setPdfPaywall] = useState(false);
+  const [jiraOpen, setJiraOpen] = useState(false);
+  const [handoffs, setHandoffs] = useState<JiraHandoffLink[]>([]);
+
+  useEffect(() => {
+    setHandoffs([]);
+    if (!session?.notes?.actions.length) return;
+    let alive = true;
+    api
+      .sessionHandoffs(session.id)
+      .then((links) => {
+        if (alive) setHandoffs(links);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [session?.id, session?.notes?.actions.length]);
 
   useEffect(() => {
     setTitle(session?.title ?? "");
@@ -265,6 +285,7 @@ export default function SessionPage() {
   }, [session?.title, session]);
 
   const openCount = session?.notes?.actions.filter((action) => !action.done).length ?? 0;
+  const handoffById = useMemo(() => new Map(handoffs.map((link) => [link.actionId, link])), [handoffs]);
   const preset = session ? OUTPUT_PRESETS[session.kind] : OUTPUT_PRESETS.meeting;
 
   const meta = useMemo(() => {
@@ -733,16 +754,28 @@ export default function SessionPage() {
 
               {session.notes.actions.length > 0 && (
                 <section className="mt-8">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                       {preset.actionsLabel}
                     </h2>
-                    <span className="text-[12.5px] tabular-nums text-faint">
-                      {openCount} of {session.notes.actions.length} open
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[12.5px] tabular-nums text-faint">
+                        {openCount} of {session.notes.actions.length} open
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-line btn-sm"
+                        onClick={() => setJiraOpen(true)}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        Send to Jira
+                      </button>
+                    </div>
                   </div>
                   <ul className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line bg-raised">
-                    {session.notes.actions.map((action) => (
+                    {session.notes.actions.map((action) => {
+                      const jiraLink = handoffById.get(action.id);
+                      return (
                       <li key={action.id} className="flex items-start gap-3 px-3.5 py-3">
                         <button
                           type="button"
@@ -766,9 +799,21 @@ export default function SessionPage() {
                           <p className="mt-1 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-faint">
                             {action.owner}
                           </p>
+                          {jiraLink ? (
+                            <a
+                              href={jiraLink.url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-accent hover:underline"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              {jiraLink.key}
+                            </a>
+                          ) : null}
                         </div>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 </section>
               )}
@@ -882,6 +927,19 @@ export default function SessionPage() {
 
       <ShareDialog session={session} open={shareOpen} onClose={() => setShareOpen(false)} />
       <FollowUpDialog session={session} open={followUpOpen} onClose={() => setFollowUpOpen(false)} />
+      <JiraHandoffDialog
+        session={session}
+        open={jiraOpen}
+        existing={handoffs}
+        onClose={() => setJiraOpen(false)}
+        onHandedOff={(links) =>
+          setHandoffs((current) => {
+            const byId = new Map(current.map((link) => [link.actionId, link]));
+            links.forEach((link) => byId.set(link.actionId, link));
+            return [...byId.values()];
+          })
+        }
+      />
       <PaywallDialog
         open={pdfPaywall}
         onClose={() => setPdfPaywall(false)}

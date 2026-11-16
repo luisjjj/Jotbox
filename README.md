@@ -28,6 +28,7 @@ Four session shapes set the tone of the notes: **Meeting**, **Seminar**, **Lectu
 - **Guest mode**: recording, local notes, and the full UI work without an account.
 - **Accounts and sync**: email/password signup, httpOnly session cookies, hashed passwords (scrypt), database-backed rate limits, and note/transcript sync to Neon.
 - **Email**: welcome, password reset, password changed, receipt, cancellation, and enterprise invite emails through Resend, with a console preview when no key is set.
+- **Connected apps**: opt-in Google Calendar and Outlook "Next up" on the home screen, and one-click Jira tickets from session action items.
 - **Enterprise**: a private, unlisted onboarding link per deal on `/enterprise/onboarding/:token`, with saved checklist steps and sign-in required to finish.
 - **Local-first audio**: sessions live in `localStorage` as an offline cache, audio blobs in IndexedDB, and cloud writes are debounced and retried.
 - **PWA**: installable on a phone, standalone window, offline shell.
@@ -181,6 +182,39 @@ npm run enterprise:invite -- --revoke <invite-id>
 The command stores only a hash of the token, prints the link once, and emails it when Resend is configured. Pass `--no-email` to skip sending or `--days` to change the 30-day expiry.
 
 The link opens `/enterprise/onboarding/:token`, a page that is not linked anywhere in the frontend and is marked `noindex` with `no-referrer`. It shows the agreed seats and price, six walkthrough steps with saved checklist state, and host talk tracks. It does not grant a session: the customer still signs in or creates an account before finishing, and the finished state records who accepted. Expired or revoked links return a generic 404.
+
+### Connected apps (Google Calendar, Outlook, Jira)
+
+Pro accounts can connect a calendar and Jira from `/account`. Calendar events show in the Next up card on the home screen, with a one-click start that prefills the capture title. Session action items can be sent to a Jira project, one ticket per action, with an optional note and a link back to the session.
+
+```env
+# 32 bytes, base64 or hex. Encrypts stored OAuth tokens with AES-256-GCM.
+INTEGRATIONS_ENCRYPTION_KEY=
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_TENANT_ID=common
+
+ATLASSIAN_CLIENT_ID=
+ATLASSIAN_CLIENT_SECRET=
+```
+
+Generate the encryption key with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Without it, the connections card explains that setup is incomplete instead of storing tokens in the clear.
+
+Register these redirect URIs with each provider, using your deployment origin:
+
+- Google: `https://your-domain/api/integrations/google/callback`
+- Microsoft: `https://your-domain/api/integrations/outlook/callback`
+- Atlassian: `https://your-domain/api/integrations/jira/callback`
+
+JotBox requests `calendar.readonly` from Google, `Calendars.Read` and `offline_access` from Microsoft, and `read:jira-work write:jira-work read:me offline_access` from Atlassian. Connections use the OAuth authorization code flow with a single-use hashed state that expires after 10 minutes. Access and refresh tokens are encrypted before they reach Postgres, refresh happens shortly before expiry, and a failed refresh marks the row so the UI asks the user to reconnect. Disconnecting deletes the stored tokens.
+
+Handoffs are idempotent: `integration_handoffs` is unique on `(user_id, provider, session_id, action_id)`, so sending the same action twice returns the existing key instead of creating a duplicate ticket. A partial failure keeps the successful tickets and reports the rest.
+
+Run `npm run db:migrate` to create the `integration_oauth_states`, `integration_connections`, and `integration_handoffs` tables (migration 009). The server code lives in [`server/api/integrations.mjs`](server/api/integrations.mjs).
 
 ### Production build
 

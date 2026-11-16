@@ -29,6 +29,72 @@ export interface EnterpriseInvite {
   signedInEmail: string | null;
 }
 
+export type IntegrationProvider = "google" | "outlook" | "jira";
+
+export interface IntegrationProviderStatus {
+  provider: IntegrationProvider;
+  label: string;
+  configured: boolean;
+  connected: boolean;
+  accountLabel: string;
+  siteName: string;
+  connectedAt: number | null;
+  needsReconnect: boolean;
+  scopes: string;
+}
+
+export interface IntegrationsStatus {
+  pro: boolean;
+  encryptionReady: boolean;
+  providers: IntegrationProviderStatus[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  provider: "google" | "outlook";
+  title: string;
+  start: number;
+  end: number;
+  allDay: boolean;
+  attendees: string[];
+  joinUrl: string | null;
+  webUrl: string | null;
+  description: string;
+}
+
+export interface CalendarFeed {
+  connected: boolean;
+  events: CalendarEvent[];
+  warnings: { provider: IntegrationProvider; label: string; message: string }[];
+  window: { start: number; end: number; days: number };
+}
+
+export interface JiraProject {
+  id: string;
+  key: string;
+  name: string;
+}
+
+export interface JiraProjectList {
+  site: { name: string; url: string };
+  projects: JiraProject[];
+  issueTypes: string[];
+}
+
+export interface JiraHandoffLink {
+  actionId: string;
+  key: string;
+  url: string;
+  createdAt?: number;
+}
+
+export interface JiraHandoffResult {
+  created: JiraHandoffLink[];
+  existing: JiraHandoffLink[];
+  failed: { actionId: string; message: string }[];
+  site: { name: string; url: string };
+}
+
 export interface BillingPricing {
   usd: number;
   naira: number;
@@ -390,4 +456,35 @@ export const api = {
     }),
   cancelSubscription: () =>
     request<BillingStatus>("/api/billing?action=cancel", { method: "POST" }),
+  integrations: () => request<IntegrationsStatus>("/api/integrations"),
+  connectIntegration: (provider: IntegrationProvider) =>
+    request<{ authUrl: string }>("/api/integrations?action=connect", {
+      method: "POST",
+      body: JSON.stringify({ provider }),
+    }),
+  disconnectIntegration: (provider: IntegrationProvider) =>
+    request<IntegrationsStatus>("/api/integrations?action=disconnect", {
+      method: "POST",
+      body: JSON.stringify({ provider }),
+    }),
+  calendarUpcoming: (days = 7) =>
+    request<CalendarFeed>(`/api/integrations?action=calendar&days=${days}`),
+  jiraProjects: () => request<JiraProjectList>("/api/integrations?action=jira-projects"),
+  jiraHandoff: (input: {
+    sessionId: string;
+    actionIds: string[];
+    projectKey: string;
+    issueType: string;
+    includeContext: boolean;
+  }) =>
+    request<JiraHandoffResult>("/api/integrations?action=jira-handoff", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  sessionHandoffs: async (sessionId: string) =>
+    (
+      await request<{ handoffs: JiraHandoffLink[] }>(
+        `/api/integrations?action=handoffs&sessionId=${encodeURIComponent(sessionId)}`,
+      )
+    ).handoffs,
 };

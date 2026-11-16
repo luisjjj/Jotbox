@@ -391,3 +391,58 @@ create index if not exists enterprise_invites_expiry_idx on enterprise_invites (
 insert into schema_migrations (version)
 values ('008_recovery_and_enterprise_onboarding')
 on conflict (version) do nothing;
+
+-- Calendar and Jira connections. OAuth state is single use and short lived.
+-- Access and refresh tokens are stored encrypted with AES-256-GCM using
+-- INTEGRATIONS_ENCRYPTION_KEY, never in plain text.
+create table if not exists integration_oauth_states (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  provider text not null check (provider in ('google', 'outlook', 'jira')),
+  state_hash text not null unique,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at timestamptz
+);
+
+create index if not exists integration_oauth_states_user_idx on integration_oauth_states (user_id, created_at desc);
+create index if not exists integration_oauth_states_expiry_idx on integration_oauth_states (expires_at);
+
+create table if not exists integration_connections (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  provider text not null check (provider in ('google', 'outlook', 'jira')),
+  account_label text not null default '',
+  external_id text not null default '',
+  metadata jsonb not null default '{}'::jsonb,
+  access_token text not null,
+  refresh_token text not null default '',
+  scope text not null default '',
+  token_type text not null default 'Bearer',
+  expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, provider)
+);
+
+create index if not exists integration_connections_provider_idx on integration_connections (provider, updated_at desc);
+
+-- One row per action item sent to an external tracker. The unique key makes a
+-- retry safe, so a network timeout cannot create a second Jira issue.
+create table if not exists integration_handoffs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  session_id uuid not null references captures(id) on delete cascade,
+  action_id text not null,
+  provider text not null default 'jira' check (provider in ('jira')),
+  external_key text not null,
+  external_url text not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, provider, session_id, action_id)
+);
+
+create index if not exists integration_handoffs_session_idx on integration_handoffs (user_id, session_id, created_at desc);
+
+insert into schema_migrations (version)
+values ('009_integrations')
+on conflict (version) do nothing;

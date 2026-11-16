@@ -16,6 +16,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/auth/AuthProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { IntegrationsCard } from "@/components/IntegrationsCard";
 import { requestCloudSync } from "@/components/CloudSync";
 import { api, type BillingStatus, type CloudUser } from "@/lib/api";
 import { formatMinutes } from "@/lib/format";
@@ -412,6 +413,8 @@ function AccountView({ user }: { user: CloudUser }) {
       <p className="mt-1 text-[15px] text-muted">Your notes follow you. Recordings stay on this device.</p>
 
       <PlanCard />
+
+      <IntegrationsCard />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr] xl:gap-6">
         <section className="card p-5 sm:p-6">

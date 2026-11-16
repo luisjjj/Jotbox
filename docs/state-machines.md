@@ -49,6 +49,7 @@ the transition tables before shipping.
 | 25 | Delete confirmation | closed, confirming, deleting | `pages/SessionPage.tsx:247` |
 | 26 | Password reset | none, requested, used, expired, revoked-by-new-request | `server/api/auth.mjs:226`, `:262`, `db/schema.sql:353` |
 | 27 | Enterprise invite | created, opened, accepted, expired, revoked | `scripts/enterprise-invite.mjs`, `server/api/onboarding.mjs:83`, `db/schema.sql:367` |
+| 28 | Connected apps and Jira handoff | disconnected, connecting, connected, needs-reconnect; none, sent, existing | `server/api/integrations.mjs:490`, `:828`, `db/schema.sql:398` |
 
 ## Cross-machine events
 
@@ -73,6 +74,8 @@ These events move more than one machine. Most serious bugs live at these seams.
 | Reset password | 26, 9 | Token marked used, password replaced, every auth session deleted |
 | Open enterprise invite | 27 | Hash checked, `opened_at` touched, expired or revoked returns 404 |
 | Accept enterprise invite | 27, 9 | Signed-in user recorded, `accepted_at` set once, checklist preserved |
+| Connect a calendar or Jira | 28, 9 | Pro and signed-in only, single-use state survives the provider round trip |
+| Send actions to Jira | 28, 2 | Only open actions from a ready capture, one row per action, retries return the existing key |
 
 ## 1. Recording engine
 
@@ -728,6 +731,24 @@ capture. A later upsert can no longer resurrect it.
 
 The invite never creates a session and is not linked anywhere in the frontend,
 so an unlisted URL alone cannot get past `/app` auth.
+
+## 28. Connected apps and Jira handoff
+
+**States:** disconnected, connecting, connected, needs-reconnect; handoff none,
+sent, existing (`server/api/integrations.mjs:490`, `:828`, `db/schema.sql:398`).
+
+| From | Event | To | Guards and effects |
+| --- | --- | --- | --- |
+| disconnected | Choose Connect | connecting | Pro and configured checks pass, a hashed single-use state is written, browser leaves for the provider |
+| connecting | Provider returns with a matching state | connected | State is unused and unexpired, tokens exchanged and encrypted, connection upserted |
+| connecting | Provider returns denied, error, or unknown state | disconnected | Account page shows a toast, no token is written |
+| connected | Calendar read succeeds | connected | Google and Outlook only, next seven days, events sorted by start |
+| connected | Calendar read returns 401 | needs-reconnect | `metadata.needsReconnect` saved, friendly warning shown, the other provider still loads |
+| needs-reconnect | Reconnect succeeds | connected | Old row replaced, warning clears on the next read |
+| connected | Disconnect | disconnected | Row deleted, Next up hides, existing Jira keys stay readable |
+| none | Send selected actions | sent | Pro, connection, project, and issue type checked, one transaction per new action key |
+| sent | Send the same action again | existing | Unique key returns the original ticket, no duplicate issue |
+| none | Send without Jira connected | none | 404 tells the user to connect Jira first |
 
 ## Highest-risk gaps
 
