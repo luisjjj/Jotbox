@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,6 +36,8 @@ const ids = arg("id", "")
   .map((item) => item.trim())
   .filter(Boolean);
 const limit = Number(arg("limit", "0")) || 0;
+const pauseMs = Math.max(0, Number(arg("pause", "0")) || 0);
+const retries = Math.max(0, Number(arg("retries", "3")) || 0);
 const notesEnabled = !has("no-notes");
 const wantGlossary = has("glossary");
 const wantNormalize = has("normalize");
@@ -46,10 +48,55 @@ const outDir = resolve(process.cwd(), arg("out", join(here, "results", stamp)));
 
 const status = aiStatus();
 
-function ffmpegAvailable() {
-  const probe = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" });
-  return probe.status === 0;
+function findOnPath(name) {
+  const probe = spawnSync(name, ["-version"], { stdio: "ignore" });
+  return probe.status === 0 ? name : null;
 }
+
+function findWindowsFfmpeg() {
+  if (process.platform !== "win32") return null;
+  const candidates = [];
+  for (const root of [process.env.LOCALAPPDATA, process.env.ProgramFiles, process.env.ProgramData]) {
+    if (!root) continue;
+    const winget = join(root, "Microsoft", "WinGet", "Packages");
+    if (existsSync(winget)) {
+      for (const pkg of safeReaddir(winget)) {
+        if (!pkg.startsWith("Gyan.FFmpeg")) continue;
+        for (const build of safeReaddir(join(winget, pkg))) {
+          candidates.push(join(winget, pkg, build, "bin", "ffmpeg.exe"));
+        }
+      }
+    }
+    candidates.push(join(root, "ffmpeg", "bin", "ffmpeg.exe"));
+    candidates.push(join(root, "chocolatey", "bin", "ffmpeg.exe"));
+  }
+  for (const candidate of candidates) {
+    if (existsSync(candidate) && spawnSync(candidate, ["-version"], { stdio: "ignore" }).status === 0) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function safeReaddir(path) {
+  try {
+    return readdirSync(path);
+  } catch {
+    return [];
+  }
+}
+
+function resolveFfmpeg() {
+  const configured = process.env.FFMPEG_PATH;
+  if (configured) {
+    if (spawnSync(configured, ["-version"], { stdio: "ignore" }).status === 0) return configured;
+    return null;
+  }
+  return findOnPath("ffmpeg") || findWindowsFfmpeg();
+}
+
+const ffmpeg = resolveFfmpeg();
+const ffmpegAvailable = () => Boolean(ffmpeg);
 
 const CONTENT_TYPES = {
   ".wav": "audio/wav",
@@ -159,7 +206,7 @@ function coverage(clip, prompt) {
 
 function normalizeClip(source, destination) {
   const result = spawnSync(
-    "ffmpeg",
+    ffmpeg,
     [
       "-hide_banner",
       "-loglevel",
@@ -202,7 +249,9 @@ if (!status.transcribe && !mock) {
 }
 
 if (wantNormalize && !ffmpegAvailable()) {
-  console.error("--normalize needs ffmpeg on PATH. Install it, or run without --normalize.");
+  console.error(
+    "No ffmpeg found. Install it, set FFMPEG_PATH, or run without --normalize. On Windows: winget install Gyan.FFmpeg",
+  );
   process.exit(1);
 }
 
@@ -230,6 +279,30 @@ console.log(`Writing      ${status.notes ?? "none"}`);
 console.log(`Variant      glossary=${wantGlossary} normalize=${wantNormalize} mock=${mock}`);
 console.log(`Output       ${outDir}`);
 console.log("");
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let lastRequestAt = 0;
+
+async function transcribePaced(options, label) {
+  if (pauseMs && lastRequestAt) {
+    const wait = pauseMs - (Date.now() - lastRequestAt);
+    if (wait > 0) await sleep(wait);
+  }
+  for (let attempt = 0; ; attempt += 1) {
+    lastRequestAt = Date.now();
+    try {
+      return await transcribeAudio(options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable = /\b(429|500|502|503|504)\b|rate limit|timed? ?out/i.test(message);
+      if (!retryable || attempt >= retries) throw error;
+      const wait = 5000 * 2 ** attempt;
+      console.log(`${label.padEnd(24)} waiting  ${Math.round(wait / 1000)}s, ${message.slice(0, 90)}`);
+      await sleep(wait);
+      lastRequestAt = 0;
+    }
+  }
+}
 
 for (const clip of clips) {
   const entry = {
@@ -285,12 +358,15 @@ for (const clip of clips) {
     entry.prompt = sttPrompt(context);
 
     const started = Date.now();
-    const result = await transcribeAudio({
-      buffer,
-      contentType,
-      filename: source ? source.split(/[\\/]/).pop() : "sample.wav",
-      context,
-    });
+    const result = await transcribePaced(
+      {
+        buffer,
+        contentType,
+        filename: source ? source.split(/[\\/]/).pop() : "sample.wav",
+        context,
+      },
+      clip.id,
+    );
     entry.seconds = Number(((Date.now() - started) / 1000).toFixed(1));
     entry.transcript = result.text || "";
     entry.words = result.words?.length ?? (entry.transcript.trim() ? entry.transcript.trim().split(/\s+/).length : 0);

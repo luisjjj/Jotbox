@@ -35,15 +35,14 @@ This is why the manifest has a `noise` category and a private `audio/` folder ev
 
 ## Importing a public corpus
 
-Install the Hugging Face client, accept the dataset terms on the website, then download:
+Install the Hugging Face client, then download. The Pidgin corpus is public, so no login is needed:
 
 ```bash
-python -m pip install -U "huggingface_hub[cli]"
-huggingface-cli login
-huggingface-cli download asr-nigerian-pidgin/nigerian-pidgin-1.0 --repo-type dataset --local-dir eval/.cache/pidgin-asr
+python -m pip install -U huggingface_hub
+python -c "from huggingface_hub import snapshot_download; snapshot_download('asr-nigerian-pidgin/nigerian-pidgin-1.0', repo_type='dataset', local_dir='eval/.cache/pidgin-asr', allow_patterns=['data/*.parquet'])"
 ```
 
-The Pidgin corpus has `sentence`, `filename` and `audio` columns, split into 2,710 train, 677 validation and 892 test clips. Pick a fixed slice of the test split for regression runs so the score is comparable over time. The recordings were made in quiet settings with the LigAikuma app, but the card notes occasional doors, table knocks, laughter and hesitations that are not in the transcript. That noise is useful, but it is not the same as a far-field meeting room.
+The Pidgin corpus has `sentence`, `filename` and `audio` columns, split into 2,710 train, 677 validation and 892 test clips. Pick a fixed slice of the test split for regression runs so the score is comparable over time. `npm run eval:public:import` builds a deterministic 30 clip pack from the test split and writes `eval/public/pidgin-asr/`; see [the baseline results](public/pidgin-asr/BASELINE.md). The recordings were made in quiet settings with the LigAikuma app, but the card notes occasional doors, table knocks, laughter and hesitations that are not in the transcript. That noise is useful, but it is not the same as a far-field meeting room.
 
 Common Voice, AfriSpeech and NaijaVoices are gated, so the download only works after the account has accepted the terms. Inspect the dataset card for the audio and transcript column names before exporting. Convert each selected clip to 16 kHz mono WAV and add a manifest entry:
 

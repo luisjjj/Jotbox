@@ -1,0 +1,684 @@
+{
+  "version": 1,
+  "name": "Nigerian Pidgin ASR v1.0 public baseline",
+  "description": "Deterministic sample of the public Nigerian Pidgin ASR v1.0 test split. Sentence-level clips, quiet recording conditions, no annotated facts.",
+  "license": "CC-BY-4.0",
+  "citation": "Rufai, A. M., Abeeb, A., Oduntan, E., Arulogun, T., Adegboro, O., & Ajisafe, D. (2025). Towards End-to-End Training of Automatic Speech Recognition for Nigerian Pidgin. arXiv:2010.11123. https://arxiv.org/abs/2010.11123",
+  "source": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+  "thresholds": {
+    "wer": 0.12,
+    "categoryWer": 0.35,
+    "keywordRecall": 0.95,
+    "hallucinationRate": 0,
+    "briefScore": 8
+  },
+  "categories": {
+    "pidgin": {
+      "label": "Nigerian Pidgin, sentence level",
+      "target": 30
+    }
+  },
+  "glossary": "glossary.txt",
+  "clips": [
+    {
+      "id": "pidgin-test-001",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-001.wav",
+      "reference": "i no fit tok say becos no matter wetin i dey respect di pipo wey i dey togeda with",
+      "seconds": 5.99,
+      "title": "Nigerian Pidgin ASR test clip 001",
+      "keywords": [
+        "respect",
+        "matter",
+        "togeda",
+        "becos"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 562,
+        "filename": "200829-063357_pcm_779_elicit_52",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-002",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-002.wav",
+      "reference": "and for di oat hin tok say hin be di president of di pipo",
+      "seconds": 5.47,
+      "title": "Nigerian Pidgin ASR test clip 002",
+      "keywords": [
+        "president",
+        "pipo",
+        "hin",
+        "oat"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 726,
+        "filename": "200829-085824_pcm_e8b_elicit_40",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-003",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-003.wav",
+      "reference": "inec also don fix first saturday for di month may",
+      "seconds": 5.06,
+      "title": "Nigerian Pidgin ASR test clip 003",
+      "keywords": [
+        "saturday",
+        "first",
+        "month",
+        "also"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 775,
+        "filename": "200829-085824_pcm_e8b_elicit_9",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-004",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-004.wav",
+      "reference": "all of di subjects wear sense wear armband to measure dia physical activity dim use dietary journal to ensure say no changes to food intake throughout di intervention all these things na im dem look and many oda",
+      "seconds": 17.74,
+      "title": "Nigerian Pidgin ASR test clip 004",
+      "keywords": [
+        "intervention",
+        "throughout",
+        "activity",
+        "physical"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 87,
+        "filename": "200830-151101_pcm_e8b_elicit_3",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-005",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-005.wav",
+      "reference": "wen hin ask her she con tok say she need money wey she go use start business",
+      "seconds": 6.49,
+      "title": "Nigerian Pidgin ASR test clip 005",
+      "keywords": [
+        "business",
+        "money",
+        "start",
+        "need"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 175,
+        "filename": "200830-151101_pcm_e8b_elicit_34",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-006",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-006.wav",
+      "reference": "o dem still sing am for lukaku wen hin face post for match against southampton wey dem win 1 0",
+      "seconds": 9.28,
+      "title": "Nigerian Pidgin ASR test clip 006",
+      "keywords": [
+        "1",
+        "0",
+        "southampton",
+        "against"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 62,
+        "filename": "200830-151101_pcm_e8b_elicit_61",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-007",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-007.wav",
+      "reference": "olutope wey be teacher for di school as e be so police don give oga adeyleke bail among those pipo wey been dey stranded for russia na woman wey still dey breastfeeding feed her pikin don com back to naija dem arrive for abuja on friday",
+      "seconds": 19.94,
+      "title": "Nigerian Pidgin ASR test clip 007",
+      "keywords": [
+        "breastfeeding",
+        "adeyleke",
+        "stranded",
+        "olutope"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 690,
+        "filename": "200831-075142_pcm_e8b_elicit_17",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-008",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-008.wav",
+      "reference": "na for 2017 edition of di global drug survey dim for tok dis one and dim",
+      "seconds": 6.67,
+      "title": "Nigerian Pidgin ASR test clip 008",
+      "keywords": [
+        "2017",
+        "edition",
+        "global",
+        "survey"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 283,
+        "filename": "200831-075142_pcm_e8b_elicit_50",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-009",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-009.wav",
+      "reference": "di itf boss tok say di outfit wey don train and equip more than 20 million nigerians with various skills since den establish am 46 years ago",
+      "seconds": 11.23,
+      "title": "Nigerian Pidgin ASR test clip 009",
+      "keywords": [
+        "20",
+        "46",
+        "establish",
+        "nigerians"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 356,
+        "filename": "200831-082049_pcm_e8b_elicit_37",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-010",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-010.wav",
+      "reference": "dem even say make pipo free di player and him family",
+      "seconds": 4.4,
+      "title": "Nigerian Pidgin ASR test clip 010",
+      "keywords": [
+        "family",
+        "player",
+        "even",
+        "free"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 437,
+        "filename": "200831-082049_pcm_e8b_elicit_44",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-011",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-011.wav",
+      "reference": "she don dey prepare for di coming of di baby wey she don find out tru scan say na girl",
+      "seconds": 6.06,
+      "title": "Nigerian Pidgin ASR test clip 011",
+      "keywords": [
+        "prepare",
+        "coming",
+        "baby",
+        "find"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 861,
+        "filename": "200905-235352_pcm_5aa_elicit_52",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-012",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-012.wav",
+      "reference": "di pain wey dey dia mata be say di neighbour see her money for wia she keep am",
+      "seconds": 6.65,
+      "title": "Nigerian Pidgin ASR test clip 012",
+      "keywords": [
+        "neighbour",
+        "money",
+        "keep",
+        "mata"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 191,
+        "filename": "200906-001838_pcm_5aa_elicit_8",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-013",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-013.wav",
+      "reference": "emmanuel tok say three officers use parachute comot for di plane as e dey fall",
+      "seconds": 6.42,
+      "title": "Nigerian Pidgin ASR test clip 013",
+      "keywords": [
+        "parachute",
+        "emmanuel",
+        "officers",
+        "comot"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 552,
+        "filename": "200908-024130_pcm_5aa_elicit_10",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-014",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-014.wav",
+      "reference": "two nigerian air force aircraft wey bin dey do rehearsals for di 58th independence day celebrations wey dey involved",
+      "seconds": 9.6,
+      "title": "Nigerian Pidgin ASR test clip 014",
+      "keywords": [
+        "58th",
+        "celebrations",
+        "independence",
+        "rehearsals"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 518,
+        "filename": "200908-024130_pcm_5aa_elicit_2",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-015",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-015.wav",
+      "reference": "earlier dis year dey prepare to do anoda surgery in few weeks time",
+      "seconds": 5.08,
+      "title": "Nigerian Pidgin ASR test clip 015",
+      "keywords": [
+        "earlier",
+        "prepare",
+        "surgery",
+        "anoda"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 148,
+        "filename": "200908-024130_pcm_5aa_elicit_22",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-016",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-016.wav",
+      "reference": "chika called several times to pray for me and she did today too bless her she gave me money and insisted it was a token i was touched chika you totally surprised me and am grateful darling pls",
+      "seconds": 15.9,
+      "title": "Nigerian Pidgin ASR test clip 016",
+      "keywords": [
+        "surprised",
+        "grateful",
+        "insisted",
+        "darling"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 8,
+        "filename": "200908-024130_pcm_5aa_elicit_24",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-017",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-017.wav",
+      "reference": "thank you at chikaike for me love you all and thank you for di support good night",
+      "seconds": 7.85,
+      "title": "Nigerian Pidgin ASR test clip 017",
+      "keywords": [
+        "chikaike",
+        "support",
+        "night",
+        "thank"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 143,
+        "filename": "200908-024130_pcm_5aa_elicit_25",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-018",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-018.wav",
+      "reference": "dem dey do di pinshure make only you dey do di reading",
+      "seconds": 4.4,
+      "title": "Nigerian Pidgin ASR test clip 018",
+      "keywords": [
+        "pinshure",
+        "reading",
+        "only",
+        "di"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 638,
+        "filename": "200908-024935_pcm_5aa_elicit_30",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-019",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-019.wav",
+      "reference": "jolly for internet for di kind music pipo plus album dem announce",
+      "seconds": 5.69,
+      "title": "Nigerian Pidgin ASR test clip 019",
+      "keywords": [
+        "announce",
+        "internet",
+        "album",
+        "jolly"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 100,
+        "filename": "200908-024935_pcm_5aa_elicit_8",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-020",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-020.wav",
+      "reference": "how to know if you get diarrhea symptoms di first tin wey person go observe be say hin shit na water water but dat one sef fit hapun becos of anoda tin",
+      "seconds": 10.89,
+      "title": "Nigerian Pidgin ASR test clip 020",
+      "keywords": [
+        "diarrhea",
+        "symptoms",
+        "observe",
+        "person"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 383,
+        "filename": "200908-025849_pcm_5aa_elicit_31",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-021",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-021.wav",
+      "reference": "anoda tori wande coal deny say hin keep hin pikin from hin baby mama now yul edochie wey be",
+      "seconds": 9.07,
+      "title": "Nigerian Pidgin ASR test clip 021",
+      "keywords": [
+        "edochie",
+        "anoda",
+        "pikin",
+        "wande"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 197,
+        "filename": "200908-031039_pcm_5aa_elicit_7",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-022",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-022.wav",
+      "reference": "man wey we no know him name for udu local government for delta state on saturday pay bride price of 3 women di same say",
+      "seconds": 11.12,
+      "title": "Nigerian Pidgin ASR test clip 022",
+      "keywords": [
+        "3",
+        "government",
+        "saturday",
+        "bride"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 511,
+        "filename": "200916-063510_pcm_779_elicit_6",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-023",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-023.wav",
+      "reference": "of di big tori wey dey trend for nigeria social media na how minnesota one state for united states don declare october 6 as wizkid day",
+      "seconds": 10.6,
+      "title": "Nigerian Pidgin ASR test clip 023",
+      "keywords": [
+        "6",
+        "minnesota",
+        "declare",
+        "nigeria"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 664,
+        "filename": "200928-115658_pcm_c97_elicit_70",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-024",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-024.wav",
+      "reference": "dem carry am go di bed of di patient and di guy get serious bandage around him thigh",
+      "seconds": 4.45,
+      "title": "Nigerian Pidgin ASR test clip 024",
+      "keywords": [
+        "bandage",
+        "patient",
+        "serious",
+        "around"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 397,
+        "filename": "200928-180703_pcm_c97_elicit_2",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-025",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-025.wav",
+      "reference": "also wan know about di 10 year old pikin wey need surgery for inside belle",
+      "seconds": 4.15,
+      "title": "Nigerian Pidgin ASR test clip 025",
+      "keywords": [
+        "10",
+        "surgery",
+        "inside",
+        "about"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 243,
+        "filename": "200928-180703_pcm_c97_elicit_27",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-026",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-026.wav",
+      "reference": "dey always make am sad sotey e dey vex for govment failure",
+      "seconds": 5.35,
+      "title": "Nigerian Pidgin ASR test clip 026",
+      "keywords": [
+        "failure",
+        "govment",
+        "always",
+        "sotey"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 250,
+        "filename": "200928-180703_pcm_c97_elicit_34",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-027",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-027.wav",
+      "reference": "according to kalu fayose na my boy him live for my house for 90 days dat time way dem impeach am for",
+      "seconds": 4.9,
+      "title": "Nigerian Pidgin ASR test clip 027",
+      "keywords": [
+        "90",
+        "according",
+        "impeach",
+        "fayose"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 336,
+        "filename": "200928-180703_pcm_c97_elicit_50",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-028",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-028.wav",
+      "reference": "only 464000 pikin dem born for italy for 2017 e mean say di older population high well well",
+      "seconds": 8.98,
+      "title": "Nigerian Pidgin ASR test clip 028",
+      "keywords": [
+        "464000",
+        "2017",
+        "population",
+        "italy"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 474,
+        "filename": "200928-180703_pcm_c97_elicit_67",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-029",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-029.wav",
+      "reference": "your isp fit even block pipo wey dem no like",
+      "seconds": 6.1,
+      "title": "Nigerian Pidgin ASR test clip 029",
+      "keywords": [
+        "block",
+        "even",
+        "like",
+        "pipo"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 755,
+        "filename": "200928-181710_pcm_ea3_elicit_28",
+        "license": "CC-BY-4.0"
+      }
+    },
+    {
+      "id": "pidgin-test-030",
+      "category": "pidgin",
+      "audio": "audio/pidgin-test-030.wav",
+      "reference": "many things wey pipo dey try to reduce am no dey work",
+      "seconds": 9.05,
+      "title": "Nigerian Pidgin ASR test clip 030",
+      "keywords": [
+        "reduce",
+        "things",
+        "many",
+        "pipo"
+      ],
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 472,
+        "filename": "200928-181710_pcm_ea3_elicit_52",
+        "license": "CC-BY-4.0"
+      }
+    }
+  ]
+}

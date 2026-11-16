@@ -31,7 +31,12 @@
     "eval:check:full": "node eval/py.mjs eval/score.py --judge --check --require-brief",
     "eval:test": "node eval/py.mjs eval/score.py --self-test",
     "eval:demo": "node eval/py.mjs eval/score.py --manifest eval/fixtures/manifest.json --predictions eval/fixtures/predictions.json --judge-mock --out .shots/eval-demo",
-    "eval:smoke": "node eval/run_pipeline.mjs --mock --manifest eval/fixtures/manifest.json --out .shots/eval-smoke --no-notes"
+    "eval:smoke": "node eval/run_pipeline.mjs --mock --manifest eval/fixtures/manifest.json --out .shots/eval-smoke --no-notes",
+    "eval:public:import": "node eval/py.mjs eval/import_pidgin_asr.py --split test --count 30",
+    "eval:public:run": "node --env-file-if-exists=.env eval/run_pipeline.mjs --manifest eval/public/pidgin-asr/manifest.json --no-notes --pause 3200 --out eval/results/public-baseline",
+    "eval:public:normalize": "node --env-file-if-exists=.env eval/run_pipeline.mjs --manifest eval/public/pidgin-asr/manifest.json --no-notes --normalize --pause 3200 --out eval/results/public-normalized",
+    "eval:public:score": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-baseline/predictions.json",
+    "eval:public:score:normalized": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-normalized/predictions.json"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

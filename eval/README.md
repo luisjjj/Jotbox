@@ -149,14 +149,18 @@ Useful flags:
 - `--only=pidgin,far_field` filters by category.
 - `--id=pidgin-01` runs one clip.
 - `--limit=5` runs the first five selected clips.
+- `--pause=3200` waits between reader calls. Groq's free whisper tier allows 20 requests per minute.
+- `--retries=3` retries rate limits and 5xx responses with backoff. The default is 3.
 - `--no-notes` skips the note writer and only tests reading.
 - `--mock` uses the local demo reader, so it works with no API key and no audio.
 - `--out=path` chooses the run folder. The default is `eval/results/<timestamp>/`.
 
-`--normalize` needs ffmpeg on `PATH`:
+`--normalize` needs ffmpeg. The runner checks `FFMPEG_PATH`, then `PATH`, then the usual Windows winget and Chocolatey install folders:
 
 ```bash
 winget install Gyan.FFmpeg
+# or point at an existing binary
+FFMPEG_PATH=/path/to/ffmpeg node eval/run_pipeline.mjs --normalize
 ```
 
 It applies a highpass filter, `loudnorm` and `dynaudnorm`, then writes 16 kHz mono WAV into the run folder. The original golden file is never changed. If ffmpeg is missing, the runner stops instead of silently running the baseline.
@@ -207,6 +211,20 @@ The report includes:
 - Judge score, missing facts and invented facts per clip.
 - Deterministic fact recall, which works without an API key.
 - Coverage against the 20 to 30 clip target.
+
+## Public Pidgin baseline
+
+The [Nigerian Pidgin ASR v1.0](DATASETS.md) corpus gives a fast regression floor on native Pidgin speech:
+
+```bash
+npm run eval:public:import       # deterministic 30 clip test-split pack
+npm run eval:public:run          # Groq whisper-large-v3, reading only
+npm run eval:public:score
+npm run eval:public:normalize    # same clips, ffmpeg conditioned
+npm run eval:public:score:normalized
+```
+
+Current numbers and caveats are in [eval/public/pidgin-asr/BASELINE.md](public/pidgin-asr/BASELINE.md). The public pack has no noise clips and no annotated facts, so it cannot score hallucination or briefing retention.
 
 ## Comparing changes
 
