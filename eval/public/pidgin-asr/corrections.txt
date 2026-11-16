@@ -1,0 +1,43 @@
+# JotBox pronunciation glossary
+# term | heard variants | meaning | kind
+# Names and amounts use phonetic matching. Words are only restored with
+# --restore-words. Replace this sample with your own people, places and terms.
+
+Olutope | olu tope, olu tokpe | person's name | name
+Adeyleke | adey leke, ade leke, ogadile kibbeo | person's name | name
+Chikaike | chika iki, achika ike | person's name | name
+Wande Coal | wande kol, wan dekoo, wan dey ko | musician | name
+Yul Edochie | you elochi, yu elochi, yul edochi | actor | name
+Kalu Fayose | kalu fayose | politician | name
+Wizkid Day | whiskey day, whiski day | musician's day | name
+Wizkid | wiz kid | musician | name
+Abuja | | city | name
+Russia | | country | name
+Nigeria | | country | name
+Italy | | country | name
+Minnesota | | US state | name
+Southampton | | football club | name
+Emmanuel | | person's name | name
+ITF | | agency | name
+
+464000 | 464,000 | population figure | amount
+46 | | years | amount
+90 | | days | amount
+2017 | | year | amount
+20 | | million people | amount
+10 | | years old | amount
+58 | | independence anniversary | amount
+6 | | October date | amount
+3 | | count | amount
+
+pipo | people, pippo | people | word
+pikin | pickin, pekin, pidgin, peking | child | word
+govment | government | government | word
+pinshure | picture, puncture | picture | word
+anoda | another | another | word
+togeda | together | together | word
+becos | because | because | word
+tok | talk | speak | word
+oat | oath | oath | word
+mata | matter | matter | word
+tori | story | story | word

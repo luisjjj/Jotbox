@@ -36,7 +36,18 @@
     "eval:public:run": "node --env-file-if-exists=.env eval/run_pipeline.mjs --manifest eval/public/pidgin-asr/manifest.json --no-notes --pause 3200 --out eval/results/public-baseline",
     "eval:public:normalize": "node --env-file-if-exists=.env eval/run_pipeline.mjs --manifest eval/public/pidgin-asr/manifest.json --no-notes --normalize --pause 3200 --out eval/results/public-normalized",
     "eval:public:score": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-baseline/predictions.json",
-    "eval:public:score:normalized": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-normalized/predictions.json"
+    "eval:public:score:normalized": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-normalized/predictions.json",
+    "eval:public:glossary": "node --env-file-if-exists=.env eval/run_pipeline.mjs --manifest eval/public/pidgin-asr/manifest.json --no-notes --pause 3200 --glossary --out eval/results/public-glossary",
+    "eval:public:score:injected": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-glossary/predictions.json",
+    "eval:public:pidgin": "node --env-file-if-exists=.env eval/run_pipeline.mjs --manifest eval/public/pidgin-asr/manifest.json --no-notes --pause 3200 --prompt eval/prompts/pidgin.txt --out eval/results/public-pidgin-prompt",
+    "eval:public:pidgin:glossary": "node --env-file-if-exists=.env eval/run_pipeline.mjs --manifest eval/public/pidgin-asr/manifest.json --no-notes --pause 3200 --prompt eval/prompts/pidgin.txt --glossary --out eval/results/public-pidgin-glossary",
+    "eval:public:score:pidgin": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-pidgin-prompt/predictions.json",
+    "eval:public:score:pidgin:glossary": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-pidgin-glossary/predictions.json",
+    "eval:glossary:test": "node eval/py.mjs eval/glossary_match.py --self-test",
+    "eval:glossary:apply": "node eval/py.mjs eval/glossary_match.py --predictions eval/results/public-pidgin-glossary/predictions.json --glossary eval/public/pidgin-asr/corrections.txt --out eval/results/public-pidgin-glossary/predictions.corrected.json",
+    "eval:glossary:apply:words": "node eval/py.mjs eval/glossary_match.py --predictions eval/results/public-pidgin-glossary/predictions.json --glossary eval/public/pidgin-asr/corrections.txt --restore-words --out eval/results/public-pidgin-glossary/predictions.corrected-words.json",
+    "eval:public:score:glossary": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-pidgin-glossary/predictions.corrected.json",
+    "eval:public:score:glossary:words": "node eval/py.mjs eval/score.py --manifest eval/public/pidgin-asr/manifest.json --predictions eval/results/public-pidgin-glossary/predictions.corrected-words.json"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

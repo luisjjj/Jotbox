@@ -153,6 +153,7 @@ Useful flags:
 - `--retries=3` retries rate limits and 5xx responses with backoff. The default is 3.
 - `--no-notes` skips the note writer and only tests reading.
 - `--mock` uses the local demo reader, so it works with no API key and no audio.
+- `--prompt=path` loads the reader prompt from a file, so a winning prompt is reproducible. `eval/prompts/pidgin.txt` is the current Pidgin-first prompt.
 - `--out=path` chooses the run folder. The default is `eval/results/<timestamp>/`.
 
 `--normalize` needs ffmpeg. The runner checks `FFMPEG_PATH`, then `PATH`, then the usual Windows winget and Chocolatey install folders:
@@ -226,6 +227,51 @@ npm run eval:public:score:normalized
 
 Current numbers and caveats are in [eval/public/pidgin-asr/BASELINE.md](public/pidgin-asr/BASELINE.md). The public pack has no noise clips and no annotated facts, so it cannot score hallucination or briefing retention.
 
+The measured variants, strongest first:
+
+```bash
+npm run eval:public:glossary            # glossary injected, English prompt
+npm run eval:public:score:injected
+npm run eval:public:pidgin              # Pidgin-first prompt from eval/prompts/pidgin.txt
+npm run eval:public:score:pidgin
+npm run eval:public:pidgin:glossary     # prompt plus injected glossary
+npm run eval:public:score:pidgin:glossary
+```
+
+On the 30 public clips that path moves WER from 47.5% to 39.1% before any matching. About 4 points
+come from the prompt and about 4 more from the glossary sitting in the prompt.
+
+### Pronunciation glossary matcher
+
+`eval/glossary_match.py` corrects a finished transcript against a table of heard variants and
+meanings. It runs after the reader, so the reader stays untouched and `rawTranscript` is kept beside
+the corrected text:
+
+```bash
+npm run eval:glossary:test              # 12 deterministic checks, no API key
+npm run eval:glossary:apply             # names and amounts only
+npm run eval:public:score:glossary      # WER 37.6%
+npm run eval:glossary:apply:words       # also restores Pidgin words
+npm run eval:public:score:glossary:words  # WER 36.9%
+```
+
+The table lives at `eval/public/pidgin-asr/corrections.txt` and uses one line per term:
+
+```
+Olutope | olu tope, olu tokpe | person's name | name
+pikin | pickin, pekin, pidgin, peking | child | word
+```
+
+Kinds are `name`, `amount` and `word`. Names and amounts go through phonetic folding plus surface
+similarity and must clear both thresholds; amounts must match after commas are stripped. Words only
+change through explicit aliases and only with `--restore-words`, because an English word can be
+legitimate in a mixed-language sentence. End to end this lands at 36.9% WER and 75.0% keyword
+recall, a 10.6 point WER gain over the English baseline. The correction aliases were written after
+looking at the sample, so treat that as an upper bound until the private golden set confirms it.
+
+Full numbers, including the false positive on `local government`, are in
+[BASELINE.md](public/pidgin-asr/BASELINE.md).
+
 ## Comparing changes
 
 A change is only useful if it moves a gate without breaking another. Keep the run folders and compare the reports:
@@ -244,7 +290,7 @@ Record the variant names and the date in the run folder. Do not compare a baseli
 The harness is ready for these, but they are not wired into the product yet:
 
 1. **Silero VAD.** Run Silero on the decoded audio before the reader, keep only speech segments, and join them with short pauses. The gate is the hallucination rate on `noise` clips, plus a check that clipped sentence starts do not raise WER. `ffmpeg` alone is not a VAD; do not label an energy filter as one in a report.
-2. **Two-stage Pidgin and context normalization.** First keep the verbatim transcript, then run a second pass that only fixes spelling, names and acronyms from the glossary. Score the first pass for WER and the second for keyword recall. Never overwrite the verbatim text in the product.
+2. **Context-aware glossary correction.** The matcher in `eval/glossary_match.py` is the first pass: it fixes names, amounts and explicit Pidgin aliases without touching the reader. The next step is to make it context-aware, so `local government` is not rewritten to `local govment`, and to feed the runner's output back into the product behind the same raw-text guarantee. Score the first pass for WER and the second for keyword recall. Never overwrite the verbatim text in the product.
 3. **Speaker diarization.** Try pyannote or sherpa-onnx. Score speaker assignment separately from WER, for example by checking that each named owner in the notes matches the person who spoke. Diarization must not change the transcript wording.
 4. **Self-hosted Whisper.** The runner already works with `WHISPER_BASE_URL`; compare it against Groq on the same golden set before switching a provider.
 

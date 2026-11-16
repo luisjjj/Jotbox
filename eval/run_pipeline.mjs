@@ -42,6 +42,16 @@ const notesEnabled = !has("no-notes");
 const wantGlossary = has("glossary");
 const wantNormalize = has("normalize");
 const mock = has("mock");
+const promptFile = arg("prompt", "");
+
+if (promptFile) {
+  const promptPath = resolve(process.cwd(), promptFile);
+  if (!existsSync(promptPath)) {
+    console.error(`Prompt file not found: ${promptPath}`);
+    process.exit(1);
+  }
+  process.env.JOTBOX_STT_PROMPT = readFileSync(promptPath, "utf8").trim();
+}
 
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const outDir = resolve(process.cwd(), arg("out", join(here, "results", stamp)));
