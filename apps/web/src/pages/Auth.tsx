@@ -31,7 +31,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (!desktop || loading) return;
-    desktop.shellReady();
+    desktop.shellReady?.();
   }, [desktop, loading]);
 
   if (loading) {
