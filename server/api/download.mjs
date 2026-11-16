@@ -10,7 +10,7 @@ import { HttpError, requireMethod } from "./http.mjs";
 
 const GITHUB_REPO = "luisjjj/Jotbox";
 const FALLBACK_ASSET =
-  "https://github.com/luisjjj/Jotbox/releases/download/v0.1.0/JotBox-Setup-0.1.0.exe";
+  "https://github.com/luisjjj/Jotbox/releases/download/v0.2.1/JotBox-Setup-0.2.1.exe";
 const CACHE_MS = 10 * 60 * 1000;
 const GITHUB_TIMEOUT_MS = 5000;
 

@@ -59,6 +59,9 @@ let trayLabel = "";
 let quitting = false;
 let autoUpdater = null;
 let updatePrompted = false;
+let blankTimer = null;
+let blankReloads = 0;
+let loadRetries = 0;
 let lastState = {
   status: "idle",
   elapsed: 0,
@@ -173,6 +176,75 @@ function hardenSession() {
     },
     { useSystemPicker: false },
   );
+}
+
+async function clearShellCaches() {
+  try {
+    await session.defaultSession.clearStorageData({ storages: ["serviceworkers", "cachestorage"] });
+  } catch (error) {
+    console.warn("JotBox could not clear its web cache:", error?.message || error);
+  }
+}
+
+async function pageIsBlank() {
+  if (!mainWindow || mainWindow.isDestroyed()) return true;
+  try {
+    const state = await mainWindow.webContents.executeJavaScript(
+      `(() => {
+        const root = document.getElementById("root");
+        return {
+          nodes: root ? root.childElementCount : 0,
+          text: document.body ? document.body.innerText.trim().length : 0,
+        };
+      })()`,
+    );
+    return state.nodes === 0 && state.text < 40;
+  } catch {
+    return true;
+  }
+}
+
+function watchShellPage() {
+  clearTimeout(blankTimer);
+  blankTimer = setTimeout(async () => {
+    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return;
+    if (!(await pageIsBlank())) {
+      blankReloads = 0;
+      return;
+    }
+    if (blankReloads >= 2) {
+      blankReloads = 0;
+      const { response } = await showDialog({
+        type: "warning",
+        title: "JotBox came up empty",
+        message: "The window loaded but the page stayed blank.",
+        detail: "Check your connection, then try again.",
+        buttons: ["Try again", "Quit"],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (response === 0) {
+        await reloadShell(true);
+      } else {
+        quitting = true;
+        app.quit();
+      }
+      return;
+    }
+    blankReloads += 1;
+    console.warn(`[jotbox-shell] page is blank, reloading (attempt ${blankReloads})`);
+    await reloadShell(true);
+  }, 8000);
+}
+
+async function reloadShell(hard) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (hard) await clearShellCaches();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (hard) mainWindow.webContents.reloadIgnoringCache();
+  else mainWindow.webContents.reload();
+  watchShellPage();
 }
 
 function chooseDisplaySource() {
@@ -305,10 +377,33 @@ function createMainWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
 
+  mainWindow.webContents.on("did-finish-load", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!sameOrigin(mainWindow.webContents.getURL())) return;
+    loadRetries = 0;
+    watchShellPage();
+  });
+
   mainWindow.webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
-    if (!isMainFrame) return;
+    if (!isMainFrame || code === -3) return;
     console.warn(`JotBox could not load ${url}: ${description} (${code})`);
+    if (loadRetries < 2) {
+      loadRetries += 1;
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) void mainWindow.loadURL(`${BASE_URL}/auth`);
+      }, 1500 * loadRetries);
+      return;
+    }
     finishSplash();
+    watchShellPage();
+  });
+
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.warn(`[jotbox-shell] renderer stopped: ${details.reason}`);
+    if (quitting) return;
+    setTimeout(() => {
+      void reloadShell(true);
+    }, 600);
   });
 
   mainWindow.on("close", (event) => {
@@ -388,6 +483,13 @@ function updateTrayMenu() {
         },
       },
       { type: "separator" },
+      {
+        label: "Reload JotBox",
+        click: () => {
+          showMain();
+          void reloadShell(true);
+        },
+      },
       ...(updatesEnabled()
         ? [
             {
@@ -800,6 +902,12 @@ async function boot() {
     await runSmoke();
     return;
   }
+
+  // The shell always reads the live app from the server, so a service worker
+  // cached for an older deploy only ever serves bundles that no longer exist.
+  // Start each launch from a clean worker and cache, which is what turns a
+  // stale cache into an empty window after an update.
+  await clearShellCaches();
 
   createSplashWindow();
   splashTimer = setTimeout(finishSplash, 10000);

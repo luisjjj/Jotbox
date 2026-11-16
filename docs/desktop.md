@@ -90,7 +90,7 @@ This signs the app exe, the uninstaller, and the installer with a local self-sig
 - `jotbox-self-signed.cer` (public certificate)
 - `password.txt` (generated password for the pfx)
 
-Output: `apps/desktop/release/JotBox-Setup-0.2.0.exe` (about 78 MB), plus `latest.yml` and the block map used by auto updates.
+Output: `apps/desktop/release/JotBox-Setup-0.2.1.exe` (about 78 MB), plus `latest.yml` and the block map used by auto updates.
 
 To create only the certificate:
 
@@ -127,6 +127,12 @@ A publicly trusted certificate (Azure Trusted Signing, or an OV/EV certificate f
 `electron-updater` is wired in `apps/desktop/main.cjs`, with the GitHub provider configured under `build.publish`. Packaged builds check `luisjjj/Jotbox` releases 15 seconds after launch and every six hours. An update downloads in the background, then a dialog offers **Restart now** or **Later**. Choosing Later installs the update when the app quits. If a capture is recording or paused, no dialog appears and the update waits for the next quit, so a live session is never interrupted. The tray menu also has **Check for updates**.
 
 Updates begin with version 0.2.0. An installed 0.1.0 has no updater code, so install 0.2.0 manually once; every release after that can arrive in place.
+
+## Blank window recovery
+
+The shell loads the deployed app from the network, so a service worker left over from an older deploy can serve an `index.html` that points at bundles the server no longer has, which looks like a blank window after an update. Version 0.2.1 clears the service worker and cache storage before each launch, so the shell always starts from the live deploy.
+
+The shell also checks its own window: eight seconds after a load, if `#root` is empty, it clears the caches and reloads ignoring cache. After two failed recoveries it shows a **Try again** / **Quit** dialog. A crashed renderer reloads immediately, and the tray menu has **Reload JotBox** for a manual refresh.
 
 To publish an update:
 
