@@ -219,6 +219,7 @@ export default function Landing() {
   const exampleHref = signedIn ? "/app?demo=1" : "/auth?next=%2Fapp%3Fdemo%3D1";
   const memoryHref = signedIn ? "/memory" : "/auth?next=%2Fmemory";
   const accountHref = signedIn ? "/account" : "/auth?next=%2Faccount";
+  const proHref = signedIn ? "/account?plan=pro" : "/auth?next=%2Faccount%3Fplan%3Dpro";
   const authHref = "/auth?next=%2Fapp";
 
   useEffect(() => {
@@ -730,7 +731,7 @@ export default function Landing() {
                       </li>
                     ))}
                   </ul>
-                  <Link to={accountHref} className="btn btn-primary mt-6 w-full">
+                  <Link to={proHref} className="btn btn-primary mt-6 w-full">
                     {signedIn ? "Manage your plan" : "Get Pro"}
                   </Link>
                   <p className="mt-2.5 text-center text-[12px] text-faint">Billed monthly. Cancel anytime.</p>

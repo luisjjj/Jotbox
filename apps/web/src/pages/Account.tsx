@@ -112,6 +112,7 @@ function PlanCard() {
     const params = new URLSearchParams(window.location.search);
     const reference = params.get("reference") || params.get("trxref") || "";
     const returning = params.get("billing") === "callback" || Boolean(reference);
+    const wantsPro = params.get("plan") === "pro";
 
     const load = async () => {
       try {
@@ -129,6 +130,22 @@ function PlanCard() {
           setBilling(result);
           useUsage.getState().applyStatus(result);
           if (returning) toast("No payment was made.");
+          if (wantsPro && !returning && result.plan !== "pro" && result.configured) {
+            setBusy(true);
+            try {
+              const session = await api.startCheckout();
+              window.location.assign(session.authorizationUrl);
+              return;
+            } catch (checkoutError) {
+              const message = errorText(checkoutError);
+              setError(message);
+              toast.error(message);
+              navigate("/account", { replace: true });
+              return;
+            } finally {
+              setBusy(false);
+            }
+          }
         }
         setError(null);
       } catch (loadError) {

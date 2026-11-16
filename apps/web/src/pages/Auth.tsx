@@ -28,6 +28,8 @@ export default function Auth() {
   const [submitting, setSubmitting] = useState(false);
   const [desktop] = useState(() => desktopBridge());
   const onDesktop = Boolean(desktop);
+  const nextQuery = next.includes("?") ? new URLSearchParams(next.slice(next.indexOf("?") + 1)) : null;
+  const wantsPro = nextQuery?.get("plan") === "pro";
 
   useEffect(() => {
     if (!desktop || loading) return;
@@ -92,6 +94,15 @@ export default function Auth() {
 
   const form = (
     <>
+      {wantsPro && (
+        <div className="mt-6 flex items-start gap-2 rounded-xl border border-accent/25 bg-accent-soft px-3 py-2.5">
+          <Sparkles className="mt-0.5 h-3.5 w-3.5 flex-none text-accent" />
+          <p className="text-[13px] leading-5 text-accent">
+            <span className="font-semibold">Pro selected.</span>{" "}
+            {mode === "login" ? "Sign in" : "Create your account"} and we will take you to Paystack to finish the payment.
+          </p>
+        </div>
+      )}
       <div className="seg mt-7 w-full">
         <button type="button" className="seg-item flex-1" data-active={mode === "login"} onClick={() => switchMode("login")}>
           Sign in
