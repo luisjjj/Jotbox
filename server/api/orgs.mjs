@@ -26,6 +26,15 @@ export function effectiveVisibility(sensitivity, visibility) {
   return sensitivity === "confidential" ? "private" : visibility;
 }
 
+// Unsharing resets sensitivity to standard, so links must be revoked or they
+// would serve the notes again.
+export async function revokeCaptureLinks(db, captureId) {
+  await db.query(
+    "update capture_share_links set revoked_at = now() where capture_id = $1 and revoked_at is null",
+    [captureId],
+  );
+}
+
 const MEMORY_STOPWORDS = new Set([
   "the", "and", "for", "was", "were", "what", "when", "where", "why", "who", "how", "our", "your", "their",
   "did", "does", "with", "from", "that", "this", "have", "has", "had", "are", "but", "not", "you", "about",
@@ -675,6 +684,9 @@ async function shareCapture(req, res) {
         where id = $5 and user_id = $6`,
       [member.orgId, departmentId, visibility, input.sensitivity, input.captureId, member.user.id],
     );
+    if (confidential) {
+      await revokeCaptureLinks(client, input.captureId);
+    }
     await client.query("delete from capture_grants where capture_id = $1", [input.captureId]);
     for (const userId of grantIds) {
       await client.query(
@@ -805,6 +817,8 @@ async function unshareCapture(req, res) {  requireMethod(req, ["DELETE"]);
         where id = $1 and user_id = $2`,
       [captureId, user.id],
     );
+    // Unsharing resets sensitivity to standard, so revoke links or they would go live again.
+    await revokeCaptureLinks(client, captureId);
     await client.query("delete from capture_grants where capture_id = $1", [captureId]);
     await client.query("commit");
   } catch (error) {

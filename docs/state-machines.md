@@ -467,11 +467,12 @@ pending via `?plan=pro`, consumed.
   `pg_advisory_xact_lock`, so concurrent creates cannot exceed the plan limit.
 - Public reads require `sensitivity = 'standard'` and filter by the owning
   organisation's `retention_days`. A confidential capture cannot create a link.
+- Unsharing a capture, or switching it to confidential, revokes every live link
+  in the same transaction. Unsharing resets sensitivity to standard, so keeping
+  the links would bring them back to life.
 
 **Gaps**
 
-- **P2, unshare does not revoke links.** Moving a capture back to private
-  leaves public links live.
 - **P3, open tabs never revalidate.** Revocation or expiry does not invalidate
   an already loaded public page.
 
@@ -491,6 +492,12 @@ pending via `?plan=pro`, consumed.
 | idle or created | Revoke | idle | Optimistic revokedAt |
 | any | Close | closed | State kept until next open |
 | closed | Reopen | loading | Clears created and error |
+| closed | Open a built-in example | idle | No fetch, explains that examples are device-only |
+
+**Resolved**
+
+- Example sessions never reach the server, so the dialog skips the link fetch
+  and the create call instead of logging a 400 for a non-UUID id.
 
 **Gaps**
 

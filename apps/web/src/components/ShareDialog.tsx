@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { Modal } from "./Modal";
 import { PaywallDialog } from "./Paywall";
 import { api, ApiError, type ShareLink } from "@/lib/api";
+import { isSample } from "@/lib/seed";
 import { usePlan } from "@/lib/usageStore";
 import type { Session } from "@/lib/types";
 
@@ -25,20 +26,28 @@ export function ShareDialog({
   const [error, setError] = useState("");
   const [paywall, setPaywall] = useState(false);
   const { pro, loaded: planLoaded } = usePlan();
+  // Built-in examples never reach the server, so there is nothing to link to.
+  const example = isSample(session.id);
 
   useEffect(() => {
     if (!open) return;
     setCreated(null);
     setError("");
+    if (example) {
+      setLinks([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     api
       .listShareLinks(session.id)
       .then(setLinks)
       .catch((caught) => setError(caught instanceof ApiError ? caught.message : "Could not load links."))
       .finally(() => setLoading(false));
-  }, [open, session.id]);
+  }, [open, session.id, example]);
 
   const create = async () => {
+    if (example) return;
     setCreating(true);
     setError("");
     try {
@@ -85,45 +94,58 @@ export function ShareDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title="Share these notes"
-      description="A read-only page with the notes and spoken words. No audio, and no private jottings."
+      title={example ? "This example stays on your device" : "Share these notes"}
+      description={
+        example
+          ? "Record or import your own session, then you can send a read-only link."
+          : "A read-only page with the notes and spoken words. No audio, and no private jottings."
+      }
       wide
     >
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-raised-2 px-3.5 py-3">
-          <div>
-            <p className="text-[14px] font-medium text-ink">Link expires after</p>
-            <p className="mt-0.5 text-[12.5px] text-muted">You can turn it off sooner.</p>
+        {example ? (
+          <div className="rounded-xl border border-line bg-raised-2 px-3.5 py-3 text-[13.5px] leading-5 text-soft">
+            Example sessions are built into JotBox and never leave this device, so they cannot get a share
+            link. Record or import your own session and the link options will appear here.
           </div>
-          <div className="seg">
-            {[7, 30].map((value) => {
-              const locked = value > 7 && planLoaded && !pro;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  className="seg-item"
-                  data-active={days === value}
-                  onClick={() => {
-                    if (locked) {
-                      setPaywall(true);
-                      return;
-                    }
-                    setDays(value);
-                  }}
-                >
-                  {value} days
-                  {locked && <Lock className="ml-1 inline h-3 w-3" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-raised-2 px-3.5 py-3">
+              <div>
+                <p className="text-[14px] font-medium text-ink">Link expires after</p>
+                <p className="mt-0.5 text-[12.5px] text-muted">You can turn it off sooner.</p>
+              </div>
+              <div className="seg">
+                {[7, 30].map((value) => {
+                  const locked = value > 7 && planLoaded && !pro;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      className="seg-item"
+                      data-active={days === value}
+                      onClick={() => {
+                        if (locked) {
+                          setPaywall(true);
+                          return;
+                        }
+                        setDays(value);
+                      }}
+                    >
+                      {value} days
+                      {locked && <Lock className="ml-1 inline h-3 w-3" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        {planLoaded && !pro && (
-          <p className="text-[12.5px] leading-4 text-faint">
-            Free keeps one live link per session for 7 days. Pro gives you five links and lets them last 30 days.
-          </p>
+            {planLoaded && !pro && (
+              <p className="text-[12.5px] leading-4 text-faint">
+                Free keeps one live link per session for 7 days. Pro gives you five links and lets them last 30 days.
+              </p>
+            )}
+          </>
         )}
 
         {guests.length > 0 && (
@@ -158,51 +180,55 @@ export function ShareDialog({
           </div>
         )}
 
-        <div>
-          <div className="flex items-center justify-between">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-faint">Live links</p>
-            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-faint" />}
+        {!example && (
+          <div>
+            <div className="flex items-center justify-between">
+              <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-faint">Live links</p>
+              {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-faint" />}
+            </div>
+            {!loading && links.length === 0 && (
+              <p className="mt-2 text-[13.5px] leading-5 text-muted">No links yet.</p>
+            )}
+            <ul className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
+              {links.map((link) => {
+                const dead = Boolean(link.revokedAt) || (link.expiresAt ? link.expiresAt < Date.now() : false);
+                return (
+                  <li key={link.id} className="flex items-center gap-3 px-3.5 py-2.5">
+                    <Link2 className="h-3.5 w-3.5 flex-none text-faint" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-[12.5px] text-soft">{link.hint}...</p>
+                      <p className="text-[12px] text-faint">
+                        {dead ? "Turned off" : "Active"} · {link.views} view{link.views === 1 ? "" : "s"}
+                        {link.expiresAt ? ` · ends ${format(link.expiresAt, "d MMM")}` : ""}
+                      </p>
+                    </div>
+                    {!dead && (
+                      <button
+                        type="button"
+                        className="icon-btn h-7 w-7 text-faint hover:text-rec"
+                        onClick={() => void revoke(link.id)}
+                        aria-label="Turn off this link"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          {!loading && links.length === 0 && (
-            <p className="mt-2 text-[13.5px] leading-5 text-muted">No links yet.</p>
-          )}
-          <ul className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line">
-            {links.map((link) => {
-              const dead = Boolean(link.revokedAt) || (link.expiresAt ? link.expiresAt < Date.now() : false);
-              return (
-                <li key={link.id} className="flex items-center gap-3 px-3.5 py-2.5">
-                  <Link2 className="h-3.5 w-3.5 flex-none text-faint" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-mono text-[12.5px] text-soft">{link.hint}...</p>
-                    <p className="text-[12px] text-faint">
-                      {dead ? "Turned off" : "Active"} · {link.views} view{link.views === 1 ? "" : "s"}
-                      {link.expiresAt ? ` · ends ${format(link.expiresAt, "d MMM")}` : ""}
-                    </p>
-                  </div>
-                  {!dead && (
-                    <button
-                      type="button"
-                      className="icon-btn h-7 w-7 text-faint hover:text-rec"
-                      onClick={() => void revoke(link.id)}
-                      aria-label="Turn off this link"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        )}
 
         <div className="flex justify-end gap-2">
           <button type="button" className="btn btn-line" onClick={onClose}>
-            Done
+            {example ? "Close" : "Done"}
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => void create()} disabled={creating}>
-            {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-            Make a link
-          </button>
+          {!example && (
+            <button type="button" className="btn btn-primary" onClick={() => void create()} disabled={creating}>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+              Make a link
+            </button>
+          )}
         </div>
       </div>
     </Modal>

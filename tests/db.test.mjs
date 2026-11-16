@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
+import { revokeCaptureLinks } from "../server/api/orgs.mjs";
 import { loadEnv } from "./env.mjs";
 
 const connectionString = loadEnv();
@@ -109,4 +110,36 @@ test("database schema supports recordings, org memory and audit", { skip: pool ?
   const checks = new Set(constraints.rows.map((row) => row.conname));
   assert.ok(checks.has("captures_kind_check"), "capture kind constraint missing");
   assert.ok(checks.has("captures_status_check"), "capture status constraint missing");
+});
+
+test("unsharing revokes every live link", { skip: pool ? false : "DATABASE_URL is not set" }, async () => {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const owner = await client.query(
+      "insert into users (email, password_hash) values ($1, 'test') returning id",
+      [`revoke.${crypto.randomUUID()}@jotbox.test`],
+    );
+    const userId = owner.rows[0].id;
+    const captureId = crypto.randomUUID();
+    await client.query(
+      `insert into captures (id, user_id, title, kind, status, created_at)
+       values ($1, $2, 'Revoke check', 'meeting', 'ready', now())`,
+      [captureId, userId],
+    );
+    await client.query(
+      `insert into capture_share_links (capture_id, created_by, token_hash, token_hint)
+       values ($1, $2, $3, 'abc123')`,
+      [captureId, userId, `hash-${crypto.randomUUID()}`],
+    );
+
+    await revokeCaptureLinks(client, captureId);
+
+    const links = await client.query("select revoked_at from capture_share_links where capture_id = $1", [captureId]);
+    assert.equal(links.rows.length, 1);
+    assert.ok(links.rows[0].revoked_at, "live link was not revoked");
+  } finally {
+    await client.query("rollback").catch(() => {});
+    client.release();
+  }
 });
