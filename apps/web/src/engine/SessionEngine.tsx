@@ -513,6 +513,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       live.sending = false;
+      if (live.active && live.queue.length) void pumpServerLive(live.generation);
     }
   };
 
@@ -570,10 +571,15 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   };
 
   const armSpeech = () => {
+    // Electron exposes webkitSpeechRecognition, but it has no speech service
+    // behind it and fails immediately. Use the server path in the shell.
+    if (desktop) {
+      armServerSpeech();
+      return;
+    }
     const Ctor = speechCtor();
     if (!Ctor) {
-      if (desktop) armServerSpeech();
-      else setCaptions(false);
+      setCaptions(false);
       return;
     }
     const rec = new Ctor();
