@@ -1,0 +1,28 @@
+# Terms the reader should spell the way the room says them.
+# One term per line. Lines starting with # are ignored.
+# Keep the whole file under 60 terms and 720 characters: sttPrompt() enforces that budget.
+
+NIP transfer
+CBN
+KYC
+USSD
+POS terminal
+NEPA
+JAMB
+WAEC
+NHIS
+HMO
+PAYE
+VAT
+Naira
+Oluwaseun
+Chiamaka
+Nkemdirim
+Ifeoma
+Tolu
+Ada
+Chinedu
+Emeka
+Ngozi
+Yemi
+Bola

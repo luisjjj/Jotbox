@@ -69,6 +69,13 @@ test("speech prompt stays inside the Groq character limit under a full room", ()
   assert.match(prompt, /Colleague 0/);
 });
 
+test("speech vocabulary keeps comma amounts in one term", () => {
+  process.env.JOTBOX_STT_VOCAB = "₦450,000, KYC, NIP transfer";
+  const prompt = ai.sttPrompt();
+  assert.match(prompt, /₦450,000, KYC, NIP transfer/);
+  assert.ok(prompt.length <= 896);
+});
+
 test("speech prompt carries the session title, focus and roster names", () => {
   const prompt = ai.sttPrompt({
     title: "Quarterly earnings review",

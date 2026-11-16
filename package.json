@@ -21,7 +21,17 @@
     "ai:check": "node --env-file=.env scripts/ai-check.mjs",
     "ai:test": "node --env-file=.env scripts/ai-check.mjs --test",
     "ai:demo": "node --env-file=.env scripts/ai-check.mjs --mock --test",
-    "ai:sample": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-sample-audio.ps1 -Out .shots/ai-sample.wav"
+    "ai:sample": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-sample-audio.ps1 -Out .shots/ai-sample.wav",
+    "eval:setup": "python -m venv eval/.venv && node eval/py.mjs -m pip install -r eval/requirements.txt",
+    "eval:run": "node --env-file-if-exists=.env eval/run_pipeline.mjs",
+    "eval:glossary": "node --env-file-if-exists=.env eval/run_pipeline.mjs --glossary",
+    "eval:normalize": "node --env-file-if-exists=.env eval/run_pipeline.mjs --normalize",
+    "eval:score": "node eval/py.mjs eval/score.py",
+    "eval:check": "node eval/py.mjs eval/score.py --check",
+    "eval:check:full": "node eval/py.mjs eval/score.py --judge --check --require-brief",
+    "eval:test": "node eval/py.mjs eval/score.py --self-test",
+    "eval:demo": "node eval/py.mjs eval/score.py --manifest eval/fixtures/manifest.json --predictions eval/fixtures/predictions.json --judge-mock --out .shots/eval-demo",
+    "eval:smoke": "node eval/run_pipeline.mjs --mock --manifest eval/fixtures/manifest.json --out .shots/eval-smoke --no-notes"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

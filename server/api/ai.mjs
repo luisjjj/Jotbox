@@ -131,7 +131,7 @@ function sttLanguage() {
 
 function sttVocabulary() {
   return key("JOTBOX_STT_VOCAB")
-    .split(/[\n,;]+/)
+    .split(/[\n;]+|,(?!\d)/)
     .map((term) => term.trim())
     .filter(Boolean)
     .slice(0, 60)

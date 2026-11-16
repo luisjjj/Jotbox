@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "name": "JotBox eval fixtures",
+  "description": "Synthetic references and candidate transcripts for testing the scorer. There is no audio here.",
+  "thresholds": {
+    "wer": 0.12,
+    "categoryWer": 0.35,
+    "keywordRecall": 0.95,
+    "hallucinationRate": 0,
+    "briefScore": 8
+  },
+  "categories": {
+    "pidgin": { "label": "Heavy Pidgin and code-switching", "target": 6 },
+    "far_field": { "label": "Far field and room noise", "target": 6 },
+    "jargon": { "label": "Nigerian names, acronyms, amounts", "target": 6 },
+    "fast": { "label": "Fast chat and cross-talk", "target": 6 },
+    "noise": { "label": "Silence and pure noise", "target": 5 }
+  },
+  "clips": [
+    {
+      "id": "fixture-pidgin-01",
+      "category": "pidgin",
+      "reference": "Ada: Ah, wetin happen to the Friday payout? Chinedu: The bank file reach them late, so the same-day promise no fit stand. Ada: No wahala, make we pause am until the cutoff hold. I go send the merchant note before four. Chinedu: I go re-pull the two failed batches and check say nothing duplicate.",
+      "seconds": 60,
+      "title": "Friday payout review",
+      "names": ["Ada", "Chinedu"],
+      "keywords": ["Friday payout", "Ada", "Chinedu", "merchant note", "before four", "duplicate"],
+      "facts": [
+        "Same-day payout is paused until the cutoff holds",
+        "Ada will send the merchant note before four",
+        "Chinedu will re-pull the two failed batches"
+      ],
+      "noise": false
+    },
+    {
+      "id": "fixture-far-field-01",
+      "category": "far_field",
+      "reference": "Speaker 1: The NIP transfer is still pending on the POS terminal. Speaker 2: Check the cutoff, maybe the session expire. Speaker 1: I will confirm with KYC before we release the next batch.",
+      "seconds": 60,
+      "title": "Terminal settlement check",
+      "names": [],
+      "keywords": ["NIP transfer", "POS terminal", ["cutoff", "cut off"], "KYC", "next batch"],
+      "facts": [
+        "The NIP transfer is pending on the POS terminal",
+        "The team will check the cutoff because the session may have expired",
+        "KYC must be confirmed before the next batch is released"
+      ],
+      "noise": false
+    },
+    {
+      "id": "fixture-jargon-01",
+      "category": "jargon",
+      "reference": "Oluwaseun: The CBN circular say the ₦450,000 limit start Monday. Nkemdirim: So the KYC tier two customers go need fresh documents. Oluwaseun: Yes, make we update the USSD message before Friday.",
+      "seconds": 60,
+      "title": "CBN circular rollout",
+      "names": ["Oluwaseun", "Nkemdirim"],
+      "keywords": ["Oluwaseun", "CBN circular", "₦450,000", "Nkemdirim", "KYC tier two", "USSD", "Friday"],
+      "facts": [
+        "The CBN circular sets a ₦450,000 limit starting Monday",
+        "KYC tier two customers need fresh documents",
+        "The USSD message must be updated before Friday"
+      ],
+      "noise": false
+    },
+    {
+      "id": "fixture-fast-01",
+      "category": "fast",
+      "reference": "Tolu: Standup, two minutes. Emeka: API is down for staging. Tolu: Who owns the fix? Emeka: I do, before noon. Ngozi: The demo still hold for three. Tolu: Good, no blocker then.",
+      "seconds": 60,
+      "title": "Morning standup",
+      "names": ["Tolu", "Emeka", "Ngozi"],
+      "keywords": ["standup", "API", "staging", "Tolu", "Emeka", "Ngozi", "demo", "three"],
+      "facts": [
+        "The staging API is down",
+        "Emeka will fix it before noon",
+        "The demo is still at three"
+      ],
+      "noise": false
+    },
+    {
+      "id": "fixture-noise-01",
+      "category": "noise",
+      "reference": "",
+      "seconds": 30,
+      "title": "Room tone, fan on",
+      "names": [],
+      "keywords": [],
+      "facts": [],
+      "noise": true
+    },
+    {
+      "id": "fixture-noise-02",
+      "category": "noise",
+      "reference": "",
+      "seconds": 30,
+      "title": "Generator hum",
+      "names": [],
+      "keywords": [],
+      "facts": [],
+      "noise": true
+    }
+  ]
+}

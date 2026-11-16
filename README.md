@@ -123,6 +123,18 @@ npm run ai:sample  # writes .shots/ai-sample.wav for a local smoke test
 
 `JOTBOX_AI_MOCK=1` runs the deterministic demo provider in development. It is ignored on Vercel deployments so a demo response can never reach production.
 
+#### Golden set evaluation
+
+The `eval/` suite runs the real reader and note writer over private Nigerian clips and public corpora, then scores word error rate, keyword recall, hallucinations on silence, and briefing fact retention. See [`eval/README.md`](eval/README.md) and [`eval/DATASETS.md`](eval/DATASETS.md).
+
+```bash
+npm run eval:setup   # creates eval/.venv and installs jiwer
+npm run eval:test    # scorer self-test, no audio needed
+npm run eval:demo    # sample report from fixtures
+npm run eval:run     # baseline over eval/golden/manifest.json
+npm run eval:check   # fails on a release gate regression
+```
+
 ### Payments (Paystack)
 
 Pro is $7 a month on the site and is charged in Naira at checkout, because a Paystack plan is tied to one currency. JotBox creates and caches the monthly NGN plan on the first upgrade. Add the secret key on the server:

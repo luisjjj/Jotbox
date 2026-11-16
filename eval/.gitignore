@@ -1,0 +1,6 @@
+# Local Python environment, downloads and generated reports.
+.venv/
+.cache/
+results/
+__pycache__/
+*.pyc

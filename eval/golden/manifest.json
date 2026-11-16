@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "name": "JotBox Nigerian golden set",
+  "description": "Private clips, 30 to 90 seconds each, with human-typed transcripts. Audio stays on this machine and is gitignored.",
+  "glossary": "glossary.txt",
+  "thresholds": {
+    "wer": 0.12,
+    "categoryWer": 0.35,
+    "keywordRecall": 0.95,
+    "hallucinationRate": 0,
+    "briefScore": 8
+  },
+  "categories": {
+    "pidgin": {
+      "label": "Heavy Pidgin and code-switching",
+      "target": 6,
+      "recording": "Two or three people talking naturally in Pidgin, switching into English for work terms."
+    },
+    "far_field": {
+      "label": "Far field and room noise",
+      "target": 6,
+      "recording": "Phone across the table or on a shelf, fan or generator running, people at the edge of the room."
+    },
+    "jargon": {
+      "label": "Nigerian names, acronyms, amounts",
+      "target": 6,
+      "recording": "Names like Oluwaseun, Chiamaka and Nkemdirim, acronyms like NIP, CBN, KYC and NHIS, amounts and dates."
+    },
+    "fast": {
+      "label": "Fast chat and cross-talk",
+      "target": 6,
+      "recording": "People interrupting each other, quick back and forth, laughter and overlapping turns."
+    },
+    "noise": {
+      "label": "Silence and pure noise",
+      "target": 5,
+      "recording": "20 to 45 seconds of room tone, fan, traffic or a generator with no speech. The reader must return no words."
+    }
+  },
+  "clips": []
+}

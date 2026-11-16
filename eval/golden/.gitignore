@@ -1,0 +1,7 @@
+# Golden audio is private and must stay on the machine that recorded it.
+audio/*
+!audio/.gitkeep
+
+# Generated reports and normalized clips never belong in git.
+normalized/
+report.*

@@ -1,0 +1,113 @@
+{
+  "run": "fixture-demo",
+  "startedAt": "2026-11-16T09:00:00.000Z",
+  "variant": {
+    "glossary": false,
+    "normalize": false,
+    "mock": false
+  },
+  "providers": {
+    "reading": "fixture",
+    "writing": "fixture"
+  },
+  "clips": [
+    {
+      "id": "fixture-pidgin-01",
+      "status": "ok",
+      "transcript": "Ada: Ah, what happened to the Friday payout? Chinedu: The bank file reached them late, so the same day promise cannot stand. Ada: No wahala, make we pause it until the cutoff holds. I go send the merchant note before four. Chinedu: I go re-pull the two failed batches and check nothing duplicate.",
+      "words": 62,
+      "provider": "fixture",
+      "seconds": 6.4,
+      "promptCoverage": null,
+      "notes": {
+        "title": "Friday payout and same-day promise",
+        "summary": "The bank acknowledged the file late, so the room paused the same-day payout promise until the cutoff is reliable. Ada will send the merchant note before four and Chinedu will re-pull the failed batches.",
+        "highlights": [
+          "The same-day promise cannot stand while the file reaches the bank late.",
+          "Ada will send the merchant note before four.",
+          "Chinedu will re-pull the two failed batches and check for duplicates."
+        ],
+        "decisions": ["Pause the same-day payout promise until the cutoff holds."],
+        "actions": [
+          { "text": "Send the merchant note before four", "owner": "Ada" },
+          { "text": "Re-pull the two failed batches and check for duplicates", "owner": "Chinedu" }
+        ]
+      }
+    },
+    {
+      "id": "fixture-far-field-01",
+      "status": "ok",
+      "transcript": "Speaker 1: The NIP transfer is still pending on the POS terminal. Speaker 2: Check the cut off, maybe the session expired. Speaker 1: I will confirm with KYC before we release the next batch.",
+      "words": 34,
+      "provider": "fixture",
+      "seconds": 6.9,
+      "promptCoverage": null,
+      "notes": {
+        "title": "Pending NIP transfer on the POS terminal",
+        "summary": "The NIP transfer is still pending on the POS terminal. The session may have expired, so the team will check the cutoff before releasing the next batch.",
+        "highlights": ["The NIP transfer is pending on the POS terminal.", "The session may have expired."],
+        "decisions": [],
+        "actions": [{ "text": "Check the cutoff before releasing the next batch", "owner": "Team" }]
+      }
+    },
+    {
+      "id": "fixture-jargon-01",
+      "status": "ok",
+      "transcript": "Oluwaseun: The CBN circular say the 450,000 naira limit start Monday. Nkemdirim: So the KYC tier 2 customers go need fresh documents. Oluwaseun: Yes, make we update the USSD message before Friday.",
+      "words": 31,
+      "provider": "fixture",
+      "seconds": 7.1,
+      "promptCoverage": null,
+      "notes": {
+        "title": "CBN circular and KYC tier two",
+        "summary": "The CBN circular sets a 450,000 naira limit from Monday. KYC tier two customers need fresh documents, and the USSD message must be updated before Friday.",
+        "highlights": [
+          "The CBN circular sets a 450,000 naira limit starting Monday.",
+          "KYC tier two customers need fresh documents.",
+          "The USSD message must be updated before Friday."
+        ],
+        "decisions": ["Apply the 450,000 naira limit from Monday."],
+        "actions": [
+          { "text": "Collect fresh documents from KYC tier two customers", "owner": "Team" },
+          { "text": "Update the USSD message before Friday", "owner": "Oluwaseun" }
+        ]
+      }
+    },
+    {
+      "id": "fixture-fast-01",
+      "status": "ok",
+      "transcript": "Tolu: Stand up, two minutes. Emeka: API is down for staging. Tolu: Who owns the fix? Emeka: I do, before noon. Ngozi: The demo still holds for three. Tolu: Good, no blocker then.",
+      "words": 35,
+      "provider": "fixture",
+      "seconds": 6.2,
+      "promptCoverage": null,
+      "notes": {
+        "title": "Morning standup and staging API",
+        "summary": "The staging API is down. Emeka owns the fix before noon, and the demo is still at three.",
+        "highlights": ["The staging API is down.", "The demo is still at three."],
+        "decisions": [],
+        "actions": [{ "text": "Fix the staging API before noon", "owner": "Emeka" }]
+      }
+    },
+    {
+      "id": "fixture-noise-01",
+      "status": "ok",
+      "transcript": "",
+      "words": 0,
+      "provider": "fixture",
+      "seconds": 4.8,
+      "promptCoverage": null,
+      "notes": null
+    },
+    {
+      "id": "fixture-noise-02",
+      "status": "ok",
+      "transcript": "Thank you for watching the video.",
+      "words": 7,
+      "provider": "fixture",
+      "seconds": 5.1,
+      "promptCoverage": null,
+      "notes": null
+    }
+  ]
+}
