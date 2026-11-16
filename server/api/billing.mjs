@@ -415,31 +415,68 @@ function shapeEvent(data) {
 }
 
 /**
- * A charge may only grant Pro when it is a Naira payment at the agreed price
- * for our plan. Being signed in, or holding a valid reference for a cheaper
- * transaction, is not enough.
+ * A charge may only grant Pro when it is a Naira payment at the price quoted
+ * when that checkout was opened. Checking against the live config would reject
+ * a payment made just before a price change, and accepting a cheaper reference
+ * would let anyone unlock Pro.
  */
-function validProCharge(data, { existing, config, planCode }) {
+export function validProCharge(data, { existing, config, planCode, checkout = null }) {
   const shaped = shapeEvent(data);
   const chargeCode = shaped.plan.plan_code || data?.plan_code || null;
-  const ourCode = existing?.plan_code || planCode;
+  const ourCode = checkout?.plan_code || existing?.plan_code || planCode;
   if (chargeCode && ourCode && chargeCode !== ourCode) return false;
 
   const metadata = metadataOf(data);
   if (metadata.plan_key && metadata.plan_key !== PRO_PLAN_KEY) return false;
   const hasProEvidence =
+    Boolean(checkout) ||
     Boolean(existing) ||
     metadata.plan_key === PRO_PLAN_KEY ||
     Boolean(chargeCode && (!ourCode || chargeCode === ourCode));
   if (!hasProEvidence) return false;
 
   const currency = currencyOf(data?.currency || shaped.plan.currency);
-  if (currency !== "NGN") return false;
+  const expectedCurrency = currencyOf(checkout?.currency || existing?.currency || config.currency);
+  if (currency !== "NGN" || currency !== expectedCurrency) return false;
 
   const amount = numberOrNull(data?.amount ?? shaped.plan.amount);
   if (amount === null) return false;
-  const expected = existing?.amount > 0 ? Number(existing.amount) : config.amountKobo;
+  const expected =
+    checkout?.amount > 0
+      ? Number(checkout.amount)
+      : existing?.amount > 0
+        ? Number(existing.amount)
+        : config.amountKobo;
   return amount >= Math.max(MIN_PRO_AMOUNT_KOBO, Math.floor(expected * 0.9));
+}
+
+async function getCheckout(reference, userId = null) {
+  if (!reference) return null;
+  const result = userId
+    ? await query("select * from billing_checkouts where reference = $1 and user_id = $2 limit 1", [
+        reference,
+        userId,
+      ])
+    : await query("select * from billing_checkouts where reference = $1 limit 1", [reference]);
+  return result.rows[0] ?? null;
+}
+
+/**
+ * A first payment can be lost when the webhook and the browser return both
+ * fail before a subscription row exists. Recent checkouts are the durable
+ * breadcrumb back to that money.
+ */
+async function recentCheckouts(userId, limit = 5) {
+  const result = await query(
+    `select * from billing_checkouts
+      where user_id = $1
+        and status in ('open', 'creating', 'paid')
+        and created_at > now() - interval '7 days'
+      order by created_at desc
+      limit $2`,
+    [userId, limit],
+  );
+  return result.rows;
 }
 
 async function recordTransaction(client, input) {
@@ -475,11 +512,15 @@ async function recordTransaction(client, input) {
   return result.rows[0] ?? null;
 }
 
-async function applyVerifiedTransaction(transaction, userId, { planCode, config, existing, eventId, source }) {
+async function applyVerifiedTransaction(
+  transaction,
+  userId,
+  { planCode, config, existing, eventId, source, checkout = null },
+) {
   const shaped = shapeEvent(transaction);
   const reference = String(transaction?.reference || "").trim();
   if (!reference) throw new HttpError(400, "That payment has no reference.");
-  if (!validProCharge(transaction, { existing, config, planCode })) {
+  if (!validProCharge(transaction, { existing, config, planCode, checkout })) {
     return { applied: false, reason: "not_a_pro_charge" };
   }
 
@@ -487,7 +528,7 @@ async function applyVerifiedTransaction(transaction, userId, { planCode, config,
     const recorded = await recordTransaction(client, {
       reference,
       userId,
-      planCode: shaped.plan.plan_code || transaction?.plan_code || planCode,
+      planCode: shaped.plan.plan_code || transaction?.plan_code || checkout?.plan_code || planCode,
       subscriptionCode: shaped.subscriptionCode,
       status: String(transaction?.status || "unknown"),
       amount: transaction?.amount,
@@ -508,7 +549,7 @@ async function applyVerifiedTransaction(transaction, userId, { planCode, config,
       {
         userId,
         status: "active",
-        planCode: shaped.plan.plan_code || transaction?.plan_code || planCode,
+        planCode: shaped.plan.plan_code || transaction?.plan_code || checkout?.plan_code || planCode,
         subscriptionCode: shaped.subscriptionCode,
         emailToken: shaped.emailToken,
         amount: transaction?.amount,
@@ -725,10 +766,12 @@ async function verify(req, res) {
 
   const config = billingConfig();
   const existing = await getSubscription(user.id);
+  const checkout = await getCheckout(reference, user.id);
   const applied = await applyVerifiedTransaction(transaction, user.id, {
     planCode: await knownPlanCode(config),
     config,
     existing,
+    checkout,
     eventId: `paystack:verify:${reference}`,
     source: "verify",
   });
@@ -800,9 +843,31 @@ async function cancel(req, res) {
   sendJson(res, 200, await statusFor(user.id));
 }
 
-function transactionEventAt(data) {
+/**
+ * Money events are ordered by when the money moved. Subscription lifecycle
+ * events carry the subscription's original created_at, which can be months
+ * old, so their ordering must come from updated_at instead.
+ */
+export function eventTime(event, data) {
+  const money = event === "charge.success" || event.startsWith("invoice.");
+  if (money) {
+    return (
+      dateOrNull(
+        data?.paid_at ||
+          data?.transaction?.paid_at ||
+          data?.created_at ||
+          data?.updated_at ||
+          data?.transaction?.created_at,
+      ) || new Date()
+    );
+  }
   return (
-    dateOrNull(data?.paid_at || data?.created_at || data?.updated_at || data?.transaction?.paid_at) || new Date()
+    dateOrNull(
+      data?.updated_at ||
+        data?.subscription?.updated_at ||
+        data?.created_at ||
+        data?.subscription?.created_at,
+    ) || new Date()
   );
 }
 
@@ -812,25 +877,50 @@ function planStatus(value) {
 
 /**
  * Reconcile local state with Paystack. This is the repair path when a webhook
- * is lost or a browser return dies mid-flight.
+ * is lost or a browser return dies mid-flight. A user with no subscription row
+ * can still have a paid checkout, so those references are checked too.
  */
 async function reconcileUser(userId, { force = false } = {}) {
   const config = billingConfig();
   if (!config.configured) return getSubscription(userId);
 
   const existing = await getSubscription(userId);
-  if (!existing && !force) return null;
+  const checkouts = await recentCheckouts(userId);
+  if (!existing && !checkouts.length && !force) return null;
   const last = existing?.last_reconciled_at ? new Date(existing.last_reconciled_at).getTime() : 0;
-  if (!force && last && Date.now() - last < RECONCILE_AFTER_MS) return existing;
+  if (!force && existing && last && Date.now() - last < RECONCILE_AFTER_MS) return existing;
+
+  const planCode = await knownPlanCode(config);
+  const checkoutByReference = new Map(checkouts.map((row) => [row.reference, row]));
+  const references = [...new Set([existing?.reference, ...checkouts.map((row) => row.reference)].filter(Boolean))];
+  let verifiedReference = null;
+
+  for (const reference of references) {
+    try {
+      const transaction = await paystack(`/transaction/verify/${encodeURIComponent(reference)}`, {}, 3000);
+      if (transaction?.status !== "success") continue;
+      const applied = await applyVerifiedTransaction(transaction, userId, {
+        planCode,
+        config,
+        existing: existing ?? null,
+        checkout: checkoutByReference.get(reference) ?? null,
+        eventId: `paystack:reconcile:${reference}`,
+        source: "reconcile",
+      });
+      verifiedReference = reference;
+      if (applied.applied) break;
+    } catch {
+      // A failed transaction check is retried on the next reconcile.
+    }
+  }
 
   const userResult = await query("select email from users where id = $1 limit 1", [userId]);
   const email = userResult.rows[0]?.email;
-  const planCode = await knownPlanCode(config);
-
+  const current = await getSubscription(userId);
   let remote = null;
-  if (existing?.subscription_code) {
+  if (current?.subscription_code) {
     try {
-      remote = await paystack(`/subscription/${encodeURIComponent(existing.subscription_code)}`, {}, 3000);
+      remote = await paystack(`/subscription/${encodeURIComponent(current.subscription_code)}`, {}, 3000);
     } catch {
       remote = null;
     }
@@ -840,7 +930,7 @@ async function reconcileUser(userId, { force = false } = {}) {
       const list = await paystack(`/subscription?customer=${encodeURIComponent(email)}`, {}, 3000);
       const items = Array.isArray(list) ? list : [];
       remote =
-        items.find((item) => item?.plan?.plan_code && item.plan.plan_code === (planCode || existing?.plan_code)) ||
+        items.find((item) => item?.plan?.plan_code && item.plan.plan_code === (planCode || current?.plan_code)) ||
         items.find((item) => item?.status === "active") ||
         items[0] ||
         null;
@@ -855,38 +945,20 @@ async function reconcileUser(userId, { force = false } = {}) {
       await saveSubscription({
         userId,
         status,
-        planCode: remote.plan?.plan_code || existing?.plan_code || planCode,
-        subscriptionCode: remote.subscription_code || existing?.subscription_code,
-        emailToken: remote.email_token || existing?.email_token,
-        amount: remote.plan?.amount ?? remote.amount ?? existing?.amount,
-        currency: remote.plan?.currency || remote.currency || existing?.currency,
-        interval: remote.plan?.interval || existing?.interval || "monthly",
-        customerCode: remote.customer?.customer_code || existing?.customer_code,
-        reference: existing?.reference,
-        nextPaymentAt: remote.next_payment_date || existing?.next_payment_at,
-        startedAt: remote.createdAt || remote.created_at || existing?.started_at,
+        planCode: remote.plan?.plan_code || current?.plan_code || planCode,
+        subscriptionCode: remote.subscription_code || current?.subscription_code,
+        emailToken: remote.email_token || current?.email_token,
+        amount: remote.plan?.amount ?? remote.amount ?? current?.amount,
+        currency: remote.plan?.currency || remote.currency || current?.currency,
+        interval: remote.plan?.interval || current?.interval || "monthly",
+        customerCode: remote.customer?.customer_code || current?.customer_code,
+        reference: current?.reference || verifiedReference,
+        nextPaymentAt: remote.next_payment_date || current?.next_payment_at,
+        startedAt: remote.createdAt || remote.created_at || current?.started_at,
         eventAt: new Date(),
         eventId: `jotbox:reconcile:${remote.subscription_code || userId}:${status}`,
         source: "reconcile",
       });
-    }
-  }
-
-  if (existing?.reference) {
-    try {
-      const transaction = await paystack(`/transaction/verify/${encodeURIComponent(existing.reference)}`, {}, 3000);
-      if (transaction?.status === "success") {
-        await applyVerifiedTransaction(transaction, userId, {
-          planCode,
-          config,
-          existing,
-          eventId: `paystack:reconcile:${existing.reference}`,
-          source: "reconcile",
-        });
-      }
-    } catch {
-      // The subscription check above is enough. A failed transaction check will
-      // be retried on the next reconcile.
     }
   }
 
@@ -909,9 +981,20 @@ async function reconcile(req, res) {
   }
 
   const rows = await query(
-    `select user_id from billing_subscriptions
-      where last_reconciled_at is null or last_reconciled_at < now() - interval '1 hour'
-      order by last_reconciled_at nulls first
+    `with candidates as (
+       select user_id, last_reconciled_at as seen_at
+         from billing_subscriptions
+       union all
+       select user_id, null as seen_at
+         from billing_checkouts
+        where status in ('open', 'creating', 'paid')
+          and created_at > now() - interval '7 days'
+     )
+     select user_id, max(seen_at) as last_reconciled_at
+       from candidates
+      group by user_id
+     having max(seen_at) is null or max(seen_at) < now() - interval '1 hour'
+      order by max(seen_at) nulls first
       limit 5`,
   );
   let done = 0;
@@ -947,6 +1030,7 @@ async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
   const localCode = existing?.plan_code || planCode;
   const isSubscriptionEvent = event.startsWith("subscription.");
   const isMoneyEvent = event === "charge.success" || event.startsWith("invoice.");
+  const checkout = isMoneyEvent && data?.reference ? await getCheckout(data.reference, userId) : null;
 
   if (eventChargeCode && localCode && eventChargeCode !== localCode) {
     return { applied: false, reason: "different_plan", userId };
@@ -955,7 +1039,7 @@ async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
   if (isMoneyEvent) {
     const hasAmount = numberOrNull(data?.amount ?? shaped.plan.amount) !== null;
     if (hasAmount) {
-      if (!validProCharge(data, { existing, config, planCode })) {
+      if (!validProCharge(data, { existing, config, planCode, checkout })) {
         return { applied: false, reason: "not_a_pro_charge", userId };
       }
     } else if (!existing) {
@@ -980,7 +1064,7 @@ async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
   const result = await saveSubscription({
     userId,
     status,
-    planCode: eventChargeCode || existing?.plan_code || planCode,
+    planCode: eventChargeCode || checkout?.plan_code || existing?.plan_code || planCode,
     subscriptionCode: shaped.subscriptionCode,
     emailToken: shaped.emailToken,
     amount: data?.amount ?? shaped.plan.amount ?? existing?.amount,
@@ -995,12 +1079,15 @@ async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
     source: "webhook",
   });
 
-  if (event === "charge.success" && data?.reference && data?.status === "success" && result.applied) {
+  // A valid charge is money on file even when a later cancellation wins the
+  // ordering and blocks entitlement. Record it, but only mark it applied when
+  // the subscription actually moved.
+  if (event === "charge.success" && data?.reference && data?.status === "success") {
     await withTransaction(async (client) => {
       await recordTransaction(client, {
         reference: data.reference,
         userId,
-        planCode: eventChargeCode || existing?.plan_code || planCode,
+        planCode: eventChargeCode || checkout?.plan_code || existing?.plan_code || planCode,
         subscriptionCode: shaped.subscriptionCode,
         status: "success",
         amount: data.amount,
@@ -1009,10 +1096,12 @@ async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
         paidAt: data.paid_at || data.created_at,
         metadata: metadataOf(data),
       });
-      await client.query(
-        "update billing_transactions set applied_at = coalesce(applied_at, now()), updated_at = now() where provider = 'paystack' and reference = $1",
-        [data.reference],
-      );
+      if (result.applied) {
+        await client.query(
+          "update billing_transactions set applied_at = coalesce(applied_at, now()), updated_at = now() where provider = 'paystack' and reference = $1",
+          [data.reference],
+        );
+      }
       await client.query("update billing_checkouts set status = 'paid', updated_at = now() where reference = $1", [
         data.reference,
       ]);
@@ -1072,7 +1161,7 @@ async function webhook(req, res) {
     data.customer?.customer_code;
   const state = data.status || (data.paid === true ? "paid" : data.paid === false ? "unpaid" : "");
   const eventId = `paystack:${event}:${providerId ?? fallback}:${state}`;
-  const eventAt = transactionEventAt(data);
+  const eventAt = eventTime(event, data);
 
   const stored = await query(
     `insert into billing_events (id, provider, event, reference, payload, event_at)

@@ -28,22 +28,39 @@ async function usageRow(userId, excludeId) {
        select date_trunc('month', now()) as start_at,
               date_trunc('month', now()) + interval '1 month' as end_at
      )
-     select bounds.start_at, bounds.end_at, coalesce(sum(c.duration_sec), 0) as used
+     select bounds.start_at, bounds.end_at, coalesce(sum(l.seconds), 0) as used
        from bounds
-       left join captures c
-         on c.user_id = $1
-        and c.recorded_at >= bounds.start_at
-        and c.recorded_at < bounds.end_at
-        and ($2::uuid is null or c.id <> $2::uuid)
+       left join usage_ledger l
+         on l.user_id = $1
+        and l.recorded_at >= bounds.start_at
+        and l.recorded_at < bounds.end_at
+        and ($2::uuid is null or l.capture_id <> $2::uuid)
       group by bounds.start_at, bounds.end_at`,
     [userId, excludeId ?? null],
   );
   return result.rows[0] ?? { used: 0, start_at: null, end_at: null };
 }
 
+export async function usageSeconds(db, userId, excludeId = null) {
+  const result = await db.query(
+    `with bounds as (
+       select date_trunc('month', now()) as start_at,
+              date_trunc('month', now()) + interval '1 month' as end_at
+     )
+     select coalesce(sum(l.seconds), 0) as used
+       from bounds
+       left join usage_ledger l
+         on l.user_id = $1
+        and l.recorded_at >= bounds.start_at
+        and l.recorded_at < bounds.end_at
+        and ($2::uuid is null or l.capture_id <> $2::uuid)`,
+    [userId, excludeId],
+  );
+  return Number(result.rows[0]?.used) || 0;
+}
+
 export async function monthlyUsageSeconds(userId, { excludeId } = {}) {
-  const row = await usageRow(userId, excludeId);
-  return Number(row.used) || 0;
+  return usageSeconds({ query }, userId, excludeId ?? null);
 }
 
 export async function usageView(userId, { unlimited = false, excludeId } = {}) {

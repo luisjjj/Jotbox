@@ -218,6 +218,15 @@ export class ApiError extends Error {
   }
 }
 
+export const AUTH_EXPIRED_EVENT = "jotbox:auth-expired";
+
+function authExpired(path: string) {
+  if (typeof window === "undefined") return;
+  const route = path.split("?")[0];
+  if (route === "/api/auth/login" || route === "/api/auth/register" || route === "/api/auth/me") return;
+  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
@@ -232,6 +241,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   } catch {
     throw new ApiError("Could not reach JotBox. Check your connection.", 0);
   }
+
+  if (response.status === 401) authExpired(path);
 
   if (response.status === 204) return undefined as T;
 

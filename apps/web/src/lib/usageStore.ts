@@ -51,6 +51,12 @@ export function usePro() {
   return useUsage((state) => state.plan === "pro");
 }
 
+export function usePlan() {
+  const pro = useUsage((state) => state.plan === "pro");
+  const loaded = useUsage((state) => state.loaded);
+  return { pro, loaded };
+}
+
 export async function refreshUsage() {
   try {
     await useUsage.getState().refresh();
@@ -62,4 +68,12 @@ export async function refreshUsage() {
 export async function ensureUsage() {
   await refreshUsage();
   return useUsage.getState();
+}
+
+// Returns whether the person is on Pro, or null when the plan could not be
+// loaded. Callers should only paywall on an explicit false.
+export async function ensurePro(): Promise<boolean | null> {
+  if (!useUsage.getState().loaded) await refreshUsage();
+  const state = useUsage.getState();
+  return state.loaded ? state.plan === "pro" : null;
 }

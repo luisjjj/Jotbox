@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, type CloudUser } from "@/lib/api";
-import { flushCloudSessions, setCloudSuspended } from "@/lib/cloud";
+import { AUTH_EXPIRED_EVENT, api, type CloudUser } from "@/lib/api";
+import { cloudSuspended, flushCloudSessions, setCloudSuspended } from "@/lib/cloud";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
+import { useUsage } from "@/lib/usageStore";
 
 interface AuthValue {
   user: CloudUser | null;
@@ -38,6 +39,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    const onExpired = () => {
+      setCloudSuspended(true);
+      setUser(null);
+      useSync.getState().reset();
+      useUsage.getState().reset();
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, []);
+
   const signIn = useCallback(async (email: string, password: string) => {
     const result = await api.login({ email, password });
     setCloudSuspended(false);
@@ -53,21 +65,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    try {
-      await flushCloudSessions();
-    } catch {
-      // Signing out must still work when the network is down. Unsent edits stay
-      // in the local cache until the user signs in again.
-    }
+    // Notes that cannot reach the account stay on this device, scoped to this
+    // user. A successful flush may clear the local cache; a failed one may not.
+    const preserve = cloudSuspended();
+    const { failed, failedDeletes } = preserve
+      ? { failed: [], failedDeletes: 0 }
+      : await flushCloudSessions();
     setCloudSuspended(true);
     try {
       await api.logout();
     } catch {
-      // The local cache is cleared regardless; the cookie expires server-side.
+      // The local cache is kept or cleared below; the cookie expires server-side.
     }
     setUser(null);
-    useSessions.getState().clear();
+    if (!preserve && !failed.length && !failedDeletes) useSessions.getState().clear();
     useSync.getState().reset();
+    useUsage.getState().reset();
   }, []);
 
   const value = useMemo<AuthValue>(

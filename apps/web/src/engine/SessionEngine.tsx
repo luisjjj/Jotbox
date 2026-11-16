@@ -27,6 +27,7 @@ import {
 import { useSessions } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 import { ensureUsage } from "@/lib/usageStore";
+import { withProcessingTimeout } from "@/lib/processing";
 import type { CaptureSource, LiveInsights, Participant, Session, SessionKind, TranscriptLine } from "@/lib/types";
 
 type EngineStatus = "idle" | "recording" | "paused" | "processing";
@@ -185,6 +186,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const [allowance, setAllowance] = useState<{ limit: number; baseline: number } | null>(null);
 
   const statusRef = useRef<EngineStatus>("idle");
+  const startingRef = useRef(false);
   const idRef = useRef<string | null>(null);
   const kindRef = useRef(kind);
   const titleRef = useRef("");
@@ -530,16 +532,18 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     navigate(`/session/${id}`);
     try {
       const ai = await studioAvailable();
-      const result = await buildNotes({
-        kind: kindNow,
-        title: titleNow,
-        titleIsDefault,
-        scratch: scratchNow,
-        lines: linesNow,
-        audio: blob,
-        ai,
-        participants: participantsRef.current,
-      });
+      const result = await withProcessingTimeout(
+        buildNotes({
+          kind: kindNow,
+          title: titleNow,
+          titleIsDefault,
+          scratch: scratchNow,
+          lines: linesNow,
+          audio: blob,
+          ai,
+          participants: participantsRef.current,
+        }),
+      );
       useSessions.getState().upsert({
         id,
         title: result.title,
@@ -578,13 +582,15 @@ export function EngineProvider({ children }: { children: ReactNode }) {
 
   const start = useCallback(
     async (options: StartOptions) => {
-      if (statusRef.current === "recording" || statusRef.current === "paused" || statusRef.current === "processing") {
+      if (startingRef.current || statusRef.current !== "idle") {
         setError("Finish the current session first.");
         return;
       }
+      startingRef.current = true;
       setError(null);
       const usage = await ensureUsage();
       if (usage.loaded && !usage.unlimited && (usage.remainingSeconds ?? 0) <= 0) {
+        startingRef.current = false;
         setError(FREE_LIMIT_ERROR);
         return;
       }
@@ -628,6 +634,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         setElapsed(0);
         setAllowanceBoth(nextAllowance);
         setStatusBoth("recording");
+        startingRef.current = false;
         useSessions.getState().setLastKind(options.kind);
         useSessions.getState().upsert({
           id,
@@ -648,6 +655,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         stopStreamRef.current();
         stopStreamRef.current = () => {};
         setAllowanceBoth(null);
+        startingRef.current = false;
         setError(messageFor(caught, options.source));
         setStatusBoth("idle");
       }
@@ -693,12 +701,14 @@ export function EngineProvider({ children }: { children: ReactNode }) {
 
   const importFile = useCallback(
     async (file: File, nextKind: SessionKind, people: Participant[] = []) => {
-      if (statusRef.current !== "idle") {
+      if (startingRef.current || statusRef.current !== "idle") {
         setError("Finish the current session first.");
         return;
       }
+      startingRef.current = true;
       const usage = await ensureUsage();
       if (usage.loaded && !usage.unlimited && usage.remainingSeconds !== null && usage.remainingSeconds <= 0) {
+        startingRef.current = false;
         setError(FREE_LIMIT_ERROR);
         return;
       }
@@ -709,12 +719,15 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         usage.remainingSeconds !== null &&
         duration > usage.remainingSeconds
       ) {
+        startingRef.current = false;
         setError(UPLOAD_TOO_LONG);
         return;
       }
       const id = crypto.randomUUID();
       const createdAt = Date.now();
       const nextTitle = file.name.replace(/\.[^.]+$/, "") || defaultTitle(nextKind);
+      idRef.current = id;
+      setSessionId(id);
       setStatusBoth("processing");
       setError(null);
       useSessions.getState().upsert({
@@ -752,16 +765,18 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           });
           return;
         }
-        const result = await buildNotes({
-          kind: nextKind,
-          title: nextTitle,
-          titleIsDefault: true,
-          scratch: "",
-          lines: [],
-          audio: file,
-          ai: true,
-          participants: people,
-        });
+        const result = await withProcessingTimeout(
+          buildNotes({
+            kind: nextKind,
+            title: nextTitle,
+            titleIsDefault: true,
+            scratch: "",
+            lines: [],
+            audio: file,
+            ai: true,
+            participants: people,
+          }),
+        );
         const wrote = result.lines.length > 0 || result.notes.highlights.length > 0;
         useSessions.getState().upsert({
           id,
@@ -793,6 +808,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           error: caught instanceof Error ? caught.message : "JotBox could not read that recording.",
         });
       } finally {
+        if (idRef.current === id) {
+          idRef.current = null;
+          setSessionId(null);
+        }
+        startingRef.current = false;
         setStatusBoth("idle");
       }
     },

@@ -114,6 +114,14 @@ function PlanCard() {
     const returning = params.get("billing") === "callback" || Boolean(reference);
     const wantsPro = params.get("plan") === "pro";
 
+    // Consume the plan intent before redirecting to Paystack. Pressing Back must
+    // land on the account page, not start a second checkout.
+    if (wantsPro) {
+      const next = new URL(window.location.href);
+      next.searchParams.delete("plan");
+      window.history.replaceState(window.history.state, "", `${next.pathname}${next.search}${next.hash}`);
+    }
+
     const load = async () => {
       try {
         if (returning && reference) {

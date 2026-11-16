@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { query } from "./pg.mjs";
+import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
 import { isProUser } from "./billing.mjs";
-import { freeMonthlySeconds, monthlyUsageSeconds } from "./usage.mjs";
+import { freeMonthlySeconds, usageSeconds } from "./usage.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -120,58 +120,81 @@ export async function handleCaptures(req, res) {
       throw new HttpError(400, parsed.error.issues[0]?.message || "That session could not be saved.");
     }
     const item = parsed.data;
-
-    if (!(await isProUser(user.id))) {
-      const limit = freeMonthlySeconds();
-      const used = await monthlyUsageSeconds(user.id, { excludeId: item.id });
-      if (used + item.durationSec > limit + OVERAGE_GRACE_SECONDS) {
-        const message =
-          used >= limit
-            ? "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening. Your notes are still saved on this device."
-            : "This capture is longer than the free listening time you have left this month. Upgrade to Pro to keep listening. Your notes are still saved on this device.";
-        throw new HttpError(402, message);
+    const pro = await isProUser(user.id);
+    const limit = pro ? null : freeMonthlySeconds();
+    const client = await getPool().connect();
+    try {
+      await client.query("begin");
+      // One lock per person keeps the free check and the ledger write atomic, so
+      // two tabs saving at once cannot both pass the last free minute.
+      await client.query("select pg_advisory_xact_lock(hashtext($1))", [`usage:${user.id}`]);
+      if (limit !== null) {
+        const used = await usageSeconds(client, user.id, item.id);
+        if (used + item.durationSec > limit + OVERAGE_GRACE_SECONDS) {
+          const message =
+            used >= limit
+              ? "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening. Your notes are still saved on this device."
+              : "This capture is longer than the free listening time you have left this month. Upgrade to Pro to keep listening. Your notes are still saved on this device.";
+          throw new HttpError(402, message);
+        }
       }
-    }
 
-    const result = await query(
-      `insert into captures
-         (id, user_id, title, kind, status, duration_sec, scratch, transcript, notes, has_audio, error, participants, live, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12::jsonb, $13::jsonb, $14)
-       on conflict (id) do update set
-         title = excluded.title,
-         kind = excluded.kind,
-         status = excluded.status,
-         duration_sec = excluded.duration_sec,
-         scratch = excluded.scratch,
-         transcript = excluded.transcript,
-         notes = excluded.notes,
-         has_audio = excluded.has_audio,
-         error = excluded.error,
-         participants = excluded.participants,
-         live = excluded.live,
-         created_at = excluded.created_at,
-         updated_at = now()
-       where captures.user_id = excluded.user_id
-       returning id`,
-      [
-        item.id,
-        user.id,
-        item.title,
-        item.kind,
-        item.status,
-        item.durationSec,
-        item.scratch,
-        JSON.stringify(item.transcript),
-        item.notes ? JSON.stringify(item.notes) : null,
-        item.hasAudio,
-        item.error ?? null,
-        JSON.stringify(item.participants ?? []),
-        item.live ? JSON.stringify(item.live) : null,
-        new Date(item.createdAt).toISOString(),
-      ],
-    );
-    if (!result.rowCount) {
-      throw new HttpError(409, "That session belongs to another account.");
+      const result = await client.query(
+        `insert into captures
+           (id, user_id, title, kind, status, duration_sec, scratch, transcript, notes, has_audio, error, participants, live, created_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12::jsonb, $13::jsonb, $14)
+         on conflict (id) do update set
+           title = excluded.title,
+           kind = excluded.kind,
+           status = excluded.status,
+           duration_sec = excluded.duration_sec,
+           scratch = excluded.scratch,
+           transcript = excluded.transcript,
+           notes = excluded.notes,
+           has_audio = excluded.has_audio,
+           error = excluded.error,
+           participants = excluded.participants,
+           live = excluded.live,
+           created_at = excluded.created_at,
+           updated_at = now()
+         where captures.user_id = excluded.user_id
+         returning id`,
+        [
+          item.id,
+          user.id,
+          item.title,
+          item.kind,
+          item.status,
+          item.durationSec,
+          item.scratch,
+          JSON.stringify(item.transcript),
+          item.notes ? JSON.stringify(item.notes) : null,
+          item.hasAudio,
+          item.error ?? null,
+          JSON.stringify(item.participants ?? []),
+          item.live ? JSON.stringify(item.live) : null,
+          new Date(item.createdAt).toISOString(),
+        ],
+      );
+      if (!result.rowCount) {
+        throw new HttpError(409, "That session belongs to another account.");
+      }
+
+      if (item.durationSec > 0) {
+        await client.query(
+          `insert into usage_ledger (user_id, capture_id, seconds)
+           values ($1, $2, $3)
+           on conflict (user_id, capture_id)
+           do update set seconds = greatest(usage_ledger.seconds, excluded.seconds)`,
+          [user.id, item.id, Math.ceil(item.durationSec)],
+        );
+      }
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
     }
     sendJson(res, 200, { id: item.id });
     return;
@@ -184,7 +207,19 @@ export async function handleCaptures(req, res) {
     if (!z.string().uuid().safeParse(id).success) {
       throw new HttpError(400, "A session id is required.");
     }
-    await query("delete from captures where id = $1 and user_id = $2", [id, user.id]);
+    const result = await query(
+      "delete from captures where id = $1 and user_id = $2 and status <> 'live' returning id",
+      [id, user.id],
+    );
+    if (!result.rowCount) {
+      const live = await query(
+        "select 1 from captures where id = $1 and user_id = $2 and status = 'live'",
+        [id, user.id],
+      );
+      if (live.rowCount) {
+        throw new HttpError(409, "Stop the capture before deleting it.");
+      }
+    }
     res.statusCode = 204;
     res.end();
     return;

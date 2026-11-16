@@ -288,6 +288,28 @@ insert into schema_migrations (version)
 values ('006_billing_hardening')
 on conflict (version) do nothing;
 
+-- Listening minutes live in their own ledger. Deleting a capture clears its
+-- notes and audio, but never refunds minutes that were already spent.
+create table if not exists usage_ledger (
+  user_id uuid not null references users(id) on delete cascade,
+  capture_id uuid not null,
+  seconds integer not null default 0 check (seconds >= 0),
+  recorded_at timestamptz not null default now(),
+  primary key (user_id, capture_id)
+);
+
+create index if not exists usage_ledger_user_recorded_idx on usage_ledger (user_id, recorded_at);
+
+insert into usage_ledger (user_id, capture_id, seconds, recorded_at)
+select c.user_id, c.id, greatest(0, ceil(c.duration_sec))::int, c.recorded_at
+  from captures c
+ where c.duration_sec > 0
+on conflict (user_id, capture_id) do nothing;
+
+insert into schema_migrations (version)
+values ('007_usage_ledger')
+on conflict (version) do nothing;
+
 create or replace function set_updated_at()
 returns trigger
 language plpgsql

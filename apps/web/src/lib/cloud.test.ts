@@ -37,7 +37,13 @@ function capture(overrides: Partial<Session> = {}): Session {
 beforeEach(() => {
   host.remote = [];
   host.saved = [];
-  useSessions.setState({ sessions: [], lastKind: "meeting" });
+  useSessions.setState({
+    sessions: [],
+    lastKind: "meeting",
+    ownerId: "test-user",
+    dirty: {},
+    removed: {},
+  });
 });
 
 describe("pullAndMerge", () => {
@@ -71,5 +77,48 @@ describe("pullAndMerge", () => {
 
     expect(useSessions.getState().sessions[0].status).toBe("ready");
     expect(host.saved).toHaveLength(0);
+  });
+
+  it("keeps a pending offline edit instead of overwriting it with the server copy", async () => {
+    const id = "c3d1a2b4-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
+    const local = capture({ id, title: "Edited offline", status: "ready" });
+    host.remote = [capture({ id, title: "Old server title", status: "ready" })];
+    useSessions.setState({
+      sessions: [local],
+      dirty: { [id]: Date.now() },
+    });
+
+    await pullAndMerge();
+
+    const [stored] = useSessions.getState().sessions;
+    expect(stored.title).toBe("Edited offline");
+    expect(useSessions.getState().dirty[id]).toBeDefined();
+  });
+
+  it("does not resurrect a capture deleted on this device", async () => {
+    const id = "d4e2b3c5-6f7a-4b8c-9d0e-1f2a3b4c5d6e";
+    host.remote = [capture({ id, status: "ready" })];
+    useSessions.setState({
+      sessions: [],
+      removed: { [id]: Date.now() },
+    });
+
+    await pullAndMerge();
+
+    expect(useSessions.getState().sessions).toHaveLength(0);
+  });
+
+  it("lets a finished server copy replace a still-live local copy", async () => {
+    const id = "e5f3c4d6-7a8b-4c9d-0e1f-2a3b4c5d6e7f";
+    useSessions.setState({
+      sessions: [capture({ id, status: "live" })],
+      dirty: { [id]: Date.now() },
+    });
+    host.remote = [capture({ id, status: "ready", title: "Finished elsewhere" })];
+
+    await pullAndMerge();
+
+    expect(useSessions.getState().sessions[0].title).toBe("Finished elsewhere");
+    expect(useSessions.getState().dirty[id]).toBeUndefined();
   });
 });

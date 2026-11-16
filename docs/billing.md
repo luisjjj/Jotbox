@@ -48,6 +48,8 @@ JotBox creates a plan named `JotBox Pro NGN <amount> monthly` the first time som
 
 Migration `005_usage_metering` adds `captures.recorded_at`, a server-set timestamp used to count listening minutes per calendar month. A client cannot move usage into another month by editing `created_at`.
 
+Migration `007_usage_ledger` moves the meter into `usage_ledger`, keyed by `(user_id, capture_id)`. Each saved capture writes its longest known duration in the same transaction as the capture row, behind a per-user advisory lock. Existing captures are backfilled once. Deleting a capture leaves its ledger row in place, so consumed minutes are never refunded.
+
 Migration `006_billing_hardening` adds the paid period (`current_period_start`, `current_period_end`), event ordering (`last_event_at`, `last_event_id`), reconciliation stamps, and the two new tables.
 
 Run `npm run db:migrate` after pulling this change.
@@ -114,4 +116,4 @@ The limit is enforced in three places:
 2. While recording, the app counts the local elapsed time against the amount left. At zero it stops the recorder, keeps the audio and words heard so far, and writes the notes. Pausing cannot extend the allowance.
 3. `POST /api/captures` checks the month's usage with the server clock and refuses a free capture that would pass the limit. Clearing local data or calling the API directly does not bypass this. The capture stays in the local cache so it can sync after an upgrade.
 
-The server counts every capture row, including live and failed rows, so abandoned recordings still use time. Deleting a capture removes its minutes, because the notes are deleted with it. Uploaded audio counts by its real duration.
+The server counts every capture row, including live and failed rows, so abandoned recordings still use time. Deleting a capture does not refund its minutes: the `usage_ledger` row stays behind after the capture row is gone. Uploaded audio counts by its real duration.

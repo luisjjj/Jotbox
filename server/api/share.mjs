@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { query } from "./pg.mjs";
+import { getPool, query } from "./pg.mjs";
 import { currentSession, requireSession } from "./auth.mjs";
 import { isProUser } from "./billing.mjs";
 import { shareLimits } from "./limits.mjs";
@@ -18,6 +18,12 @@ const createSchema = z.object({
 });
 
 const idSchema = z.string().uuid();
+
+// Confidential captures stay inside the organisation: owner plus explicit
+// grants, never a public link.
+export function linkSharingAllowed(capture) {
+  return capture?.sensitivity !== "confidential";
+}
 
 function linkView(row) {
   return {
@@ -39,7 +45,10 @@ async function getPublicShare(req, res, raw) {
        from capture_share_links l
        join captures c on c.id = l.capture_id
        join users u on u.id = c.user_id
+       left join organisations o on o.id = c.org_id
       where l.token_hash = $1
+        and c.sensitivity = 'standard'
+        and c.created_at > now() - (coalesce(o.retention_days, 3650) * interval '1 day')
       limit 1`,
     [hash],
   );
@@ -96,40 +105,57 @@ async function createLink(req, res, user) {
   const parsed = createSchema.safeParse(await readJson(req, 20_000));
   if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message || "Check the details.");
 
-  const owned = await query("select id, title from captures where id = $1 and user_id = $2", [
+  const owned = await query("select id, title, sensitivity from captures where id = $1 and user_id = $2", [
     parsed.data.captureId,
     user.id,
   ]);
   const capture = owned.rows[0];
   if (!capture) throw new HttpError(404, "That session is not yours to share.");
+  if (!linkSharingAllowed(capture)) {
+    throw new HttpError(
+      409,
+      "Confidential sessions cannot be shared with a link. Share them inside your organisation instead.",
+    );
+  }
 
   const pro = await isProUser(user.id);
   const limits = shareLimits(pro);
   const days = Math.min(parsed.data.days, limits.days);
 
-  const active = await query(
-    `select count(*)::int as count
-       from capture_share_links
-      where capture_id = $1 and revoked_at is null and (expires_at is null or expires_at > now())`,
-    [capture.id],
-  );
-  if ((active.rows[0]?.count ?? 0) >= limits.links) {
-    throw new HttpError(
-      402,
-      pro
-        ? "This session already has five live links. Turn one off first."
-        : "Free sharing keeps one live link per session for 7 days. Pro gives you five links and 30 days.",
-    );
-  }
-
   const raw = token();
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-  const inserted = await query(
-    `insert into capture_share_links (capture_id, created_by, token_hash, token_hint, expires_at)
-     values ($1, $2, $3, $4, $5)
-     returning id, token_hint, created_at, expires_at, revoked_at, views`,
-    [capture.id, user.id, tokenHash(raw), raw.slice(0, 6), expiresAt],
-  );
+  const client = await getPool().connect();
+  let inserted;
+  try {
+    await client.query("begin");
+    await client.query("select pg_advisory_xact_lock(hashtext($1))", [`capture-share:${capture.id}`]);
+    const active = await client.query(
+      `select count(*)::int as count
+         from capture_share_links
+        where capture_id = $1 and revoked_at is null and (expires_at is null or expires_at > now())`,
+      [capture.id],
+    );
+    if ((active.rows[0]?.count ?? 0) >= limits.links) {
+      throw new HttpError(
+        402,
+        pro
+          ? "This session already has five live links. Turn one off first."
+          : "Free sharing keeps one live link per session for 7 days. Pro gives you five links and 30 days.",
+      );
+    }
+    inserted = await client.query(
+      `insert into capture_share_links (capture_id, created_by, token_hash, token_hint, expires_at)
+       values ($1, $2, $3, $4, $5)
+       returning id, token_hint, created_at, expires_at, revoked_at, views`,
+      [capture.id, user.id, tokenHash(raw), raw.slice(0, 6), expiresAt],
+    );
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 
   sendJson(res, 201, {
     link: linkView(inserted.rows[0]),

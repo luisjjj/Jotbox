@@ -5,7 +5,7 @@ import { toast } from "react-hot-toast";
 import { Modal } from "./Modal";
 import { PaywallDialog } from "./Paywall";
 import { api, ApiError, type ShareLink } from "@/lib/api";
-import { usePro } from "@/lib/usageStore";
+import { usePlan } from "@/lib/usageStore";
 import type { Session } from "@/lib/types";
 
 export function ShareDialog({
@@ -24,7 +24,7 @@ export function ShareDialog({
   const [created, setCreated] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [paywall, setPaywall] = useState(false);
-  const pro = usePro();
+  const { pro, loaded: planLoaded } = usePlan();
 
   useEffect(() => {
     if (!open) return;
@@ -97,7 +97,7 @@ export function ShareDialog({
           </div>
           <div className="seg">
             {[7, 30].map((value) => {
-              const locked = value > 7 && !pro;
+              const locked = value > 7 && planLoaded && !pro;
               return (
                 <button
                   key={value}
@@ -120,7 +120,7 @@ export function ShareDialog({
           </div>
         </div>
 
-        {!pro && (
+        {planLoaded && !pro && (
           <p className="text-[12.5px] leading-4 text-faint">
             Free keeps one live link per session for 7 days. Pro gives you five links and lets them last 30 days.
           </p>

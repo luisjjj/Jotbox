@@ -13,7 +13,7 @@ import {
   type FollowUpLanguage,
 } from "@/lib/followUp";
 import { ApiError } from "@/lib/api";
-import { usePro } from "@/lib/usageStore";
+import { ensurePro, usePlan } from "@/lib/usageStore";
 import type { Session } from "@/lib/types";
 
 const CHANNELS: FollowUpChannel[] = ["whatsapp", "email", "recap"];
@@ -33,7 +33,8 @@ export function FollowUpDialog({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [paywall, setPaywall] = useState(false);
-  const pro = usePro();
+  const { pro, loaded: planLoaded } = usePlan();
+  const proUi = pro || !planLoaded;
 
   useEffect(() => {
     if (!open) return;
@@ -41,7 +42,8 @@ export function FollowUpDialog({
   }, [open, session, channel, language]);
 
   const draft = async () => {
-    if (!pro) {
+    const isPro = await ensurePro();
+    if (isPro === false) {
       setPaywall(true);
       return;
     }
@@ -131,11 +133,11 @@ export function FollowUpDialog({
             className="btn btn-line btn-sm"
             onClick={() => void draft()}
             disabled={busy}
-            title={pro ? "Write a fresh draft with JotBox" : "AI drafting is part of Pro"}
+            title={proUi ? "Write a fresh draft with JotBox" : "AI drafting is part of Pro"}
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
             Write with JotBox
-            {!pro && <span className="chip !min-h-0 !px-1.5 !py-0 text-[10.5px] uppercase tracking-[0.08em]">Pro</span>}
+            {!proUi && <span className="chip !min-h-0 !px-1.5 !py-0 text-[10.5px] uppercase tracking-[0.08em]">Pro</span>}
           </button>
           <div className="flex flex-wrap gap-2">
             <button
@@ -160,7 +162,7 @@ export function FollowUpDialog({
         </div>
         <p className="flex items-start gap-1.5 text-[12.5px] leading-5 text-faint">
           <MessageSquare className="mt-0.5 h-3 w-3 flex-none" />
-          {pro
+          {proUi
             ? "JotBox only draws from this session. Check names and dates before you send it to anyone outside the room."
             : "The draft from your notes is free to edit and send. Pro lets JotBox write a fresh one."}
         </p>

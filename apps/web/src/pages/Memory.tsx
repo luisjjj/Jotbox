@@ -47,7 +47,7 @@ import {
 } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { useSessions } from "@/lib/store";
-import { usePro } from "@/lib/usageStore";
+import { usePlan } from "@/lib/usageStore";
 
 type Tab = "ask" | "workspace" | "audit";
 
@@ -344,7 +344,7 @@ function AskPanel({
   const [turns, setTurns] = useState<ChatEntry[]>([]);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState("");
-  const pro = usePro();
+  const { pro, loaded: planLoaded } = usePlan();
   const [voice, setVoice] = useState<"idle" | "listening" | "writing">("idle");
   const [canRecord] = useState(
     () =>
@@ -502,6 +502,15 @@ function AskPanel({
   };
 
   const lastTurnId = turns[turns.length - 1]?.id;
+
+  if (!planLoaded) {
+    return (
+      <div className="card grid min-h-[26rem] place-items-center" aria-busy="true">
+        <Loader2 className="h-5 w-5 animate-spin text-faint" />
+        <span className="sr-only">Checking your plan</span>
+      </div>
+    );
+  }
 
   if (!pro) {
     return (

@@ -88,19 +88,16 @@ These events move more than one machine. Most serious bugs live at these seams.
 | recording, paused, processing | Second Start or import | unchanged | "Finish the current session first." |
 | processing | Page closed | processing on disk | Next boot marks it failed |
 
+**Resolved**
+
+- A synchronous `startingRef` is set before the first await and cleared when the
+  engine reaches `recording` or returns (`SessionEngine.tsx:189`), so a second
+  click or desktop command cannot open a second stream.
+- `buildNotes` runs behind a six minute watchdog (`lib/processing.ts`). A
+  capture that never settles becomes `failed` with the audio still saved.
+
 **Gaps**
 
-- **P2, double-start race.** The state changes to `recording` only after
-  `ensureUsage()` and `openStream()` (`SessionEngine.tsx:586`, `:630`). During
-  that window `statusRef` is still `idle`, so a second click or the desktop
-  `toggle-listen` command passes the guard at `:581` and overwrites the stream
-  and recorder refs at `:608`. The first microphone and recorder leak.
-  Add a `starting` state or a synchronous `startingRef` set before the first
-  await.
-- **P2, processing has no watchdog.** `processing` is left only by
-  `reset()` (`:574`). If the recorder flush, upload or notes call never settles,
-  the UI sits on "Writing the notes" forever. Add a timeout that moves to
-  `failed` and keeps the audio.
 - **P2, stop is optimistic in callers.** `stop()` silently returns unless the
   state is recording or paused (`:490`) and an id exists (`:492`), but callers
   toast "Writing your notes" unconditionally. Return a result and toast from it.
@@ -156,14 +153,14 @@ These events move more than one machine. Most serious bugs live at these seams.
 | processing | Studio notes succeed | ready | Capture ready |
 | processing | Studio off, empty result or throw | failed | Error stored |
 | processing | File read fails | idle | Toast, no capture |
-| processing | Second import or mic start during precheck | race | No engine state blocks it yet |
+| processing | Second import or mic start during precheck | unchanged | `startingRef` blocks it |
+
+**Resolved:** import takes the same synchronous `startingRef` guard before the
+usage check and duration probe, and the notes call runs behind the same six
+minute watchdog.
 
 **Gaps**
 
-- **P2, import is not atomic.** `processing` is set after the usage check and
-  duration probe (`SessionEngine.tsx:700`). A second import or a mic start can
-  pass the idle guard during that window. Sync the busy flag into the engine
-  guard.
 - **P3, cancel is impossible.** The 90 second notes call has no user cancel.
 
 ## 4. Notes pipeline
@@ -398,8 +395,9 @@ with an `ignored_reason` (`:287`).
 ## 14. Usage quota
 
 **Client states:** unknown, free within limit, free exhausted, pro
-(`usageStore.ts:23`). **Server:** live monthly sum over captures
-(`usage.mjs:25`), with a 10 second overage grace (`captures.mjs:72`).
+(`usageStore.ts:23`). **Server:** monthly sum over the `usage_ledger` table
+(`usage.mjs:25`), written in the same transaction as a saved capture
+(`captures.mjs:112`), with a 10 second overage grace.
 
 | From | Event | To | Effects |
 | --- | --- | --- | --- |
@@ -409,13 +407,10 @@ with an `ignored_reason` (`:287`).
 | exhausted | Calendar month changes | within limit | Server UTC month |
 | free | Upgrade | pro | Unlimited |
 | pro | Period ends | free | Next refresh |
-| any | Delete capture | lower usage | Live sum decreases |
+| any | Delete capture | usage unchanged | Ledger keeps minutes already spent |
 
 **Gaps**
 
-- **P2, deleting restores minutes.** Usage is a SUM over live rows
-  (`captures.mjs:180`), so a free user can delete and re-record indefinitely.
-  Meter separate from the capture row.
 - **P2, 402 parks sync silently.** CloudSync stops retrying and does not
   refresh usage (`CloudSync.tsx:65`). The remaining bar stays stale.
 - **P3, month boundary is UTC.** The UI does not show period start or end.
@@ -434,13 +429,19 @@ pending via `?plan=pro`, consumed.
 | pending intent | Checkout error | account without intent | Intent lost |
 | open | Dismiss | closed | No action |
 
+**Resolved**
+
+- Paywalls wait for `usage.loaded`, and Pro checks call `ensurePro()` before
+  deciding (`usePlan`, `ensurePro` in `usageStore.ts`). A reload no longer
+  flashes a paywall at a Pro user.
+- `?plan=pro` is removed with `history.replaceState` before the Paystack
+  redirect (`Account.tsx:117`), so Back lands on the account page and cannot
+  start a second checkout.
+
 **Gaps**
 
-- **P2, paywall flash on reload.** `usePro()` reads the default `free` without
-  checking `loaded` (`usageStore.ts:50`). Memory and follow-up render the
-  paywall before billing status arrives.
-- **P2, intent is URL-only.** A failed auto-checkout strips `plan=pro`
-  (`Account.tsx:139`). Store intent in session storage until consumed.
+- **P3, intent is URL-only for other entries.** Deep links that are not
+  `/account?plan=pro` still have no pending intent store.
 
 ## 16. Share link
 
@@ -451,19 +452,24 @@ pending via `?plan=pro`, consumed.
 | --- | --- | --- | --- |
 | none | Create within quota | active | Token hash stored, raw token returned once |
 | none | Create over quota | unchanged, 402 | Paywall copy |
+| none | Capture is confidential | unchanged, 409 | Public links are refused |
 | active | Expiry passes | expired | Public 410 |
 | active | Revoke | revoked | Owner only, unrevoked rows only |
 | revoked | Revoke again | unchanged, 404 | No error detail |
 | any | Capture or user delete | deleted | Cascade |
 | expired or revoked | Public view | unchanged, 410 | No body |
-| active | Public view | active | Views incremented |
+| active | Public view | active | Views incremented, org retention applied |
+| active | Capture became confidential or aged out | unchanged, 404 | Read filter hides it |
+
+**Resolved**
+
+- The live-link count and insert share one transaction behind
+  `pg_advisory_xact_lock`, so concurrent creates cannot exceed the plan limit.
+- Public reads require `sensitivity = 'standard'` and filter by the owning
+  organisation's `retention_days`. A confidential capture cannot create a link.
 
 **Gaps**
 
-- **P2, quota race.** The live-link count and insert are not in one transaction
-  (`share.mjs:110`). Concurrent creates can exceed the limit.
-- **P2, sharing ignores sensitivity.** Public share returns transcripts and
-  notes without checking `sensitivity` or org retention (`share.mjs:36`).
 - **P2, unshare does not revoke links.** Moving a capture back to private
   leaves public links live.
 - **P3, open tabs never revalidate.** Revocation or expiry does not invalidate
@@ -535,12 +541,14 @@ pending invite state.
 | any | Member removed | grants orphaned | Access predicate changes |
 | any | Retention window expires | hidden | Read filter only, no delete |
 
+**Policy:** `confidential` means the owner, plus explicit named grants inside
+the organisation. Department and organisation visibility never apply, and the
+server forces the stored visibility back to `private` with no department.
+Public share links are refused for confidential captures, and any older link
+is filtered out on read.
+
 **Gaps**
 
-- **P1, confidential captures remain grant-shareable.** The client forces
-  `visibility=private` but still submits grants (`Memory.tsx:882`), and the
-  server bypasses sensitivity for explicit grants (`orgs.mjs:726`). Decide
-  whether confidential means no grants or owner only.
 - **P2, two permission predicates diverge.** `viewCapture` accepts any status,
   while `queryMemory` requires ready (`orgs.mjs:880`).
 - **P2, retention is not deletion.** Lowering the window hides data, and
@@ -669,28 +677,29 @@ collapsed or expanded; status idle, recording, paused, processing
 | deleting | Success | closed | Navigate away |
 | deleting | Failure | closed with toast | Depends on API error |
 
-**Gap, P3:** deleting a live capture is allowed and can be undone by a later
-upsert. Block it while the engine owns that id, or stop the engine first.
+**Resolved, P3:** the delete button is disabled while the engine owns that
+capture, `handleDelete` refuses it, and the server answers 409 for a live
+capture. A later upsert can no longer resurrect it.
 
 ## Highest-risk gaps
 
-| ID | Severity | Gap | First guard to add |
+| ID | Severity | Gap | Guard now in place |
 | --- | --- | --- | --- |
-| SM-01 | P1 | Lost first payment cannot reconcile | Reconcile from `billing_checkouts.reference` |
-| SM-02 | P1 | Subscription webhooks treated as stale | Use event timestamps, not subscription `created_at` |
-| SM-03 | P1 | 401 leaves the client signed in | Global auth error handler moves to signed out |
-| SM-04 | P1 | Sign-out clears unsynced captures | Clear only after flush, or keep a pending queue |
-| SM-05 | P1 | Price change rejects an already-paid checkout | Validate against the checkout snapshot |
-| SM-06 | P1 | Confidential captures remain grant-shareable | Enforce sensitivity in the access predicate |
-| SM-07 | P1 | Failed initial sync drops later edits | Retry the initial pull with backoff |
-| SM-08 | P1 | Offline edits overwritten by first pull | Mark local edits dirty before pull |
-| SM-09 | P1 | Recording double-start leaks a stream | Add a synchronous `starting` guard |
-| SM-10 | P2 | Delete during recording resurrects the capture | Block delete while live |
-| SM-11 | P2 | Quota is refunded by deletion | Meter usage separately from captures |
-| SM-12 | P2 | Pro UI flashes paywall on reload | Gate on `usage.loaded` |
-| SM-13 | P2 | Processing can dead-end forever | Add a processing watchdog |
-| SM-14 | P2 | Auto-checkout repeats on Back | Consume the plan intent before redirect |
-| SM-15 | P2 | Share quota race | Count and insert in one transaction |
+| SM-01 | P1 | Lost first payment cannot reconcile | Reconciles from `billing_checkouts.reference`, including cron sweep |
+| SM-02 | P1 | Subscription webhooks treated as stale | Orders by event time (`updated_at` for subscriptions, `paid_at` for money) |
+| SM-03 | P1 | 401 leaves the client signed in | `jotbox:auth-expired` moves the app to signed out and keeps local captures |
+| SM-04 | P1 | Sign-out clears unsynced captures | Flush runs first; only a clean flush clears the local cache |
+| SM-05 | P1 | Price change rejects an already-paid checkout | Validates against the amount and plan stored on the checkout row |
+| SM-06 | P1 | Confidential captures remain grant-shareable | Owner plus named grants only; server forces private; public links refused |
+| SM-07 | P1 | Failed initial sync drops later edits | Initial pull retries with 1s doubling to 30s |
+| SM-08 | P1 | Offline edits overwritten by first pull | Local edits are stamped dirty before pull and win the merge |
+| SM-09 | P1 | Recording double-start leaks a stream | Synchronous `starting` guard covers start and import |
+| SM-10 | P2 | Delete during recording resurrects the capture | UI disables delete while live; server returns 409 |
+| SM-11 | P2 | Quota is refunded by deletion | `usage_ledger` meters minutes independently of captures |
+| SM-12 | P2 | Pro UI flashes paywall on reload | Paywalls wait for `usage.loaded`; Pro checks refresh first |
+| SM-13 | P2 | Processing can dead-end forever | Six minute watchdog turns a stuck capture `failed` |
+| SM-14 | P2 | Auto-checkout repeats on Back | `plan=pro` is consumed with `replaceState` before redirect |
+| SM-15 | P2 | Share quota race | Link count and insert share one transaction and advisory lock |
 
 ## Transition tests worth adding first
 

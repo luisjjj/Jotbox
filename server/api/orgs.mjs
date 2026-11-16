@@ -20,6 +20,12 @@ const sensitivitySchema = z.enum(["standard", "confidential"]);
 const orgNameSchema = z.string().trim().min(2, "Give the organisation a name.").max(120, "That name is too long.");
 const departmentNameSchema = z.string().trim().min(2, "Give the department a name.").max(80, "That name is too long.");
 
+// Confidential means owner plus explicit grants only, so any wider visibility
+// is dropped even if an older client still sends it.
+export function effectiveVisibility(sensitivity, visibility) {
+  return sensitivity === "confidential" ? "private" : visibility;
+}
+
 const MEMORY_STOPWORDS = new Set([
   "the", "and", "for", "was", "were", "what", "when", "where", "why", "who", "how", "our", "your", "their",
   "did", "does", "with", "from", "that", "this", "have", "has", "had", "are", "but", "not", "you", "about",
@@ -630,8 +636,12 @@ async function shareCapture(req, res) {
     throw new HttpError(409, "That meeting already belongs to another organisation.");
   }
 
-  let departmentId = input.departmentId ?? null;
-  if (input.visibility === "department") {
+  // Confidential means owner plus explicit grants only, so wider visibility is
+  // dropped even if an older client still sends it.
+  const confidential = input.sensitivity === "confidential";
+  const visibility = effectiveVisibility(input.sensitivity, input.visibility);
+  let departmentId = confidential ? null : input.departmentId ?? null;
+  if (visibility === "department") {
     if (!departmentId) throw new HttpError(400, "Choose the department that should see this meeting.");
     await departmentInOrg(member.orgId, departmentId);
     if (!adminRole(member.role) && departmentId !== member.departmentId) {
@@ -641,7 +651,7 @@ async function shareCapture(req, res) {
     departmentId = null;
   }
 
-  if (input.visibility === "organisation" && !adminRole(member.role)) {
+  if (visibility === "organisation" && !adminRole(member.role)) {
     throw new HttpError(403, "Only an admin can share a meeting with the whole organisation.");
   }
 
@@ -663,7 +673,7 @@ async function shareCapture(req, res) {
       `update captures
           set org_id = $1, department_id = $2, visibility = $3, sensitivity = $4
         where id = $5 and user_id = $6`,
-      [member.orgId, departmentId, input.visibility, input.sensitivity, input.captureId, member.user.id],
+      [member.orgId, departmentId, visibility, input.sensitivity, input.captureId, member.user.id],
     );
     await client.query("delete from capture_grants where capture_id = $1", [input.captureId]);
     for (const userId of grantIds) {
@@ -688,7 +698,7 @@ async function shareCapture(req, res) {
     captureId: input.captureId,
     metadata: {
       title: capture.title,
-      visibility: input.visibility,
+      visibility,
       sensitivity: input.sensitivity,
       departmentId,
       grantUserIds: grantIds,
@@ -699,7 +709,7 @@ async function shareCapture(req, res) {
     share: {
       id: capture.id,
       title: capture.title,
-      visibility: input.visibility,
+      visibility,
       sensitivity: input.sensitivity,
       departmentId,
       grantUserIds: grantIds,

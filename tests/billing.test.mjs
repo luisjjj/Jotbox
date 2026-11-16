@@ -4,8 +4,10 @@ import { test } from "node:test";
 import {
   billingConfig,
   clampPeriodEnd,
+  eventTime,
   isEntitled,
   subscriptionView,
+  validProCharge,
   verifyWebhookSignature,
 } from "../server/api/billing.mjs";
 import { PRO_SHARE_DAYS, PRO_SHARE_LINKS, FREE_SHARE_DAYS, FREE_SHARE_LINKS, shareLimits } from "../server/api/limits.mjs";
@@ -136,4 +138,56 @@ test("free sharing is one live link for seven days, Pro is five for thirty", () 
   assert.equal(FREE_SHARE_DAYS, 7);
   assert.equal(PRO_SHARE_LINKS, 5);
   assert.equal(PRO_SHARE_DAYS, 30);
+});
+
+test("subscription events are ordered by updated_at, money by paid_at", () => {
+  const old = "2025-01-01T00:00:00.000Z";
+  const paid = "2026-11-13T09:00:00.000Z";
+  const updated = "2026-11-14T09:00:00.000Z";
+
+  assert.equal(
+    eventTime("subscription.disable", { created_at: old, updated_at: updated }).getTime(),
+    Date.parse(updated),
+  );
+  assert.equal(
+    eventTime("charge.success", { created_at: old, paid_at: paid, updated_at: updated }).getTime(),
+    Date.parse(paid),
+  );
+  assert.equal(
+    eventTime("invoice.payment_failed", { transaction: { paid_at: paid }, updated_at: updated }).getTime(),
+    Date.parse(paid),
+  );
+});
+
+test("a charge is checked against the price quoted at checkout, not the current price", () => {
+  const config = billingConfig({ PAYSTACK_PRO_AMOUNT_NGN: "15000" });
+  const transaction = {
+    status: "success",
+    amount: 1_120_000,
+    currency: "NGN",
+    metadata: { plan_key: "pro" },
+  };
+
+  assert.equal(validProCharge(transaction, { config, existing: null, planCode: "PLN_pro" }), false);
+  assert.equal(
+    validProCharge(transaction, {
+      config,
+      existing: null,
+      planCode: "PLN_pro",
+      checkout: { amount: 1_120_000, currency: "NGN", plan_code: "PLN_pro" },
+    }),
+    true,
+  );
+  assert.equal(
+    validProCharge(
+      { ...transaction, amount: 500_000 },
+      {
+        config,
+        existing: null,
+        planCode: "PLN_pro",
+        checkout: { amount: 1_120_000, currency: "NGN", plan_code: "PLN_pro" },
+      },
+    ),
+    false,
+  );
 });

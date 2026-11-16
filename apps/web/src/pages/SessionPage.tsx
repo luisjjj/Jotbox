@@ -47,7 +47,7 @@ import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { linesFromText } from "@/lib/transcript";
 import type { Session, TranscriptLine } from "@/lib/types";
-import { usePro } from "@/lib/usageStore";
+import { ensurePro, usePlan } from "@/lib/usageStore";
 import { useEngine } from "@/engine/SessionEngine";
 import { useAudioUrl } from "@/hooks/useAudio";
 
@@ -238,7 +238,7 @@ export default function SessionPage() {
   const toggleAction = useSessions((state) => state.toggleAction);
   const remove = useSessions((state) => state.remove);
   const engine = useEngine();
-  const pro = usePro();
+  const { pro, loaded: planLoaded } = usePlan();
 
   const [title, setTitle] = useState(session?.title ?? "");
   const [copying, setCopying] = useState(false);
@@ -423,7 +423,8 @@ export default function SessionPage() {
   };
 
   const savePdf = async () => {
-    if (!pro) {
+    const isPro = await ensurePro();
+    if (isPro === false) {
       setPdfPaywall(true);
       return;
     }
@@ -440,6 +441,10 @@ export default function SessionPage() {
 
   const handleDelete = () => {
     setConfirmDelete(false);
+    if (liveHere) {
+      toast.error("Stop the capture before deleting it.");
+      return;
+    }
     remove(session.id);
     void deleteAudio(session.id);
     toast.success("Session deleted");
@@ -458,6 +463,9 @@ export default function SessionPage() {
   const orphanedLive =
     session.status === "live" &&
     !(engine.sessionId === session.id && (engine.status === "recording" || engine.status === "paused"));
+  const liveHere =
+    engine.sessionId === session.id && (engine.status === "recording" || engine.status === "paused");
+  const pdfPro = pro || !planLoaded;
   const notesEmpty = notesLookEmpty(session.notes);
   const showNotes = session.notes && !notesEmpty;
 
@@ -497,8 +505,8 @@ export default function SessionPage() {
             className="icon-btn"
             onClick={() => void savePdf()}
             disabled={preparingPdf || !hasContent}
-            title={pro ? "Download a branded PDF" : "Branded PDF is part of Pro"}
-            aria-label={pro ? "Download a branded PDF" : "Branded PDF is part of Pro"}
+            title={pdfPro ? "Download a branded PDF" : "Branded PDF is part of Pro"}
+            aria-label={pdfPro ? "Download a branded PDF" : "Branded PDF is part of Pro"}
           >
             {preparingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
           </button>
@@ -549,8 +557,9 @@ export default function SessionPage() {
             type="button"
             className="icon-btn hover:text-rec"
             onClick={() => setConfirmDelete(true)}
-            title="Delete session"
-            aria-label="Delete session"
+            disabled={liveHere}
+            title={liveHere ? "Stop the capture before deleting it" : "Delete session"}
+            aria-label={liveHere ? "Stop the capture before deleting it" : "Delete session"}
           >
             <Trash2 className="h-4 w-4" />
           </button>
