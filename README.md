@@ -255,6 +255,8 @@ npm run dist:unsigned --workspace @jotbox/desktop
 
 Shortcuts: `Ctrl+Shift+J` opens JotBox, `Ctrl+Shift+L` starts or stops a microphone capture. Call audio goes through a built-in window picker with Windows loopback audio. `npm run dist` creates a local self-signed certificate and signs the app and installer; because Windows does not trust that root by default, SmartScreen still warns on other PCs. Trust it on this PC with the one-line command in **[docs/desktop.md](docs/desktop.md)**, which also covers the island state bridge and pointing the shell at a preview deployment.
 
+Installed copies update themselves through `electron-updater`. The shell checks GitHub releases shortly after launch and every six hours, downloads in the background, then offers a restart. If a capture is recording, it waits and installs when the app quits. Version 0.2.0 is the first updater build, so an installed 0.1.0 needs one manual install; after that, releases arrive in place. Every release must upload `latest.yml` next to the installer, as described in [docs/desktop.md](docs/desktop.md#auto-updates).
+
 ## Screens
 
 | Screen | What it does |

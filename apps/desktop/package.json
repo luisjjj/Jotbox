@@ -1,6 +1,6 @@
 {
   "name": "@jotbox/desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "JotBox desktop app with the floating listening island",
   "author": "JotBox",
@@ -37,6 +37,11 @@
       "splash.css",
       "assets/**"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "luisjjj",
+      "repo": "Jotbox"
+    },
     "win": {
       "target": [
         {
@@ -57,5 +62,8 @@
       "shortcutName": "JotBox",
       "artifactName": "JotBox-Setup-${version}.${ext}"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

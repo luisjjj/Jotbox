@@ -4,6 +4,7 @@ const {
   Menu,
   Tray,
   desktopCapturer,
+  dialog,
   globalShortcut,
   ipcMain,
   nativeImage,
@@ -56,6 +57,8 @@ let pickerResolver = null;
 let tray = null;
 let trayLabel = "";
 let quitting = false;
+let autoUpdater = null;
+let updatePrompted = false;
 let lastState = {
   status: "idle",
   elapsed: 0,
@@ -385,6 +388,16 @@ function updateTrayMenu() {
         },
       },
       { type: "separator" },
+      ...(updatesEnabled()
+        ? [
+            {
+              label: "Check for updates",
+              click: () => {
+                void checkForUpdates({ manual: true });
+              },
+            },
+          ]
+        : []),
       {
         label: "Quit JotBox",
         click: () => {
@@ -413,6 +426,99 @@ function registerShortcuts() {
   if (!main || !listen) {
     console.warn("JotBox could not register one of its shortcuts. Another app may be using it.");
   }
+}
+
+function updatesEnabled() {
+  return app.isPackaged && !DEV && !SMOKE && process.env.JOTBOX_DISABLE_UPDATES !== "1";
+}
+
+function showDialog(options) {
+  const parent = mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() ? mainWindow : null;
+  return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
+}
+
+async function checkForUpdates({ manual = false } = {}) {
+  if (!autoUpdater) {
+    if (manual) {
+      await showDialog({
+        type: "info",
+        title: "Updates",
+        message: "Updates are available in the installed app.",
+        detail: "This development build does not check for updates.",
+      });
+    }
+    return;
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    if (!manual) return;
+    if (result?.updateInfo && result.updateInfo.version !== app.getVersion()) {
+      await showDialog({
+        type: "info",
+        title: "Updates",
+        message: `JotBox ${result.updateInfo.version} is downloading.`,
+        detail: "You can keep working. JotBox will ask you to restart when it is ready.",
+      });
+      return;
+    }
+    await showDialog({
+      type: "info",
+      title: "Updates",
+      message: "JotBox is up to date.",
+      detail: `You are on version ${app.getVersion()}.`,
+    });
+  } catch (error) {
+    console.warn("[jotbox-update] check failed", error?.message || error);
+    if (manual) {
+      await showDialog({
+        type: "warning",
+        title: "Updates",
+        message: "Could not check for updates.",
+        detail: "Check your connection and try again.",
+      });
+    }
+  }
+}
+
+function setupUpdates() {
+  if (!updatesEnabled()) return;
+  autoUpdater = require("electron-updater").autoUpdater;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("error", (error) => {
+    console.warn("[jotbox-update]", error?.message || error);
+  });
+
+  autoUpdater.on("update-downloaded", async (info) => {
+    if (updatePrompted) return;
+    updatePrompted = true;
+    if (lastState.status === "recording" || lastState.status === "paused") {
+      console.log("[jotbox-update] ready; installing on quit because a capture is live");
+      return;
+    }
+    const { response } = await showDialog({
+      type: "info",
+      title: "Update ready",
+      message: `JotBox ${info.version} is ready to install.`,
+      detail: "Restart now to finish, or keep working and it will install when you quit.",
+      buttons: ["Restart now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (response === 0) {
+      quitting = true;
+      autoUpdater.quitAndInstall(false, true);
+    }
+  });
+
+  setTimeout(() => {
+    void checkForUpdates();
+  }, 15_000);
+  setInterval(() => {
+    void checkForUpdates();
+  }, 6 * 60 * 60 * 1000);
 }
 
 function watchedChannels() {
@@ -701,6 +807,7 @@ async function boot() {
   createIslandWindow();
   createTray();
   registerShortcuts();
+  setupUpdates();
 }
 
 const gotLock = app.requestSingleInstanceLock();

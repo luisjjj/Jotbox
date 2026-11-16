@@ -84,7 +84,7 @@ This signs the app exe, the uninstaller, and the installer with a local self-sig
 - `jotbox-self-signed.cer` (public certificate)
 - `password.txt` (generated password for the pfx)
 
-Output: `apps/desktop/release/JotBox-Setup-0.1.0.exe` (about 78 MB).
+Output: `apps/desktop/release/JotBox-Setup-0.2.0.exe` (about 78 MB), plus `latest.yml` and the block map used by auto updates.
 
 To create only the certificate:
 
@@ -115,6 +115,22 @@ After that, `Get-AuthenticodeSignature` reports `Valid` on this machine. Remove 
 A publicly trusted certificate (Azure Trusted Signing, or an OV/EV certificate from a CA) is still needed before other people see a verified publisher.
 
 `npmRebuild` is off because the app has no native dependencies. This also avoids npm pruning the workspace's dev dependencies during packaging.
+
+## Auto updates
+
+`electron-updater` is wired in `apps/desktop/main.cjs`, with the GitHub provider configured under `build.publish`. Packaged builds check `luisjjj/Jotbox` releases 15 seconds after launch and every six hours. An update downloads in the background, then a dialog offers **Restart now** or **Later**. Choosing Later installs the update when the app quits. If a capture is recording or paused, no dialog appears and the update waits for the next quit, so a live session is never interrupted. The tray menu also has **Check for updates**.
+
+Updates begin with version 0.2.0. An installed 0.1.0 has no updater code, so install 0.2.0 manually once; every release after that can arrive in place.
+
+To publish an update:
+
+1. Bump `version` in `apps/desktop/package.json`.
+2. Run `npm run dist --workspace @jotbox/desktop`.
+3. Create a GitHub release tagged `vX.Y.Z` and upload `JotBox-Setup-X.Y.Z.exe`, its `.blockmap`, and `latest.yml` from `apps/desktop/release`.
+
+Builds stay local unless `--publish always` is passed, so `npm run dist` never uploads anything by itself.
+
+The self-signed certificate has no `win.publisherName` configured, which means electron-updater skips Windows signature verification and relies on the SHA-512 in `latest.yml` plus HTTPS. If the app moves to a trusted certificate, set `build.win.publisherName` to that certificate's common name to turn verification back on.
 
 ### If winCodeSign will not extract
 
