@@ -752,6 +752,13 @@ Include only open actions. If there are none, say so plainly.
 Use plain punctuation, commas, colons and full stops. Never use em dashes. No praise, preamble or filler.
 Return only a JSON object with this exact shape: {"text":"string"}`;
 
+const BRIEF_SYSTEM = `You prepare a short brief before the next occurrence of a recurring session.
+Use only the previous session supplied. Never invent names, numbers, decisions, owners or dates.
+Write up to three bullets, exactly three when the notes support three. Each bullet is one short sentence that tells the listener what to follow up on today.
+Prioritise open actions first, then promises or decisions that were not settled. Mention the owner when one was named. Do not repeat actions already marked done.
+Keep Nigerian Pidgin quotes exactly as said. Use plain punctuation, commas, colons and full stops. Never use em dashes. No preamble, no praise, no headings.
+Return only a JSON object with this exact shape: {"bullets":["string","string","string"]}`;
+
 const KIND_LABELS = {
   meeting: "meeting",
   seminar: "seminar",
@@ -885,6 +892,85 @@ function assistantMessagesForFollowup({ session, channel, language }) {
       ].join("\n"),
     },
   ];
+}
+
+function briefDate(at) {
+  const value = Number(at);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return ` on ${date.toISOString().slice(0, 10)}`;
+}
+
+function assistantMessagesForBrief({ title, kind, previous }) {
+  const actions = previous.actions
+    .filter((action) => action && typeof action.text === "string" && action.text.trim())
+    .map(
+      (action) =>
+        `${action.done ? "[done]" : "[open]"} ${action.owner ? `${action.owner}: ` : ""}${action.text.trim()}`,
+    );
+  const decisions = previous.decisions.filter((item) => typeof item === "string" && item.trim());
+  return [
+    { role: "system", content: BRIEF_SYSTEM },
+    {
+      role: "user",
+      content: [
+        `Today's session: ${clipText(title, 160) || "(untitled)"} (${KIND_LABELS[kind] || "meeting"})`,
+        `Previous session: ${clipText(previous.title, 160) || "(untitled)"}${briefDate(previous.at)}`,
+        "",
+        "Previous summary:",
+        clipText(previous.summary, 2_000) || "(none)",
+        "",
+        "Previous decisions:",
+        decisions.length ? decisions.map((item) => `- ${clipText(item, 500)}`).join("\n") : "(none)",
+        "",
+        "Previous actions:",
+        actions.length ? actions.join("\n") : "(none)",
+        "",
+        "Write the bullets for today.",
+      ].join("\n"),
+    },
+  ];
+}
+
+function demoBrief({ previous }) {
+  const bullets = [];
+  const push = (text) => {
+    const value = clipText(text, 240);
+    if (!value) return;
+    if (bullets.some((item) => item.toLowerCase() === value.toLowerCase())) return;
+    bullets.push(value);
+  };
+  for (const action of previous.actions) {
+    if (bullets.length >= 3) break;
+    if (!action || typeof action.text !== "string" || action.done) continue;
+    const owner = action.owner && action.owner !== "Unassigned" ? `${action.owner}: ` : "";
+    push(`${owner}${action.text}`);
+  }
+  for (const decision of previous.decisions) {
+    if (bullets.length >= 3) break;
+    push(decision);
+  }
+  if (!bullets.length) push(previous.summary);
+  return bullets.slice(0, 3);
+}
+
+export async function buildPreMeetingBrief({ title, kind, previous }) {
+  if (mockEnabled()) return { bullets: demoBrief({ previous }), provider: "demo" };
+  const { value, provider } = await chatJson({
+    messages: assistantMessagesForBrief({ title, kind, previous }),
+    maxTokens: 420,
+    temperature: 0.25,
+  });
+  const bullets = Array.isArray(value?.bullets)
+    ? value.bullets
+        .filter((item) => typeof item === "string" && item.trim())
+        .map((item) => clipText(item, 240))
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+  if (!bullets.length) throw new HttpError(502, "The brief came back empty. Try again.");
+  return { bullets, provider };
 }
 
 function assistantProviders() {
@@ -1125,6 +1211,28 @@ const assistHistory = z
   .optional()
   .default([]);
 
+const briefInput = z.object({
+  title: z.string().max(200).optional().default(""),
+  kind: z.enum(["meeting", "seminar", "lecture", "voice"]).optional().default("meeting"),
+  previous: z.object({
+    title: z.string().max(200).optional().default(""),
+    at: z.number().finite().min(0).max(4_102_444_800_000).optional().default(0),
+    summary: z.string().max(4_000).optional().default(""),
+    decisions: z.array(z.string().max(500)).max(20).optional().default([]),
+    actions: z
+      .array(
+        z.object({
+          text: z.string().max(500),
+          owner: z.string().max(120).optional().default(""),
+          done: z.boolean().optional().default(false),
+        }),
+      )
+      .max(30)
+      .optional()
+      .default([]),
+  }),
+});
+
 export async function handleAssist(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
@@ -1133,6 +1241,12 @@ export async function handleAssist(req, res) {
   const body = await readJson(req, 1_500_000);
   if (!body || typeof body !== "object") throw new HttpError(400, "The request was empty.");
   const mode = body.mode;
+
+  if (mode === "brief") {
+    const brief = briefInput.parse(body.brief);
+    sendJson(res, 200, await buildPreMeetingBrief(brief));
+    return;
+  }
 
   if (mode === "ask") {
     const question = z.string().trim().min(3).max(500).parse(body.question);
@@ -1170,7 +1284,7 @@ export async function handleAssist(req, res) {
     return;
   }
 
-  throw new HttpError(400, "Choose ask, insights or followup.");
+  throw new HttpError(400, "Choose ask, insights, followup or brief.");
 }
 
 const buckets = new Map();

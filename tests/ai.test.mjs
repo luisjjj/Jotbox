@@ -311,6 +311,85 @@ test("notes parse fenced JSON, drop empty items and fail over between models", a
   assert.deepEqual(result.sections, [{ heading: "Decisions", bullets: ["Pause the promise"] }]);
 });
 
+const briefPrevious = {
+  title: "Weekly product sync",
+  at: Date.UTC(2026, 10, 9),
+  summary: "The room paused the same-day promise until the bank cutoff holds.",
+  decisions: ["Pause the same-day promise until the cutoff holds."],
+  actions: [
+    { text: "Send the merchant note", owner: "Ada", done: false },
+    { text: "Update the support macro", owner: "Team", done: true },
+  ],
+};
+
+test("demo brief puts open actions first and skips finished ones", async () => {
+  process.env.JOTBOX_AI_MOCK = "1";
+
+  const result = await ai.buildPreMeetingBrief({
+    title: "Weekly product sync",
+    kind: "meeting",
+    previous: briefPrevious,
+  });
+
+  assert.equal(result.provider, "demo");
+  assert.deepEqual(result.bullets, [
+    "Ada: Send the merchant note",
+    "Pause the same-day promise until the cutoff holds.",
+  ]);
+});
+
+test("brief sends the previous actions and decisions to the model", async () => {
+  process.env.GROQ_API_KEY = "test-groq";
+  let sent;
+
+  globalThis.fetch = async (_url, init = {}) => {
+    sent = JSON.parse(String(init.body));
+    return Response.json({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ bullets: ["  Follow up with Ada  ", "   ", "Check the cutoff", "Extra", "More"] }),
+          },
+        },
+      ],
+    });
+  };
+
+  const result = await ai.buildPreMeetingBrief({
+    title: "Weekly product sync",
+    kind: "meeting",
+    previous: briefPrevious,
+  });
+
+  assert.equal(result.provider, "groq");
+  assert.deepEqual(result.bullets, ["Follow up with Ada", "Check the cutoff", "Extra"]);
+  assert.equal(sent.max_tokens, 420);
+  assert.match(sent.messages[0].content, /Never use em dashes/);
+  assert.match(sent.messages[0].content, /Do not repeat actions already marked done/);
+  assert.match(sent.messages[1].content, /\[open\] Ada: Send the merchant note/);
+  assert.match(sent.messages[1].content, /\[done\] Team: Update the support macro/);
+  assert.match(sent.messages[1].content, /Pause the same-day promise until the cutoff holds\./);
+});
+
+test("brief rejects an answer with no usable bullets", async () => {
+  process.env.GROQ_API_KEY = "test-groq";
+
+  globalThis.fetch = async () =>
+    Response.json({ choices: [{ message: { content: JSON.stringify({ bullets: ["  ", null, 4] }) } }] });
+
+  await assert.rejects(
+    ai.buildPreMeetingBrief({ title: "", kind: "meeting", previous: briefPrevious }),
+    /came back empty/,
+  );
+});
+
+test("brief says plainly when no provider is configured", async () => {
+  await assert.rejects(
+    ai.buildPreMeetingBrief({ title: "", kind: "meeting", previous: briefPrevious }),
+    /cannot answer/,
+  );
+});
+
 test("a server with no reading or writing service says so plainly", async () => {
   await assert.rejects(
     ai.transcribeAudio({ buffer: Buffer.from("audio"), contentType: "audio/webm", filename: "a.webm" }),

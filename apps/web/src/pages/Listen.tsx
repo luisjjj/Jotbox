@@ -44,6 +44,7 @@ import {
 } from "@/lib/listening";
 import type { Participant, SessionKind } from "@/lib/types";
 import { KindBadge, KindIcon } from "@/components/KindBadge";
+import { PreMeetingBrief } from "@/components/PreMeetingBrief";
 import { TranscriptView } from "@/components/TranscriptView";
 import { Waveform } from "@/components/Waveform";
 import { LiveBoard } from "@/components/LiveBoard";
@@ -328,6 +329,12 @@ function Setup() {
             maxLength={120}
           />
         </div>
+
+        <PreMeetingBrief
+          title={title}
+          kind={kind}
+          onStart={outOfTime || busy || uploading ? undefined : () => void launch("mic")}
+        />
 
         <Roster people={people} onChange={setPeople} />
 
