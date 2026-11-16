@@ -20,6 +20,30 @@
   },
   "rewrites": [
     {
+      "source": "/api/health",
+      "destination": "/api/utility?route=health"
+    },
+    {
+      "source": "/api/download/windows",
+      "destination": "/api/utility?route=download"
+    },
+    {
+      "source": "/api/auth/forgot-password",
+      "destination": "/api/utility?route=forgot"
+    },
+    {
+      "source": "/api/auth/reset-password",
+      "destination": "/api/utility?route=reset"
+    },
+    {
+      "source": "/api/onboarding",
+      "destination": "/api/utility?route=onboarding"
+    },
+    {
+      "source": "/api/onboarding/(.*)",
+      "destination": "/api/utility?route=onboarding&token=$1"
+    },
+    {
       "source": "/api/orgs",
       "destination": "/api/orgs-handler"
     },

@@ -82,7 +82,11 @@ export async function handleCoreApi(req, res) {
     await handleDownloadWindows(req, res);
     return true;
   }
-  if (pathname === "/api/onboarding") {
+  if (pathname === "/api/onboarding" || pathname.startsWith("/api/onboarding/")) {
+    const token = pathname.startsWith("/api/onboarding/")
+      ? decodeURIComponent(pathname.slice("/api/onboarding/".length))
+      : "";
+    if (token) req.url = `/api/onboarding?token=${encodeURIComponent(token)}`;
     await handleOnboarding(req, res);
     return true;
   }

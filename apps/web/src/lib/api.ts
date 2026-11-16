@@ -293,7 +293,7 @@ export const api = {
       body: JSON.stringify(input),
     }),
   getOnboarding: (token: string) =>
-    request<{ invite: EnterpriseInvite }>(`/api/onboarding?token=${encodeURIComponent(token)}`),
+    request<{ invite: EnterpriseInvite }>(`/api/onboarding/${encodeURIComponent(token)}`),
   checkOnboardingStep: (token: string, step: string, done: boolean) =>
     request<{ checklist: Record<string, boolean> }>("/api/onboarding", {
       method: "POST",
