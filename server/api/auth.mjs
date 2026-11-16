@@ -2,6 +2,12 @@ import { z } from "zod";
 import { query } from "./pg.mjs";
 import { hashPassword, token, tokenHash, verifyPassword } from "./passwords.mjs";
 import {
+  appUrlFor,
+  sendPasswordChangedEmail,
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+} from "./email.mjs";
+import {
   HttpError,
   assertSameOrigin,
   clientIp,
@@ -17,6 +23,7 @@ import {
 const COOKIE = "jotbox_session";
 const SESSION_DAYS = 30;
 const SESSION_SECONDS = SESSION_DAYS * 24 * 60 * 60;
+const RESET_MINUTES = 60;
 
 const registerSchema = z.object({
   name: z.string().trim().max(80, "Name is too long.").optional().default(""),
@@ -27,6 +34,15 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address.").max(254),
   password: z.string().min(1, "Enter your password.").max(200),
+});
+
+const forgotSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address.").max(254),
+});
+
+const resetSchema = z.object({
+  token: z.string().trim().min(20, "That reset link is not valid.").max(300),
+  password: z.string().min(8, "Use at least 8 characters.").max(200, "Password is too long."),
 });
 
 function publicUser(row) {
@@ -141,6 +157,9 @@ export async function handleRegister(req, res) {
   }
 
   await issueSession(user.id, req, res);
+  await sendWelcomeEmail(user).catch((error) => {
+    console.error("[jotbox-auth] welcome email failed", error instanceof Error ? error.message : error);
+  });
   sendJson(res, 201, { user });
 }
 
@@ -202,4 +221,74 @@ export async function handleMe(req, res) {
     return;
   }
   sendJson(res, 200, { user: session.user });
+}
+
+export async function handleForgotPassword(req, res) {
+  requireMethod(req, ["POST"]);
+  assertSameOrigin(req);
+  const parsed = forgotSchema.safeParse(await readJson(req, 20_000));
+  if (!parsed.success) throw new HttpError(400, validationMessage(parsed));
+
+  const { email } = parsed.data;
+  const ip = clientIp(req);
+  const ipAttempts = await countAttempts("forgot_ip", ip, 60);
+  if (ipAttempts >= 20) throw new HttpError(429, "Too many reset requests. Try again in an hour.");
+  await recordAttempt("forgot_ip", ip);
+
+  const emailAttempts = await countAttempts("forgot_email", email, 60);
+  const found = await query("select id, email, name from users where email = $1 limit 1", [email]);
+  const user = found.rows[0];
+  if (user && emailAttempts < 5) {
+    await recordAttempt("forgot_email", email);
+    await query("update password_resets set used_at = now() where user_id = $1 and used_at is null", [user.id]);
+    const raw = token();
+    await query(
+      `insert into password_resets (user_id, token_hash, expires_at)
+       values ($1, $2, now() + ($3::int * interval '1 minute'))`,
+      [user.id, tokenHash(raw), RESET_MINUTES],
+    );
+    const link = appUrlFor(`/reset-password?token=${encodeURIComponent(raw)}`);
+    await sendPasswordResetEmail(user, link, RESET_MINUTES).catch((error) => {
+      console.error("[jotbox-auth] reset email failed", error instanceof Error ? error.message : error);
+    });
+    await query("delete from password_resets where expires_at < now() - interval '7 days'");
+  }
+
+  sendJson(res, 200, {
+    message: "If that email has a JotBox account, a reset link is on its way.",
+  });
+}
+
+export async function handleResetPassword(req, res) {
+  requireMethod(req, ["POST"]);
+  assertSameOrigin(req);
+  const parsed = resetSchema.safeParse(await readJson(req, 20_000));
+  if (!parsed.success) throw new HttpError(400, validationMessage(parsed));
+
+  const found = await query(
+    `select r.id as reset_id, u.id, u.email, u.name
+       from password_resets r
+       join users u on u.id = r.user_id
+      where r.token_hash = $1
+        and r.used_at is null
+        and r.expires_at > now()
+      limit 1`,
+    [tokenHash(parsed.data.token)],
+  );
+  const row = found.rows[0];
+  if (!row) {
+    throw new HttpError(400, "This reset link has expired or was already used. Ask for a new one.");
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  await query("update users set password_hash = $2, updated_at = now() where id = $1", [row.id, passwordHash]);
+  await query("update password_resets set used_at = now() where id = $1", [row.reset_id]);
+  await query("delete from auth_sessions where user_id = $1", [row.id]);
+  await sendPasswordChangedEmail(row).catch((error) => {
+    console.error("[jotbox-auth] password changed email failed", error instanceof Error ? error.message : error);
+  });
+
+  sendJson(res, 200, {
+    message: "Your password is changed. Sign in with the new one.",
+  });
 }

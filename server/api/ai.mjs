@@ -1243,6 +1243,12 @@ export async function handleAssist(req, res) {
   const mode = body.mode;
 
   if (mode === "brief") {
+    if (!(await isProUser(user.id))) {
+      throw new HttpError(
+        402,
+        "The live Pre-Meeting Brief is part of Pro. Your open follow-ups from last time still show, or upgrade to have JotBox write the brief.",
+      );
+    }
     const brief = briefInput.parse(body.brief);
     sendJson(res, 200, await buildPreMeetingBrief(brief));
     return;

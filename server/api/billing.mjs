@@ -2,6 +2,7 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
 import { usageView } from "./usage.mjs";
+import { sendCancellationEmail, sendReceiptEmail } from "./email.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -524,7 +525,7 @@ async function applyVerifiedTransaction(
     return { applied: false, reason: "not_a_pro_charge" };
   }
 
-  return withTransaction(async (client) => {
+  const outcome = await withTransaction(async (client) => {
     const recorded = await recordTransaction(client, {
       reference,
       userId,
@@ -571,7 +572,26 @@ async function applyVerifiedTransaction(
       "update billing_transactions set applied_at = now(), updated_at = now() where provider = 'paystack' and reference = $1",
       [reference],
     );
-    return { applied: true, reason: "" };
+    return { applied: true, reason: "", interval: shaped.plan.interval || "monthly" };
+  });
+
+  if (outcome.applied) {
+    await sendReceipt(userId, {
+      amount: transaction?.amount,
+      currency: transaction?.currency || shaped.plan.currency,
+      reference,
+      interval: outcome.interval,
+    });
+  }
+  return outcome;
+}
+
+async function sendReceipt(userId, receipt) {
+  const found = await query("select email, name from users where id = $1 limit 1", [userId]);
+  const user = found.rows[0];
+  if (!user) return;
+  await sendReceiptEmail(user, receipt).catch((error) => {
+    console.error("[jotbox-billing] receipt email failed", error instanceof Error ? error.message : error);
   });
 }
 
@@ -840,6 +860,12 @@ async function cancel(req, res) {
     source: "cancel",
   });
 
+  await sendCancellationEmail(user, {
+    periodEnd: active.current_period_end || active.next_payment_at,
+  }).catch((error) => {
+    console.error("[jotbox-billing] cancellation email failed", error instanceof Error ? error.message : error);
+  });
+
   sendJson(res, 200, await statusFor(user.id));
 }
 
@@ -1106,6 +1132,14 @@ async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
         data.reference,
       ]);
     });
+    if (result.applied) {
+      await sendReceipt(userId, {
+        amount: data.amount,
+        currency: data.currency || shaped.plan.currency,
+        reference: data.reference,
+        interval: shaped.plan.interval || data.interval || "monthly",
+      });
+    }
   }
 
   return result;

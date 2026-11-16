@@ -47,6 +47,8 @@ the transition tables before shipping.
 | 23 | Desktop picker, hotkey, splash, tray | closed, open, picked, cancelled | `apps/desktop/main.cjs:175`, `:268`, `:410` |
 | 24 | Audio retention | keep, 7, 30, 90 days | `lib/retention.ts:5` |
 | 25 | Delete confirmation | closed, confirming, deleting | `pages/SessionPage.tsx:247` |
+| 26 | Password reset | none, requested, used, expired, revoked-by-new-request | `server/api/auth.mjs:226`, `:262`, `db/schema.sql:353` |
+| 27 | Enterprise invite | created, opened, accepted, expired, revoked | `scripts/enterprise-invite.mjs`, `server/api/onboarding.mjs:83`, `db/schema.sql:367` |
 
 ## Cross-machine events
 
@@ -67,6 +69,10 @@ These events move more than one machine. Most serious bugs live at these seams.
 | Remove org member | 18, 19, 21 | Access predicate changes immediately, local panels stale |
 | Close browser mid-capture | 1, 2 | Next boot marks live capture failed, not ready |
 | Desktop toggle hotkey | 1, 22, 23 | Same engine guard as clicking Start |
+| Forgot password | 26, 9 | Old unused tokens retired, new token emailed, generic response either way |
+| Reset password | 26, 9 | Token marked used, password replaced, every auth session deleted |
+| Open enterprise invite | 27 | Hash checked, `opened_at` touched, expired or revoked returns 404 |
+| Accept enterprise invite | 27, 9 | Signed-in user recorded, `accepted_at` set once, checklist preserved |
 
 ## 1. Recording engine
 
@@ -687,6 +693,41 @@ collapsed or expanded; status idle, recording, paused, processing
 **Resolved, P3:** the delete button is disabled while the engine owns that
 capture, `handleDelete` refuses it, and the server answers 409 for a live
 capture. A later upsert can no longer resurrect it.
+
+## 26. Password reset
+
+**States:** none, requested, used, expired, revoked-by-new-request
+(`server/api/auth.mjs:226`, `:262`, `db/schema.sql:353`).
+
+| From | Event | To | Guards and effects |
+| --- | --- | --- | --- |
+| none | Forgot password | requested | Rate limits per IP and email, old unused tokens marked used, hashed token stored, email sent |
+| none | Forgot password for unknown email | none | Same generic response, no row and no email |
+| requested | Open link before expiry | requested | Token hash matches, `used_at` is null, form renders |
+| requested | Open link after 60 minutes | expired | Generic invalid-link message |
+| requested | Open link after a newer request | revoked-by-new-request | Generic invalid-link message |
+| requested | Submit a valid new password | used | Password replaced, token marked used, all auth sessions deleted, password-changed email sent |
+| requested | Submit a mismatched confirmation or short password | requested | Validation error, token stays unused |
+| used | Open link again | used | Rejected, so a shared link cannot reset twice |
+
+## 27. Enterprise invite
+
+**States:** created, opened, accepted, expired, revoked
+(`scripts/enterprise-invite.mjs`, `server/api/onboarding.mjs:83`,
+`db/schema.sql:367`).
+
+| From | Event | To | Guards and effects |
+| --- | --- | --- | --- |
+| created | Operator runs the CLI | created | Token shown once, hash stored, optional email, 30 day default expiry |
+| created | Open the private link | opened | Hash checked, `opened_at` touched, noindex and no-referrer headers |
+| opened | Toggle a checklist step | opened | `jsonb_set` on the matching step only |
+| opened | Accept while signed out | opened | Sign-in link returns to the same token URL |
+| opened | Accept while signed in | accepted | `accepted_at` and `accepted_by` saved once |
+| created, opened | Operator revokes | revoked | Later GET, check, and accept all return 404 |
+| created, opened, accepted | Past expiry | expired | GET returns 410, writes refuse |
+
+The invite never creates a session and is not linked anywhere in the frontend,
+so an unlisted URL alone cannot get past `/app` auth.
 
 ## Highest-risk gaps
 

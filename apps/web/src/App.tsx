@@ -8,7 +8,9 @@ import { CloudSync } from "@/components/CloudSync";
 import { EngineProvider } from "@/engine/SessionEngine";
 import AccountPage from "@/pages/Account";
 import Auth from "@/pages/Auth";
+import EnterpriseOnboarding from "@/pages/EnterpriseOnboarding";
 import FloatPage from "@/pages/FloatPage";
+import ForgotPassword from "@/pages/ForgotPassword";
 import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
 import { PrivacyPolicy, RefundPolicy, TermsAndConditions } from "@/pages/Legal";
@@ -16,6 +18,7 @@ import Library from "@/pages/Library";
 import Listen from "@/pages/Listen";
 import MemoryPage from "@/pages/Memory";
 import NotFound from "@/pages/NotFound";
+import ResetPassword from "@/pages/ResetPassword";
 import SessionPage from "@/pages/SessionPage";
 import SharedPage from "@/pages/SharedPage";
 import Settings from "@/pages/Settings";
@@ -49,6 +52,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={isDesktop() ? <Navigate to="/app" replace /> : <Landing />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/enterprise/onboarding/:token" element={<EnterpriseOnboarding />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="/refunds" element={<RefundPolicy />} />

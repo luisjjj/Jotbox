@@ -1,10 +1,19 @@
 import { handleHealth } from "./health.mjs";
-import { handleLogin, handleLogout, handleMe, handleRegister } from "./auth.mjs";
+import {
+  handleForgotPassword,
+  handleLogin,
+  handleLogout,
+  handleMe,
+  handleRegister,
+  handleResetPassword,
+} from "./auth.mjs";
 import { handleCaptures } from "./captures.mjs";
 import { handleOrgs } from "./orgs.mjs";
 import { handleAssist, handleEnhance, handleTranscribe } from "./ai.mjs";
 import { handleBilling } from "./billing.mjs";
 import { handleShare } from "./share.mjs";
+import { handleDownloadWindows } from "./download.mjs";
+import { handleOnboarding } from "./onboarding.mjs";
 
 /**
  * Shared dispatcher for the Vite dev/preview server. The Vercel deployment
@@ -33,6 +42,14 @@ export async function handleCoreApi(req, res) {
     await handleMe(req, res);
     return true;
   }
+  if (pathname === "/api/auth/forgot-password") {
+    await handleForgotPassword(req, res);
+    return true;
+  }
+  if (pathname === "/api/auth/reset-password") {
+    await handleResetPassword(req, res);
+    return true;
+  }
   if (pathname === "/api/captures") {
     await handleCaptures(req, res);
     return true;
@@ -59,6 +76,14 @@ export async function handleCoreApi(req, res) {
   }
   if (pathname === "/api/billing" || pathname.startsWith("/api/billing/")) {
     await handleBilling(req, res);
+    return true;
+  }
+  if (pathname === "/api/download/windows") {
+    await handleDownloadWindows(req, res);
+    return true;
+  }
+  if (pathname === "/api/onboarding") {
+    await handleOnboarding(req, res);
     return true;
   }
   return false;

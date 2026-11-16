@@ -13,6 +13,22 @@ export type CaptureSensitivity = "standard" | "confidential";
 
 export type BillingPlanStatus = "active" | "attention" | "non-renewing" | "cancelled" | "completed";
 
+export interface EnterpriseInvite {
+  company: string;
+  contactEmail: string;
+  contactName: string;
+  seats: number;
+  priceUsd: number;
+  notes: string;
+  checklist: Record<string, boolean>;
+  accepted: boolean;
+  acceptedAt: number | null;
+  openedAt: number | null;
+  createdAt: number;
+  expiresAt: number;
+  signedInEmail: string | null;
+}
+
 export interface BillingPricing {
   usd: number;
   naira: number;
@@ -266,6 +282,28 @@ export const api = {
       body: JSON.stringify(input),
     }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+  forgotPassword: (email: string) =>
+    request<{ message: string }>("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (input: { token: string; password: string }) =>
+    request<{ message: string }>("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  getOnboarding: (token: string) =>
+    request<{ invite: EnterpriseInvite }>(`/api/onboarding?token=${encodeURIComponent(token)}`),
+  checkOnboardingStep: (token: string, step: string, done: boolean) =>
+    request<{ checklist: Record<string, boolean> }>("/api/onboarding", {
+      method: "POST",
+      body: JSON.stringify({ token, action: "check", step, done }),
+    }),
+  acceptOnboarding: (token: string) =>
+    request<{ accepted: boolean; acceptedAt: number; acceptedByEmail: string | null }>("/api/onboarding", {
+      method: "POST",
+      body: JSON.stringify({ token, action: "accept" }),
+    }),
   listCaptures: async () => (await request<{ sessions: Session[] }>("/api/captures")).sessions,
   saveCapture: (session: Session) =>
     request<{ id: string }>("/api/captures", {

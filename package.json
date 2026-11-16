@@ -18,6 +18,7 @@
     "db:migrate": "node db/migrate.mjs",
     "db:check": "node db/check.mjs",
     "db:role": "node db/setup-role.mjs",
+    "enterprise:invite": "node --env-file-if-exists=.env scripts/enterprise-invite.mjs",
     "ai:check": "node --env-file=.env scripts/ai-check.mjs",
     "ai:test": "node --env-file=.env scripts/ai-check.mjs --test",
     "ai:demo": "node --env-file=.env scripts/ai-check.mjs --mock --test",

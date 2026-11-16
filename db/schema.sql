@@ -347,3 +347,47 @@ on conflict (version) do nothing;
 insert into schema_migrations (version)
 values ('002_org_memory')
 on conflict (version) do nothing;
+
+-- Password recovery. Raw tokens are emailed once and never stored; only the
+-- SHA-256 hash is kept. A used or expired token can never be replayed.
+create table if not exists password_resets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  token_hash text not null unique,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists password_resets_user_idx on password_resets (user_id, created_at desc);
+create index if not exists password_resets_expiry_idx on password_resets (expires_at);
+
+-- Private enterprise onboarding invites. The link is issued by an operator
+-- after a deal is agreed, sent by email, and is never linked from the app.
+create table if not exists enterprise_invites (
+  id uuid primary key default gen_random_uuid(),
+  token_hash text not null unique,
+  company text not null,
+  contact_email text not null,
+  contact_name text not null default '',
+  seats integer not null default 5 check (seats between 5 and 10000),
+  price_usd integer not null default 25 check (price_usd > 0),
+  notes text not null default '',
+  checklist jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  opened_at timestamptz,
+  accepted_at timestamptz,
+  accepted_by uuid references users(id) on delete set null,
+  revoked_at timestamptz,
+  constraint enterprise_invites_company_length check (length(trim(company)) between 1 and 120),
+  constraint enterprise_invites_contact_length check (length(trim(contact_email)) between 3 and 254),
+  constraint enterprise_invites_notes_length check (length(notes) <= 4000)
+);
+
+create index if not exists enterprise_invites_contact_idx on enterprise_invites (lower(contact_email), created_at desc);
+create index if not exists enterprise_invites_expiry_idx on enterprise_invites (expires_at);
+
+insert into schema_migrations (version)
+values ('008_recovery_and_enterprise_onboarding')
+on conflict (version) do nothing;

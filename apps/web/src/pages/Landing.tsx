@@ -12,6 +12,7 @@ import {
   Mail,
   Menu,
   Mic,
+  MonitorDown,
   MonitorUp,
   ShieldCheck,
   Sparkles,
@@ -45,6 +46,7 @@ const LIVE_LINES = [
 ];
 
 const PRO_NAIRA = BILLING_CONFIG.proUsd * BILLING_CONFIG.usdToNgn;
+const WINDOWS_DOWNLOAD = "/api/download/windows";
 const naira = new Intl.NumberFormat("en-NG", {
   style: "currency",
   currency: "NGN",
@@ -116,21 +118,23 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  "Unlimited listening",
-  "Branded PDF export",
+  "Unlimited listening, every month",
+  "Branded PDF export for every session",
   "Five share links, up to 30 days each",
-  "AI follow-up drafts",
+  "AI follow-up drafts in English or Pidgin",
+  "Pre-Meeting Brief from your last notes",
   "Ask across organisation memory",
   "Notes follow you across devices",
 ];
 
 const TEAM_FEATURES = [
   "Everything in Pro, for every seat",
-  "Organisational memory across meetings",
+  "Organisational memory across every meeting",
   "Admin, roles, and meeting-level access",
-  "Retention rules and an audit trail",
-  "Guided rollout and onboarding",
-  "Priority support",
+  "Retention rules and a full audit trail",
+  "Guided onboarding with a dedicated walkthrough",
+  "Priority support and a named contact",
+  "Central billing with yearly invoicing",
 ];
 
 function LivePidginCard() {
@@ -255,6 +259,13 @@ export default function Landing() {
             <a href="#pricing" className="nav-link nav-link-hero transition-colors hover:text-[#f5f1e4]">
               Pricing
             </a>
+            <a
+              href={WINDOWS_DOWNLOAD}
+              className="nav-link nav-link-hero flex items-center gap-1.5 transition-colors hover:text-[#f5f1e4]"
+            >
+              <MonitorDown className="h-3.5 w-3.5" />
+              Download
+            </a>
           </nav>
           <div className="flex items-center gap-1.5">
             {!signedIn && (
@@ -300,6 +311,14 @@ export default function Landing() {
                   <ArrowRight className="h-3.5 w-3.5 text-faint" />
                 </a>
               ))}
+              <a
+                href={WINDOWS_DOWNLOAD}
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center justify-between py-3 text-[15px] font-medium text-soft"
+              >
+                Download for Windows
+                <MonitorDown className="h-3.5 w-3.5 text-faint" />
+              </a>
             </nav>
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[13px] font-medium text-muted">
               <Link to="/privacy" onClick={() => setMenuOpen(false)}>
@@ -352,6 +371,14 @@ export default function Landing() {
                     {signedIn ? "Open your notes" : "Keep notes across devices"}
                   </Link>
                 </div>
+                <a
+                  href={WINDOWS_DOWNLOAD}
+                  className="mt-3 inline-flex items-center gap-2 text-[13.5px] font-medium text-[#dcc69b] transition-colors hover:text-[#f5f1e4]"
+                >
+                  <MonitorDown className="h-4 w-4" />
+                  Download JotBox for Windows
+                  <span className="text-[12px] font-normal text-[#8ea796]">(64-bit installer)</span>
+                </a>
                 <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-[#a6b5a8]">
                   <span className="flex items-center gap-1.5">
                     <ShieldCheck className="h-3.5 w-3.5" />
@@ -760,7 +787,7 @@ export default function Landing() {
                   </span>
                 </div>
                 <div className="mt-3 flex items-baseline gap-1.5">
-                  <span className="text-[42px] font-semibold leading-none tracking-[-0.05em] text-ink">$12</span>
+                  <span className="text-[42px] font-semibold leading-none tracking-[-0.05em] text-ink">$25</span>
                   <span className="text-[14px] text-muted">/ seat / month</span>
                 </div>
                 <p className="mt-2 text-[14px] leading-5 text-muted">For teams, faculties, and firms with more rooms.</p>
@@ -856,6 +883,10 @@ export default function Landing() {
                     <Cloud className="h-4 w-4" />
                     {signedIn ? "Open your notes" : "Create a free account"}
                   </Link>
+                  <a href={WINDOWS_DOWNLOAD} className="btn btn-line btn-lg">
+                    <MonitorDown className="h-4 w-4" />
+                    Download for Windows
+                  </a>
                 </div>
               </div>
             </div>
@@ -873,6 +904,9 @@ export default function Landing() {
             </a>
             <a href="#pricing" className="transition-colors hover:text-ink">
               Pricing
+            </a>
+            <a href={WINDOWS_DOWNLOAD} className="transition-colors hover:text-ink">
+              Download for Windows
             </a>
             <Link to={signedIn ? "/app" : authHref} className="transition-colors hover:text-ink">
               {signedIn ? "Open JotBox" : "Sign in"}

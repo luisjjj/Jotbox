@@ -27,6 +27,8 @@ Four session shapes set the tone of the notes: **Meeting**, **Seminar**, **Lectu
 - **Exports**: copy as Markdown, download `.md`, print, or save as PDF.
 - **Guest mode**: recording, local notes, and the full UI work without an account.
 - **Accounts and sync**: email/password signup, httpOnly session cookies, hashed passwords (scrypt), database-backed rate limits, and note/transcript sync to Neon.
+- **Email**: welcome, password reset, password changed, receipt, cancellation, and enterprise invite emails through Resend, with a console preview when no key is set.
+- **Enterprise**: a private, unlisted onboarding link per deal on `/enterprise/onboarding/:token`, with saved checklist steps and sign-in required to finish.
 - **Local-first audio**: sessions live in `localStorage` as an offline cache, audio blobs in IndexedDB, and cloud writes are debounced and retried.
 - **PWA**: installable on a phone, standalone window, offline shell.
 - **Graceful draft mode** if no AI key is configured: browser captions and on-device draft notes still work.
@@ -149,6 +151,37 @@ Set the Paystack webhook to `https://your-domain/api/billing`, then run `npm run
 
 Never put the secret key in a `VITE_` variable or commit `.env`.
 
+### Email notifications (Resend)
+
+JotBox sends welcome, password reset, password changed, receipt, cancellation, and enterprise invite emails through [Resend](https://resend.com). Without a key every email is printed to the server log, so local development needs no account.
+
+```env
+RESEND_API_KEY=re_...
+EMAIL_FROM=JotBox <hello@jotbox.app>
+JOTBOX_PUBLIC_URL=https://jotbox-eight.vercel.app
+```
+
+`EMAIL_FROM` must use a domain verified in Resend. `JOTBOX_PUBLIC_URL` is the origin used in email links; it defaults to the production deployment.
+
+Password recovery is live at `/forgot-password` and `/reset-password`. Tokens are 256-bit, stored SHA-256 hashed, expire after 60 minutes, are single use, and resetting a password signs out every existing session. Requests are rate limited per IP and per email, and the API always returns the same message so it cannot be used to probe which addresses have accounts.
+
+Templates and the send helper live in [`server/api/email.mjs`](server/api/email.mjs). Auth wiring is in [`server/api/auth.mjs`](server/api/auth.mjs); billing receipts and cancellations are in [`server/api/billing.mjs`](server/api/billing.mjs).
+
+### Enterprise onboarding (private link)
+
+Enterprise is $25 per seat per month and includes a guided onboarding that you walk through with the customer. Create a private link after the deal is agreed:
+
+```bash
+npm run enterprise:invite -- --company "Lagos Analytics" --email ops@lagos.example \
+  --name "Ada" --seats 24 --notes "Kickoff Tuesday, Google Workspace"
+npm run enterprise:invite -- --list
+npm run enterprise:invite -- --revoke <invite-id>
+```
+
+The command stores only a hash of the token, prints the link once, and emails it when Resend is configured. Pass `--no-email` to skip sending or `--days` to change the 30-day expiry.
+
+The link opens `/enterprise/onboarding/:token`, a page that is not linked anywhere in the frontend and is marked `noindex` with `no-referrer`. It shows the agreed seats and price, six walkthrough steps with saved checklist state, and host talk tracks. It does not grant a session: the customer still signs in or creates an account before finishing, and the finished state records who accepted. Expired or revoked links return a generic 404.
+
 ### Production build
 
 ```bash
@@ -167,7 +200,7 @@ vercel env add DATABASE_URL production --sensitive   # the jotbox_app URL
 vercel --prod
 ```
 
-Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `logout`, `me`), `billing`, `captures`, `health`, `transcribe`, `enhance`, `assist`, `share`, and `orgs` (organisations, members, departments, sharing, audit, and memory; `/api/orgs/*` is rewritten to one shared handler to stay under the Hobby plan's 12-function limit). Set `DATABASE_URL` to the **app role** URL in Vercel Production, Preview, and Development. Never add `DATABASE_URL_OWNER` to Vercel. Add the provider keys you intend to use (`GROQ_API_KEY`, `WHISPER_BASE_URL`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `PAYSTACK_SECRET_KEY`) as sensitive environment variables.
+Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `logout`, `me`, `forgot-password`, `reset-password`), `billing`, `captures`, `health`, `transcribe`, `enhance`, `assist`, `share`, `download` (direct Windows installer), `onboarding` (private enterprise walkthrough), and `orgs` (organisations, members, departments, sharing, audit, and memory; `/api/orgs/*` is rewritten to one shared handler to stay under the Hobby plan's 12-function limit). Set `DATABASE_URL` to the **app role** URL in Vercel Production, Preview, and Development. Never add `DATABASE_URL_OWNER` to Vercel. Add the provider keys you intend to use (`GROQ_API_KEY`, `WHISPER_BASE_URL`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `PAYSTACK_SECRET_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`) as sensitive environment variables.
 
 **Request size:** Vercel Functions cap a request body at roughly **4.5 MB**, so long recordings must go through the self-hosted worker directly or through object storage. Short clips work through `/api/transcribe` as-is. See [docs/ai-providers.md](docs/ai-providers.md) for the options.
 
@@ -176,6 +209,8 @@ For the recommended low-cost path (Groq for short clips and a self-hosted Whispe
 ### Desktop app (Windows)
 
 The Electron shell in [`apps/desktop`](apps/desktop) loads the deployed web app and adds the island: a transparent, always-on-top window that stays click-through until you hover the pill. It opens with a short splash, then a compact desktop sign-in card instead of the marketing site. Closing the main window hides it to the tray and keeps the capture running.
+
+The landing page downloads the installer directly through `/api/download/windows`. That route asks GitHub for the latest release, picks the Windows `.exe` asset, and returns a 302 to it with a short cache, so visitors never land on the release page and the link keeps working after a new version ships.
 
 ```bash
 npm run dev --workspace @jotbox/desktop   # loads http://localhost:5173 after npm run dev:web
@@ -192,6 +227,8 @@ Shortcuts: `Ctrl+Shift+J` opens JotBox, `Ctrl+Shift+L` starts or stops a microph
 | --- | --- |
 | Landing (`/`) | Public front door: the promise, Pidgin and tone, how it works, a finished-note preview, pricing, privacy, and CTAs |
 | Auth (`/auth`) | Standalone sign in and create account. Signed-out visitors are sent here first; signed-in visitors continue to their destination |
+| Recovery (`/forgot-password`, `/reset-password`) | Emailed 60-minute reset link, then a new password; every existing session is signed out |
+| Enterprise onboarding (`/enterprise/onboarding/:token`) | Private, unlisted walkthrough for a signed-off enterprise deal; requires sign-in to finish |
 | Dashboard (`/app`) | Greeting, quick capture, capture stats, recent notes |
 | Capture (`/listen`) | Pick a session shape, name it, choose microphone / call tab / upload |
 | Live capture | Timer, jottings pad, live words, pause/resume, float, stop and write |
@@ -272,8 +309,8 @@ Client types:
 ### Project layout
 
 ```text
-api/                        Vercel function entrypoints (auth, captures, health, transcribe, enhance)
-server/api/                 shared AI gateway, auth, captures, DB, password, HTTP handlers
+api/                        Vercel function entrypoints (auth, captures, health, transcribe, enhance, download, onboarding)
+server/api/                 shared AI gateway, auth, email, billing, onboarding, download, captures, DB, password, HTTP handlers
 worker/                     optional Speaches / faster-whisper Docker setup
 scripts/                    AI checks, sample audio, smoke tests
 db/                         schema, migrations, role setup, smoke tests
@@ -283,7 +320,7 @@ apps/web/
   src/components/           shell, words view, sync, account UI, scroll progress
   src/engine/               capture engine (mic/tab, MediaRecorder, Web Speech, desktop island publishing)
   src/lib/                  notes, API client, cloud sync, desktop bridge, formatting, exports
-  src/pages/                Landing, Auth, Home, Listen, Session, Library, Account, Float, Island, Settings
+  src/pages/                Landing, Auth, ForgotPassword, ResetPassword, EnterpriseOnboarding, Home, Listen, Session, Library, Account, Float, Island, Settings
   public/fonts/             SF Pro Display WOFF files
 apps/desktop/
   main.cjs                  Electron shell: windows, tray, shortcuts, overlay state, call picker
@@ -301,13 +338,13 @@ docs/screenshots/
 - **Long audio needs the worker or storage.** Vercel Functions cap requests near 4.5 MB. Short clips work through `/api/transcribe`; long lectures need the self-hosted worker or an upload-to-storage flow.
 - **Nigerian Pidgin has no Whisper language token.** The request uses `language=en` plus a Pidgin prompt, so recognition quality varies. Names and amounts should still be checked before sending notes on.
 - **Sync is last-write-wins.** Editing the same session on two devices at once can overwrite the older edit.
-- **Account lifecycle is minimal.** There is no email verification, password reset, or account deletion yet.
+- **Account lifecycle is still partial.** Password reset and password-changed notifications work; email verification, delete-account, and active-session management are not built.
 - **Browser storage is still a cache.** If you are signed in, notes are recoverable from the account. Guest notes are only on the device.
 
 ## Roadmap
 
 1. **Long-audio uploads:** direct-to-worker or object-storage uploads so recordings over the Vercel request limit work in production.
-2. **Account lifecycle:** email verification, password reset, delete-account, active-session management.
+2. **Account lifecycle:** email verification, delete-account, active-session management.
 3. **Sharing:** read-only note links, WhatsApp/email share, PDF and DOCX exports.
 4. **Capture depth:** system-audio guidance, calendar/meeting detection, persistent speaker names.
 5. **Local languages:** stronger Yoruba, Igbo, and Hausa recognition, Pidgin-aware evaluation, and an offline Whisper path for low-connectivity rooms.
