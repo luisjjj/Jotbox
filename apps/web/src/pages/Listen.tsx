@@ -801,8 +801,8 @@ ${line}` : line;
               <div className="flex items-start gap-2 border-b border-line bg-raised-2 px-4 py-2.5 text-[13px] leading-5 text-muted sm:px-5">
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-brass" />
                 {studio === false
-                  ? "This browser can't show live words. Audio is still recording, and you can paste the words after the session."
-                  : "This browser can't show live words. Audio is still recording, and JotBox will write the words when you stop."}
+                  ? "Live words are off. Audio is still recording. You can paste the words after the session."
+                  : "Live words are off. Audio is still recording, and JotBox will write the words when you stop."}
               </div>
             )}
             <TranscriptView

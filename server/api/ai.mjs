@@ -25,6 +25,7 @@ const XAI_STT_URL = "https://api.x.ai/v1/stt";
 const XAI_CHAT_URL = "https://api.x.ai/v1/chat/completions";
 
 const MAX_AUDIO = 80 * 1024 * 1024;
+const MAX_LIVE_AUDIO = 2 * 1024 * 1024;
 const GROQ_FREE_MAX = 24 * 1024 * 1024;
 const MAX_TRANSCRIPT = 80_000;
 const MAX_SCRATCH = 12_000;
@@ -1295,14 +1296,14 @@ export async function handleAssist(req, res) {
 
 const buckets = new Map();
 
-function rateLimit(req, limit = 40) {
+function rateLimit(req, limit = 40, scope = "capture") {
   if (enabled("JOTBOX_AI_NO_RATE_LIMIT")) return;
   const now = Date.now();
   const windowMs = 60 * 60 * 1000;
-  const ip = clientIp(req);
-  const entry = buckets.get(ip);
+  const bucket = `${scope}:${clientIp(req)}`;
+  const entry = buckets.get(bucket);
   if (!entry || now - entry.startedAt > windowMs) {
-    buckets.set(ip, { count: 1, startedAt: now });
+    buckets.set(bucket, { count: 1, startedAt: now });
     return;
   }
   entry.count += 1;
@@ -1329,6 +1330,20 @@ export async function handleTranscribe(req, res) {
   if (!body.length) throw new HttpError(400, "No recording was sent.");
   const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
   const filename = `session.${extensionFor(contentType)}`;
+  const context = sttContextFromRequest(req);
+  sendJson(res, 200, await transcribeAudio({ buffer: body, contentType, filename, context }));
+}
+
+// Small chunks from the desktop live captions. Higher request count, lower
+// size cap, so the hourly audio budget stays below the capture endpoint.
+export async function handleLiveTranscribe(req, res) {
+  requireMethod(req, ["POST"]);
+  assertSameOrigin(req);
+  rateLimit(req, 400, "live");
+  const body = await readBody(req, MAX_LIVE_AUDIO);
+  if (!body.length) throw new HttpError(400, "No audio was sent.");
+  const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
+  const filename = `live.${extensionFor(contentType)}`;
   const context = sttContextFromRequest(req);
   sendJson(res, 200, await transcribeAudio({ buffer: body, contentType, filename, context }));
 }

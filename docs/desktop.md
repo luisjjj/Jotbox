@@ -16,6 +16,12 @@ Windows is the first target. The installer is an NSIS setup in `apps/desktop/rel
 - **Call picker** lists windows and screens with thumbnails. Choosing a window returns it to `getDisplayMedia` with Windows loopback audio, mixed with the microphone by the existing engine.
 - **Permissions** are granted only to the JotBox origin, for microphone, display capture, and notifications.
 
+## Live words
+
+Electron ships without the Web Speech API, so the browser live-caption path never arms inside the shell. The engine detects that and records a second stream in 10 second standalone segments. Each segment goes to `POST /api/transcribe?live=1`, which uses the same speech provider as the final pass with a smaller body cap and its own hourly bucket. Words land in the transcript panel about 10 to 14 seconds behind the room. After two failed chunks the panel falls back to "Live words are off" and the capture keeps recording.
+
+The live path runs only in the desktop shell. In a normal browser the Web Speech API is still preferred, because it is closer to real time and does not spend server transcription budget.
+
 ## The island
 
 The window is `460x220` at the top center of the display that holds the main window. It sits at `screen-saver` level so it stays above normal windows and full-screen calls.

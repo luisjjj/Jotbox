@@ -9,7 +9,7 @@ import {
 } from "./auth.mjs";
 import { handleCaptures } from "./captures.mjs";
 import { handleOrgs } from "./orgs.mjs";
-import { handleAssist, handleEnhance, handleTranscribe } from "./ai.mjs";
+import { handleAssist, handleEnhance, handleLiveTranscribe, handleTranscribe } from "./ai.mjs";
 import { handleBilling } from "./billing.mjs";
 import { handleShare } from "./share.mjs";
 import { handleDownloadWindows } from "./download.mjs";
@@ -60,7 +60,8 @@ export async function handleCoreApi(req, res) {
     return true;
   }
   if (pathname === "/api/transcribe") {
-    await handleTranscribe(req, res);
+    const live = new URL(req.url || "/", "http://localhost").searchParams.get("live") === "1";
+    await (live ? handleLiveTranscribe(req, res) : handleTranscribe(req, res));
     return true;
   }
   if (pathname === "/api/enhance") {

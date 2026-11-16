@@ -17,6 +17,7 @@ import { desktopBridge } from "@/lib/desktop";
 import { defaultTitle, formatClock } from "@/lib/format";
 import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/lib/insights";
 import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
+import { transcribeChunk } from "@/lib/liveTranscribe";
 import {
   focusContext,
   getPickupMode,
@@ -26,7 +27,7 @@ import {
 } from "@/lib/listening";
 import { useSessions } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
-import { ensureUsage } from "@/lib/usageStore";
+import { ensureUsage, refreshUsage, useUsage } from "@/lib/usageStore";
 import { withProcessingTimeout } from "@/lib/processing";
 import type { CaptureSource, LiveInsights, Participant, Session, SessionKind, TranscriptLine } from "@/lib/types";
 
@@ -125,6 +126,24 @@ function pickMime() {
   return types.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
 }
 
+// The billing status call can sit behind a cold serverless start. Capture
+// should not wait for it: use the cached quota and revalidate in the
+// background. The server still rejects a save that is over the limit.
+async function usageSnapshot() {
+  const cached = useUsage.getState();
+  if (cached.loaded) {
+    void refreshUsage();
+    return cached;
+  }
+  await Promise.race([
+    ensureUsage(),
+    new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 1500);
+    }),
+  ]);
+  return useUsage.getState();
+}
+
 function audioDuration(file: File) {
   return new Promise<number>((resolve) => {
     const url = URL.createObjectURL(file);
@@ -151,6 +170,21 @@ const FREE_LIMIT_ERROR =
   "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening.";
 const UPLOAD_TOO_LONG =
   "That recording is longer than the free listening time you have left this month. Upgrade to Pro to keep listening.";
+
+// Electron has no Web Speech API, so the desktop app sends short standalone
+// chunks to the same transcription endpoint the final pass uses.
+const LIVE_SEGMENT_MS = 10_000;
+const LIVE_QUEUE_LIMIT = 6;
+
+interface ServerLive {
+  active: boolean;
+  generation: number;
+  recorder: MediaRecorder | null;
+  timer: number;
+  queue: Blob[];
+  sending: boolean;
+  failures: number;
+}
 
 function copyStyles(target: Document) {
   document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
@@ -201,6 +235,16 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const chunks = useRef<Blob[]>([]);
   const mimeRef = useRef("");
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const serverLiveRef = useRef<ServerLive>({
+    active: false,
+    generation: 0,
+    recorder: null,
+    timer: 0,
+    queue: [],
+    sending: false,
+    failures: 0,
+  });
   const speechRef = useRef<SpeechRec | null>(null);
   const listenRef = useRef(false);
   const stopStreamRef = useRef<() => void>(() => {});
@@ -300,11 +344,23 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const mic = await navigator.mediaDevices.getUserMedia({ audio: pickupConstraints(pickup) });
       let recorded = mic;
       if (audioContext) {
-        try {
-          await audioContext.resume();
-          if (audioContext.state === "running") recorded = conditionStream(mic, audioContext, pickup);
-        } catch {
-          recorded = mic;
+        const running =
+          audioContext.state === "running" ||
+          (await Promise.race<boolean>([
+            audioContext
+              .resume()
+              .then(() => audioContext.state === "running")
+              .catch(() => false),
+            new Promise<boolean>((resolve) => {
+              window.setTimeout(() => resolve(audioContext.state === "running"), 600);
+            }),
+          ]));
+        if (running) {
+          try {
+            recorded = conditionStream(mic, audioContext, pickup);
+          } catch {
+            recorded = mic;
+          }
         }
       }
       if (audioContext && analyser) {
@@ -393,10 +449,131 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     return tabStream;
   };
 
+  const appendLiveText = (raw: string) => {
+    const text = raw.replace(/\s+/g, " ").trim();
+    if (!text) return;
+    const context = focusContext({
+      title: titleRef.current,
+      kind: kindRef.current,
+      participants: participantsRef.current,
+      scratch: scratchRef.current,
+    });
+    if (isOffTopic(text, context) || isNoiseLine(text)) return;
+    const last = linesRef.current[linesRef.current.length - 1];
+    if (last && last.text.trim().toLowerCase() === text.toLowerCase()) return;
+    linesRef.current = [...linesRef.current, { id: crypto.randomUUID(), text, at: currentElapsed() }];
+    setLines(linesRef.current);
+    persistLive();
+  };
+
+  const stopServerLive = () => {
+    const live = serverLiveRef.current;
+    live.active = false;
+    live.generation += 1;
+    if (live.timer) {
+      window.clearTimeout(live.timer);
+      live.timer = 0;
+    }
+    const recorder = live.recorder;
+    live.recorder = null;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        /* already stopped */
+      }
+    }
+    live.queue = [];
+  };
+
+  const pumpServerLive = async (generation: number) => {
+    const live = serverLiveRef.current;
+    if (live.sending) return;
+    live.sending = true;
+    try {
+      while (live.active && live.generation === generation && live.queue.length) {
+        const blob = live.queue.shift()!;
+        try {
+          const text = await transcribeChunk(blob, {
+            title: titleRef.current || defaultTitle(kindRef.current),
+            kind: kindRef.current,
+            participants: participantsRef.current,
+          });
+          if (!live.active || live.generation !== generation) break;
+          live.failures = 0;
+          appendLiveText(text);
+        } catch {
+          live.failures += 1;
+          if (live.failures >= 2) {
+            stopServerLive();
+            setCaptions(false);
+            break;
+          }
+        }
+      }
+    } finally {
+      live.sending = false;
+    }
+  };
+
+  const startServerSegment = () => {
+    const live = serverLiveRef.current;
+    const stream = streamRef.current;
+    if (!live.active || !stream) return;
+    const mime = pickMime();
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    } catch {
+      live.active = false;
+      setCaptions(false);
+      return;
+    }
+    const generation = live.generation;
+    const parts: Blob[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) parts.push(event.data);
+    };
+    recorder.onstop = () => {
+      if (live.generation === generation && parts.length) {
+        live.queue.push(new Blob(parts, { type: recorder.mimeType || mime || "audio/webm" }));
+        if (live.queue.length > LIVE_QUEUE_LIMIT) live.queue.shift();
+        void pumpServerLive(generation);
+      }
+      if (live.active && live.generation === generation) startServerSegment();
+    };
+    live.recorder = recorder;
+    try {
+      recorder.start();
+    } catch {
+      live.active = false;
+      setCaptions(false);
+      return;
+    }
+    live.timer = window.setTimeout(() => {
+      if (live.recorder === recorder && recorder.state !== "inactive") {
+        try {
+          recorder.stop();
+        } catch {
+          /* already stopped */
+        }
+      }
+    }, LIVE_SEGMENT_MS);
+  };
+
+  const armServerSpeech = () => {
+    const live = serverLiveRef.current;
+    stopServerLive();
+    live.active = true;
+    live.failures = 0;
+    startServerSegment();
+  };
+
   const armSpeech = () => {
     const Ctor = speechCtor();
     if (!Ctor) {
-      setCaptions(false);
+      if (desktop) armServerSpeech();
+      else setCaptions(false);
       return;
     }
     const rec = new Ctor();
@@ -404,34 +581,14 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     rec.interimResults = true;
     rec.lang = "en-NG";
     rec.onresult = (event) => {
-      const context = focusContext({
-        title: titleRef.current,
-        kind: kindRef.current,
-        participants: participantsRef.current,
-        scratch: scratchRef.current,
-      });
       let pending = "";
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
         const text = result[0].transcript.trim();
         if (!text) continue;
         if (result.isFinal) {
-          const last = linesRef.current[linesRef.current.length - 1];
-          if (last && last.text.trim().toLowerCase() === text.toLowerCase()) {
-            pending = "";
-            continue;
-          }
-          if (isOffTopic(text, context)) {
-            pending = "";
-            continue;
-          }
-          linesRef.current = [
-            ...linesRef.current,
-            { id: crypto.randomUUID(), text, at: currentElapsed() },
-          ];
-          setLines(linesRef.current);
           pending = "";
-          persistLive();
+          appendLiveText(text);
         } else if (!isNoiseLine(text)) {
           pending += `${text} `;
         }
@@ -465,6 +622,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
 
   const finishRecorder = () => {
     listenRef.current = false;
+    stopServerLive();
     try {
       speechRef.current?.stop();
     } catch {
@@ -484,6 +642,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     return blob.finally(() => {
       stopStreamRef.current();
       stopStreamRef.current = () => {};
+      streamRef.current = null;
       recorderRef.current = null;
     });
   };
@@ -588,7 +747,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       }
       startingRef.current = true;
       setError(null);
-      const usage = await ensureUsage();
+      const usage = await usageSnapshot();
       if (usage.loaded && !usage.unlimited && (usage.remainingSeconds ?? 0) <= 0) {
         startingRef.current = false;
         setError(FREE_LIMIT_ERROR);
@@ -603,6 +762,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const nextTitle = options.title?.trim() || titleRef.current.trim() || defaultTitle(options.kind);
       try {
         const stream = await openStream(options.source);
+        streamRef.current = stream;
         const mime = pickMime();
         const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
         chunks.current = [];
@@ -672,6 +832,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     setElapsed(elapsedRef.current);
     if (recorderRef.current?.state === "recording") recorderRef.current.pause();
     listenRef.current = false;
+    stopServerLive();
     try {
       speechRef.current?.stop();
     } catch {
@@ -691,9 +852,13 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     tickStart.current = Date.now();
     if (recorderRef.current?.state === "paused") recorderRef.current.resume();
     listenRef.current = true;
-    try {
-      speechRef.current?.start();
-    } catch {
+    if (speechRef.current) {
+      try {
+        speechRef.current.start();
+      } catch {
+        armSpeech();
+      }
+    } else {
       armSpeech();
     }
     setStatusBoth("recording");
@@ -706,7 +871,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         return;
       }
       startingRef.current = true;
-      const usage = await ensureUsage();
+      const usage = await usageSnapshot();
       if (usage.loaded && !usage.unlimited && usage.remainingSeconds !== null && usage.remainingSeconds <= 0) {
         startingRef.current = false;
         setError(FREE_LIMIT_ERROR);
