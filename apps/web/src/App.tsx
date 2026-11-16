@@ -11,6 +11,7 @@ import Auth from "@/pages/Auth";
 import FloatPage from "@/pages/FloatPage";
 import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
+import { PrivacyPolicy, RefundPolicy, TermsAndConditions } from "@/pages/Legal";
 import Library from "@/pages/Library";
 import Listen from "@/pages/Listen";
 import MemoryPage from "@/pages/Memory";
@@ -48,6 +49,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={isDesktop() ? <Navigate to="/app" replace /> : <Landing />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsAndConditions />} />
+          <Route path="/refunds" element={<RefundPolicy />} />
           <Route path="/s/:token" element={<SharedPage />} />
           <Route
             element={

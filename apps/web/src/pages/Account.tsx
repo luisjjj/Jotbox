@@ -344,6 +344,18 @@ function PlanCard() {
           <ShieldCheck className="mt-px h-3 w-3 flex-none" />
           Payments are handled by Paystack. JotBox never sees your card details.
         </p>
+
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] leading-4 text-faint">
+          <Link to="/refunds" className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">
+            Cancellation and refunds
+          </Link>
+          <Link to="/terms" className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">
+            Terms
+          </Link>
+          <Link to="/privacy" className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">
+            Privacy
+          </Link>
+        </p>
       </section>
 
       <ConfirmDialog

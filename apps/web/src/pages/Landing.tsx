@@ -301,6 +301,17 @@ export default function Landing() {
                 </a>
               ))}
             </nav>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[13px] font-medium text-muted">
+              <Link to="/privacy" onClick={() => setMenuOpen(false)}>
+                Privacy policy
+              </Link>
+              <Link to="/terms" onClick={() => setMenuOpen(false)}>
+                Terms
+              </Link>
+              <Link to="/refunds" onClick={() => setMenuOpen(false)}>
+                Refunds
+              </Link>
+            </div>
             <div className="mt-4 flex flex-col gap-2">
               <Link to={appHref} className="btn btn-primary w-full" onClick={() => setMenuOpen(false)}>
                 {signedIn ? "Open JotBox" : "Get started free"}
@@ -804,7 +815,7 @@ export default function Landing() {
                     { Icon: Lock, text: "Recordings stay in this browser, not a JotBox library." },
                     { Icon: Cloud, text: "Notes and jottings follow you only after you sign in." },
                     { Icon: Sparkles, text: "Notes are written only when you ask for them." },
-                    { Icon: MonitorUp, text: "No meeting bot. No calendar access. No tracking." },
+                    { Icon: MonitorUp, text: "No meeting bot. No calendar access. No ad tracking." },
                   ].map((item) => (
                     <div
                       key={item.text}
@@ -856,7 +867,7 @@ export default function Landing() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Brand />
           <p className="text-[12.5px] text-faint">Notes for the room and the call. Built for the way we meet.</p>
-          <div className="flex items-center gap-4 text-[13px] font-medium text-muted">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] font-medium text-muted">
             <a href="#how" className="transition-colors hover:text-ink">
               How it works
             </a>
@@ -869,6 +880,15 @@ export default function Landing() {
             <a href="https://github.com/luisjjj/Jotbox" className="transition-colors hover:text-ink">
               GitHub
             </a>
+            <Link to="/privacy" className="transition-colors hover:text-ink">
+              Privacy policy
+            </Link>
+            <Link to="/terms" className="transition-colors hover:text-ink">
+              Terms
+            </Link>
+            <Link to="/refunds" className="transition-colors hover:text-ink">
+              Refunds
+            </Link>
           </div>
         </div>
         <p className="mt-5 text-[12px] text-faint">

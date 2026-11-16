@@ -229,6 +229,17 @@ export default function SharedPage() {
         <footer className="mt-10 border-t border-line pt-4 text-[12.5px] leading-5 text-faint">
           Shared as a read-only page. The audio and private jottings stay on the recorder's device. Notes are a
           summary, so check names, numbers, and owners before you act on them.
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            <Link to="/privacy" className="underline decoration-line-strong underline-offset-2 hover:text-ink">
+              Privacy Policy
+            </Link>
+            <Link to="/terms" className="underline decoration-line-strong underline-offset-2 hover:text-ink">
+              Terms
+            </Link>
+            <Link to="/refunds" className="underline decoration-line-strong underline-offset-2 hover:text-ink">
+              Refunds
+            </Link>
+          </div>
         </footer>
       </main>
     </div>

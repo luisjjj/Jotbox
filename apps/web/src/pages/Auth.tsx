@@ -213,6 +213,24 @@ export default function Auth() {
           )}
           {submitting ? "Working…" : mode === "login" ? "Sign in" : "Create my account"}
         </button>
+
+        {mode === "register" && (
+          <p className="pt-1 text-center text-[12px] leading-5 text-faint">
+            By creating an account you agree to our{" "}
+            <Link to="/terms" className="font-medium text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent">
+              Terms and Conditions
+            </Link>{" "}
+            and{" "}
+            <Link to="/privacy" className="font-medium text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent">
+              Privacy Policy
+            </Link>
+            . Pro subscriptions are also covered by the{" "}
+            <Link to="/refunds" className="font-medium text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent">
+              Cancellation and Refund Policy
+            </Link>
+            .
+          </p>
+        )}
       </form>
     </>
   );
