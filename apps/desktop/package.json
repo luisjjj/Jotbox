@@ -52,6 +52,7 @@
         }
       ],
       "icon": "assets/icon.png",
+      "publisherName": null,
       "artifactName": "JotBox-Setup-${version}.${ext}"
     },
     "nsis": {

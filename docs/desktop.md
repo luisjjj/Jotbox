@@ -130,7 +130,7 @@ To publish an update:
 
 Builds stay local unless `--publish always` is passed, so `npm run dist` never uploads anything by itself.
 
-The self-signed certificate has no `win.publisherName` configured, which means electron-updater skips Windows signature verification and relies on the SHA-512 in `latest.yml` plus HTTPS. If the app moves to a trusted certificate, set `build.win.publisherName` to that certificate's common name to turn verification back on.
+`build.win.publisherName` is set to `null` because the installer uses a self-signed certificate that other PCs do not trust. electron-builder then omits the publisher from `app-update.yml`, so electron-updater skips the Windows Authenticode check and relies on the SHA-512 in `latest.yml` plus HTTPS. If the app moves to a trusted certificate, set `publisherName` to that certificate's common name to turn verification back on.
 
 ### If winCodeSign will not extract
 
