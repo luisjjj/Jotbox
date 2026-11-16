@@ -1,6 +1,6 @@
 # Payments and Pro subscriptions
 
-JotBox uses Paystack for Pro. The site shows **$7 a month**, and checkout charges the Naira equivalent because a Paystack plan is locked to one currency. Nigerian cards are charged in Naira by JotBox itself, not converted silently by Paystack.
+JotBox uses Paystack for Pro. The site shows **$5 a month**, and checkout charges the Naira equivalent because a Paystack plan is locked to one currency. Nigerian cards are charged in Naira by JotBox itself, not converted silently by Paystack.
 
 ## How the flow works
 
@@ -18,21 +18,26 @@ The status card on `/account` reads `GET /api/billing`. Every billing action req
 | Name | Purpose |
 | --- | --- |
 | `PAYSTACK_SECRET_KEY` | Server-only key. `sk_test_...` while testing, `sk_live_...` in production. |
-| `PAYSTACK_PLAN_CODE` | Optional. Use an existing monthly NGN plan instead of letting JotBox create and cache one. |
-| `PAYSTACK_PRO_AMOUNT_NGN` | Naira charged each month. Defaults to `$7 × JOTBOX_USD_TO_NGN`. |
+| `PAYSTACK_PLAN_CODE` | Optional. Use an existing monthly NGN plan instead of letting JotBox create and cache one. It must match the current amount, currency, and interval, or checkout refuses to start. |
+| `PAYSTACK_PRO_AMOUNT_NGN` | Naira charged each month. Defaults to `$5 × JOTBOX_USD_TO_NGN`, which is 8,000 Naira. |
 | `JOTBOX_USD_TO_NGN` | Display and fallback conversion rate. Defaults to `1600`. |
 | `JOTBOX_FREE_MONTH_MINUTES` | Free listening each calendar month. Defaults to `60`; Pro is unlimited. |
 | `JOTBOX_PUBLIC_URL` | Public origin used for the Paystack callback. Falls back to the request host. |
 | `CRON_SECRET` | Bearer token Vercel Cron sends to the daily payment check. Generate a long random string. |
 
-Never add the secret key to a `VITE_` variable, and never commit `.env`. Add the same names to Vercel Production, Preview, and Development as sensitive values.
+Never add the secret key to a `VITE_` variable, and never commit `.env`. Add the same names to Vercel Production, Preview, and Development as sensitive values. The public key is not used: checkout is a server-created redirect, so only the secret key matters.
 
-## Paystack dashboard
+In Vercel Production, `PAYSTACK_SECRET_KEY` must start with `sk_live_`. The server refuses every billing call in production while a test key is set.
 
-1. Copy the secret key from **Settings, API Keys and Webhooks**.
-2. Set the webhook URL to `https://your-domain/api/billing`.
-3. Test with a test secret key first. Paystack test payments use test cards and do not move money.
-4. Switch to the live secret key, then make one small live payment and confirm the webhook arrives before announcing Pro.
+## Going live
+
+1. Copy the live secret key from **Settings, API Keys and Webhooks** in the Paystack dashboard and save it as `PAYSTACK_SECRET_KEY` in Vercel Production (sensitive). Redeploy afterwards so the function picks it up.
+2. Set `PAYSTACK_PRO_AMOUNT_NGN=8000` (5 dollars at the 1,600 rate) and `JOTBOX_PUBLIC_URL=https://your-domain`.
+3. In live mode, set the webhook URL to `https://your-domain/api/billing`.
+4. Keep `PAYSTACK_PLAN_CODE` empty unless you created a live monthly NGN plan. A test-mode plan code does not exist in live mode, and checkout will fail on it.
+5. Make one small live payment with a real card, confirm Pro turns on, the webhook appears in the Paystack dashboard, and **Cancel renewal** works. Then refund it.
+
+Plans belong to one mode. A plan created with a test key cannot be used with a live key. JotBox checks the stored plan against the live API and creates a fresh one when the cached code is dead or the price changed, so the switch from test to live heals itself on the first checkout.
 
 JotBox creates a plan named `JotBox Pro NGN <amount> monthly` the first time someone upgrades. The plan code is cached in `billing_plans`; changing `PAYSTACK_PRO_AMOUNT_NGN` creates a new plan on the next checkout so existing subscribers keep their old price.
 
@@ -66,7 +71,7 @@ Checkout is idempotent in three ways:
 
 ## Plans cannot be extended from outside
 
-`validProCharge` refuses to grant Pro unless the charge is in Naira, at least 90 percent of the agreed amount (or the amount the subscriber already pays), and tied to the JotBox Pro plan code or metadata. A valid reference for a cheaper transaction is not enough.
+`validProCharge` refuses to grant Pro unless the charge is in Naira, for exactly the amount quoted when that checkout was opened (or the amount the subscriber already pays), and tied to the JotBox Pro plan code or metadata. A valid reference for a cheaper transaction is not enough, and rounding tricks do not pass.
 
 `saveSubscription` writes a paid period through `clampPeriodEnd`, which:
 

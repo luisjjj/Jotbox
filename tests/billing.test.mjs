@@ -14,15 +14,22 @@ import { PRO_SHARE_DAYS, PRO_SHARE_LINKS, FREE_SHARE_DAYS, FREE_SHARE_LINKS, sha
 
 const DAY = 24 * 60 * 60 * 1000;
 
-test("Pro defaults to $7 converted into Naira kobo", () => {
+test("Pro defaults to $5 converted into Naira kobo", () => {
   const config = billingConfig({});
-  assert.equal(config.usd, 7);
+  assert.equal(config.usd, 5);
   assert.equal(config.ngnPerUsd, 1600);
-  assert.equal(config.naira, 11_200);
-  assert.equal(config.amountKobo, 1_120_000);
+  assert.equal(config.naira, 8_000);
+  assert.equal(config.amountKobo, 800_000);
   assert.equal(config.currency, "NGN");
   assert.equal(config.interval, "monthly");
   assert.equal(config.configured, false);
+  assert.equal(config.live, false);
+});
+
+test("only a live secret key is reported as live", () => {
+  assert.equal(billingConfig({ PAYSTACK_SECRET_KEY: "sk_test_example" }).live, false);
+  assert.equal(billingConfig({ PAYSTACK_SECRET_KEY: "sk_live_example" }).live, true);
+  assert.equal(billingConfig({ PAYSTACK_SECRET_KEY: " sk_live_example " }).live, true);
 });
 
 test("Naira amount and rate can be set without changing the plan currency", () => {
@@ -44,8 +51,8 @@ test("blank or broken pricing env falls back instead of charging zero", () => {
     PAYSTACK_PRO_AMOUNT_NGN: "",
     JOTBOX_USD_TO_NGN: "not-a-number",
   });
-  assert.equal(config.naira, 11_200);
-  assert.equal(config.amountKobo, 1_120_000);
+  assert.equal(config.naira, 8_000);
+  assert.equal(config.amountKobo, 800_000);
 });
 
 test("webhook signatures use the raw body and reject tampering", () => {
@@ -163,30 +170,44 @@ test("a charge is checked against the price quoted at checkout, not the current 
   const config = billingConfig({ PAYSTACK_PRO_AMOUNT_NGN: "15000" });
   const transaction = {
     status: "success",
-    amount: 1_120_000,
+    amount: 800_000,
     currency: "NGN",
     metadata: { plan_key: "pro" },
   };
+  const checkout = { amount: 800_000, currency: "NGN", plan_code: "PLN_pro" };
 
   assert.equal(validProCharge(transaction, { config, existing: null, planCode: "PLN_pro" }), false);
-  assert.equal(
-    validProCharge(transaction, {
-      config,
-      existing: null,
-      planCode: "PLN_pro",
-      checkout: { amount: 1_120_000, currency: "NGN", plan_code: "PLN_pro" },
-    }),
-    true,
-  );
+  assert.equal(validProCharge(transaction, { config, existing: null, planCode: "PLN_pro", checkout }), true);
   assert.equal(
     validProCharge(
       { ...transaction, amount: 500_000 },
-      {
-        config,
-        existing: null,
-        planCode: "PLN_pro",
-        checkout: { amount: 1_120_000, currency: "NGN", plan_code: "PLN_pro" },
-      },
+      { config, existing: null, planCode: "PLN_pro", checkout },
+    ),
+    false,
+  );
+});
+
+test("a charge must match the quoted amount to the kobo", () => {
+  const config = billingConfig({});
+  const checkout = { amount: 800_000, currency: "NGN", plan_code: "PLN_pro" };
+  const charge = (amount) => ({
+    status: "success",
+    amount,
+    currency: "NGN",
+    metadata: { plan_key: "pro" },
+  });
+
+  assert.equal(validProCharge(charge(800_000), { config, existing: null, planCode: "PLN_pro", checkout }), true);
+  assert.equal(validProCharge(charge(800_001), { config, existing: null, planCode: "PLN_pro", checkout }), false);
+  assert.equal(validProCharge(charge(799_999), { config, existing: null, planCode: "PLN_pro", checkout }), false);
+  assert.equal(
+    validProCharge(charge(800_000), { config, existing: null, planCode: "PLN_pro", checkout: { ...checkout, currency: "GHS" } }),
+    false,
+  );
+  assert.equal(
+    validProCharge(
+      { ...charge(800_000), plan: { plan_code: "PLN_other" } },
+      { config, existing: null, planCode: "PLN_pro", checkout },
     ),
     false,
   );

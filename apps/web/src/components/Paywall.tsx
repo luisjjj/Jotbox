@@ -10,8 +10,8 @@ const naira = new Intl.NumberFormat("en-NG", {
 });
 
 function priceLine(usd: number | null, nairaAmount: number | null) {
-  if (nairaAmount) return `${naira.format(nairaAmount)} a month, about $${usd ?? 7}.`;
-  return `$${usd ?? 7} a month.`;
+  if (nairaAmount) return `${naira.format(nairaAmount)} a month, about $${usd ?? 5}.`;
+  return `$${usd ?? 5} a month.`;
 }
 
 export function PaywallDialog({

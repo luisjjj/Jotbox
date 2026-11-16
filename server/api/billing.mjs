@@ -16,7 +16,7 @@ import {
  *
  * Pro is priced in US dollars on the site but charged in Naira, because a
  * Paystack plan is tied to one currency. The Naira amount is set with
- * PAYSTACK_PRO_AMOUNT_NGN, or converted from $7 with JOTBOX_USD_TO_NGN.
+ * PAYSTACK_PRO_AMOUNT_NGN, or converted from $5 with JOTBOX_USD_TO_NGN.
  *
  * Money is only trusted after Paystack confirms it. The browser return and the
  * webhook both write through the same reference-first ledger, so a retry or a
@@ -25,7 +25,7 @@ import {
  */
 
 const PAYSTACK_API = "https://api.paystack.co";
-const PRO_PRICE_USD = 7;
+const PRO_PRICE_USD = 5;
 const DEFAULT_NGN_PER_USD = 1600;
 const PRO_PLAN_KEY = "pro";
 const PAYSTACK_TIMEOUT_MS = 20_000;
@@ -37,6 +37,7 @@ const ACTIVE_GRACE_DAYS = 1;
 const ATTENTION_GRACE_DAYS = 2;
 const RECONCILE_AFTER_MS = 10 * 60 * 1000;
 const MIN_PRO_AMOUNT_KOBO = 100_00;
+const PLAN_CHECK_MS = 10 * 60 * 1000;
 
 function positiveNumber(value, fallback) {
   const parsed = Number(value);
@@ -46,6 +47,7 @@ function positiveNumber(value, fallback) {
 export function billingConfig(env = process.env) {
   const ngnPerUsd = Math.round(positiveNumber(env.JOTBOX_USD_TO_NGN, DEFAULT_NGN_PER_USD));
   const naira = Math.round(positiveNumber(env.PAYSTACK_PRO_AMOUNT_NGN, PRO_PRICE_USD * ngnPerUsd));
+  const secret = env.PAYSTACK_SECRET_KEY?.trim() || "";
   return {
     currency: "NGN",
     interval: "monthly",
@@ -53,7 +55,8 @@ export function billingConfig(env = process.env) {
     ngnPerUsd,
     naira,
     amountKobo: naira * 100,
-    configured: Boolean(env.PAYSTACK_SECRET_KEY?.trim()),
+    configured: Boolean(secret),
+    live: secret.startsWith("sk_live_"),
     planCode: env.PAYSTACK_PLAN_CODE?.trim() || "",
   };
 }
@@ -71,6 +74,9 @@ function publicPricing(config = billingConfig()) {
 function requirePaystack() {
   const secret = process.env.PAYSTACK_SECRET_KEY?.trim();
   if (!secret) throw new HttpError(503, "Payments are not switched on yet.");
+  if (process.env.VERCEL_ENV === "production" && !secret.startsWith("sk_live_")) {
+    throw new HttpError(503, "Payments are still in test mode. Add the live Paystack key first.");
+  }
   return secret;
 }
 
@@ -95,7 +101,10 @@ async function paystack(path, init = {}, timeoutMs = PAYSTACK_TIMEOUT_MS) {
   const body = await response.json().catch(() => null);
   if (!response.ok || body?.status === false) {
     console.error("[jotbox-billing] Paystack refused", path, response.status, body?.message);
-    throw new HttpError(502, body?.message || "Paystack could not complete that. Try again.");
+    throw new HttpError(
+      response.status === 404 ? 404 : 502,
+      body?.message || "Paystack could not complete that. Try again.",
+    );
   }
   return body?.data;
 }
@@ -111,8 +120,44 @@ function publicOrigin(req) {
   return `${proto}://${host}`;
 }
 
+/**
+ * A cached plan code can belong to Paystack test mode, or to a price that has
+ * since changed. Verifying the plan with the current key before reusing it
+ * stops a live checkout from initialising against a test plan or an old price.
+ */
+const planChecks = new Map();
+
+async function planMatches(code, config) {
+  const cacheKey = `${code}:${config.amountKobo}:${config.currency}:${config.interval}`;
+  const checkedAt = planChecks.get(cacheKey);
+  if (checkedAt && Date.now() - checkedAt < PLAN_CHECK_MS) return true;
+
+  let plan;
+  try {
+    plan = await paystack(`/plan/${encodeURIComponent(code)}`, {}, 5000);
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 404) return false;
+    throw error;
+  }
+
+  const matches =
+    currencyOf(plan?.currency) === config.currency &&
+    numberOrNull(plan?.amount) === config.amountKobo &&
+    String(plan?.interval || "").toLowerCase() === config.interval;
+  if (matches) planChecks.set(cacheKey, Date.now());
+  return matches;
+}
+
 async function ensurePlan(config) {
-  if (config.planCode) return config.planCode;
+  if (config.planCode) {
+    if (!(await planMatches(config.planCode, config))) {
+      throw new HttpError(
+        503,
+        "The Paystack plan code does not match the current Pro price. Update PAYSTACK_PLAN_CODE or remove it.",
+      );
+    }
+    return config.planCode;
+  }
 
   const cached = await query(
     `select code, currency, amount, interval
@@ -126,7 +171,8 @@ async function ensurePlan(config) {
     row &&
     row.currency === config.currency &&
     Number(row.amount) === config.amountKobo &&
-    row.interval === config.interval
+    row.interval === config.interval &&
+    (await planMatches(row.code, config))
   ) {
     return row.code;
   }
@@ -416,10 +462,10 @@ function shapeEvent(data) {
 }
 
 /**
- * A charge may only grant Pro when it is a Naira payment at the price quoted
- * when that checkout was opened. Checking against the live config would reject
- * a payment made just before a price change, and accepting a cheaper reference
- * would let anyone unlock Pro.
+ * A charge may only grant Pro when it is a Naira payment for exactly the price
+ * quoted when that checkout was opened. Checking against the live config would
+ * reject a payment made just before a price change, and accepting any cheaper
+ * reference would let someone unlock Pro with a smaller payment.
  */
 export function validProCharge(data, { existing, config, planCode, checkout = null }) {
   const shaped = shapeEvent(data);
@@ -448,7 +494,7 @@ export function validProCharge(data, { existing, config, planCode, checkout = nu
       : existing?.amount > 0
         ? Number(existing.amount)
         : config.amountKobo;
-  return amount >= Math.max(MIN_PRO_AMOUNT_KOBO, Math.floor(expected * 0.9));
+  return amount === expected && amount >= MIN_PRO_AMOUNT_KOBO;
 }
 
 async function getCheckout(reference, userId = null) {

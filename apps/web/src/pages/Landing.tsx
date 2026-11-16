@@ -756,7 +756,9 @@ export default function Landing() {
                   </span>
                   <p className="text-[15px] font-semibold text-ink">Pro</p>
                   <div className="mt-3 flex items-baseline gap-1.5">
-                    <span className="text-[46px] font-semibold leading-none tracking-[-0.05em] text-ink">$7</span>
+                    <span className="text-[46px] font-semibold leading-none tracking-[-0.05em] text-ink">
+                      ${BILLING_CONFIG.proUsd}
+                    </span>
                     <span className="text-[14px] text-muted">/ month</span>
                   </div>
                   <p className="mt-2 text-[12.5px] font-medium text-accent">
