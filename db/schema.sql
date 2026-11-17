@@ -446,3 +446,12 @@ create index if not exists integration_handoffs_session_idx on integration_hando
 insert into schema_migrations (version)
 values ('009_integrations')
 on conflict (version) do nothing;
+
+-- The dashboard role is chosen during guided setup. A null role means the
+-- person has not finished setup yet, so the app sends them to it once.
+alter table users add column if not exists dashboard_role text;
+alter table users add column if not exists onboarded_at timestamptz;
+
+insert into schema_migrations (version)
+values ('010_dashboard_roles')
+on conflict (version) do nothing;

@@ -1,9 +1,12 @@
 import type { Session } from "./types";
+import type { DashboardRole } from "./roles";
 
 export interface CloudUser {
   id: string;
   email: string;
   name: string;
+  role: DashboardRole | null;
+  onboardedAt?: number | null;
   createdAt?: number;
 }
 
@@ -346,6 +349,11 @@ export const api = {
     request<{ user: CloudUser }>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+  updateProfile: (role: DashboardRole) =>
+    request<{ user: CloudUser }>("/api/auth/profile", {
+      method: "POST",
+      body: JSON.stringify({ role }),
     }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   forgotPassword: (email: string) =>

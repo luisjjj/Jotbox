@@ -3,6 +3,7 @@ import { Toaster } from "react-hot-toast";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { RequireAuth } from "@/auth/RequireAuth";
+import { RoleGate } from "@/auth/RoleGate";
 import { AppShell } from "@/components/AppShell";
 import { CloudSync } from "@/components/CloudSync";
 import { EngineProvider } from "@/engine/SessionEngine";
@@ -22,6 +23,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import SessionPage from "@/pages/SessionPage";
 import SharedPage from "@/pages/SharedPage";
 import Settings from "@/pages/Settings";
+import Welcome from "@/pages/Welcome";
 import { isDesktop } from "@/lib/desktop";
 
 export default function App() {
@@ -60,9 +62,19 @@ export default function App() {
           <Route path="/refunds" element={<RefundPolicy />} />
           <Route path="/s/:token" element={<SharedPage />} />
           <Route
+            path="/welcome"
             element={
               <RequireAuth>
-                <AppShell />
+                <Welcome />
+              </RequireAuth>
+            }
+          />
+          <Route
+            element={
+              <RequireAuth>
+                <RoleGate>
+                  <AppShell />
+                </RoleGate>
               </RequireAuth>
             }
           >

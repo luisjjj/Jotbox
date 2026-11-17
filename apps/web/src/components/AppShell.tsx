@@ -19,6 +19,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/auth/AuthProvider";
 import { useEngine } from "@/engine/SessionEngine";
+import { isLeanRole } from "@/lib/roles";
 import { loadSampleSessions } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
@@ -37,7 +38,11 @@ const NAV = [
   { to: "/settings", label: "Settings", Icon: Settings, end: false },
 ];
 
-const MOBILE_NAV = NAV.filter((item) => item.to !== "/settings");
+function navItems(lean: boolean) {
+  return NAV.filter((item) => !(lean && item.to === "/memory"));
+}
+
+const MOBILE_NAV = (lean: boolean) => navItems(lean).filter((item) => item.to !== "/settings");
 
 function isNavActive(pathname: string, item: (typeof NAV)[number]) {
   if (item.to === "/app") return pathname === "/app";
@@ -53,6 +58,8 @@ function Sidebar() {
   const { user } = useAuth();
   const syncStatus = useSync((state) => state.status);
   const isDark = useIsDark();
+  const lean = isLeanRole(user?.role);
+  const nav = navItems(lean);
 
   const recent = useMemo(
     () => [...sessions].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6),
@@ -104,8 +111,8 @@ function Sidebar() {
       </div>
 
       <nav className="mt-5 px-3" aria-label="Workspace">
-        <p className="kicker px-2.5 pb-1.5">Workspace</p>
-        {NAV.map((item) => {
+        <p className="kicker px-2.5 pb-1.5">{lean ? "Study" : "Workspace"}</p>
+        {nav.map((item) => {
           const active = isNavActive(location.pathname, item);
           return (
             <Link
@@ -244,10 +251,13 @@ function MobileHeader() {
 function MobileNav() {
   const location = useLocation();
   const { status } = useEngine();
+  const { user } = useAuth();
   const recording = status === "recording" || status === "paused";
+  const lean = isLeanRole(user?.role);
 
-  const left = MOBILE_NAV.slice(0, 2);
-  const right = MOBILE_NAV.slice(2);
+  const items = MOBILE_NAV(lean);
+  const left = items.slice(0, 2);
+  const right = items.slice(2);
 
   const renderItem = (item: (typeof NAV)[number]) => {
     const active = isNavActive(location.pathname, item);
@@ -272,7 +282,7 @@ function MobileNav() {
       className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-raised backdrop-blur-md lg:hidden"
       aria-label="Primary"
     >
-      <div className="grid grid-cols-5 items-center px-1.5 pt-1">
+      <div className={clsx("grid items-center px-1.5 pt-1", lean ? "grid-cols-4" : "grid-cols-5")}>
         {left.map(renderItem)}
         <Link to="/listen" className="flex flex-col items-center gap-0.5 pb-1" aria-label="Start a capture">
           <span

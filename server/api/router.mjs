@@ -6,6 +6,7 @@ import {
   handleMe,
   handleRegister,
   handleResetPassword,
+  handleUpdateProfile,
 } from "./auth.mjs";
 import { handleCaptures } from "./captures.mjs";
 import { handleOrgs } from "./orgs.mjs";
@@ -41,6 +42,10 @@ export async function handleCoreApi(req, res) {
   }
   if (pathname === "/api/auth/me") {
     await handleMe(req, res);
+    return true;
+  }
+  if (pathname === "/api/auth/profile") {
+    await handleUpdateProfile(req, res);
     return true;
   }
   if (pathname === "/api/auth/forgot-password") {

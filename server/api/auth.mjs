@@ -25,10 +25,16 @@ const SESSION_DAYS = 30;
 const SESSION_SECONDS = SESSION_DAYS * 24 * 60 * 60;
 const RESET_MINUTES = 60;
 
+export const DASHBOARD_ROLES = ["student", "seminar", "hobbyist", "team"];
+
 const registerSchema = z.object({
   name: z.string().trim().max(80, "Name is too long.").optional().default(""),
   email: z.string().trim().toLowerCase().email("Enter a valid email address.").max(254),
   password: z.string().min(8, "Use at least 8 characters.").max(200, "Password is too long."),
+});
+
+const profileSchema = z.object({
+  role: z.enum(DASHBOARD_ROLES),
 });
 
 const loginSchema = z.object({
@@ -50,6 +56,8 @@ function publicUser(row) {
     id: row.id,
     email: row.email,
     name: row.name || "",
+    role: row.dashboard_role || null,
+    onboardedAt: row.onboarded_at ? new Date(row.onboarded_at).getTime() : null,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
   };
 }
@@ -103,7 +111,8 @@ export async function currentSession(req) {
   const raw = parseCookies(req)[COOKIE];
   if (!raw || raw.length < 20) return null;
   const result = await query(
-    `select s.id as session_id, s.user_id, s.expires_at, u.id, u.email, u.name, u.created_at
+    `select s.id as session_id, s.user_id, s.expires_at, u.id, u.email, u.name,
+            u.dashboard_role, u.onboarded_at, u.created_at
        from auth_sessions s
        join users u on u.id = s.user_id
       where s.token_hash = $1 and s.expires_at > now()
@@ -145,7 +154,7 @@ export async function handleRegister(req, res) {
     const inserted = await query(
       `insert into users (email, name, password_hash)
        values ($1, $2, $3)
-       returning id, email, name, created_at`,
+       returning id, email, name, dashboard_role, onboarded_at, created_at`,
       [email, name, passwordHash],
     );
     user = publicUser(inserted.rows[0]);
@@ -177,7 +186,7 @@ export async function handleLogin(req, res) {
   }
 
   const found = await query(
-    "select id, email, name, password_hash, created_at from users where email = $1 limit 1",
+    "select id, email, name, password_hash, dashboard_role, onboarded_at, created_at from users where email = $1 limit 1",
     [email],
   );
   const row = found.rows[0];
@@ -221,6 +230,27 @@ export async function handleMe(req, res) {
     return;
   }
   sendJson(res, 200, { user: session.user });
+}
+
+export async function handleUpdateProfile(req, res) {
+  requireMethod(req, ["POST"]);
+  assertSameOrigin(req);
+  const session = await requireSession(req);
+  const parsed = profileSchema.safeParse(await readJson(req, 2_000));
+  if (!parsed.success) {
+    throw new HttpError(400, "Choose how you use JotBox.");
+  }
+
+  const updated = await query(
+    `update users
+        set dashboard_role = $2,
+            onboarded_at = coalesce(onboarded_at, now()),
+            updated_at = now()
+      where id = $1
+      returning id, email, name, dashboard_role, onboarded_at, created_at`,
+    [session.user.id, parsed.data.role],
+  );
+  sendJson(res, 200, { user: publicUser(updated.rows[0]) });
 }
 
 export async function handleForgotPassword(req, res) {

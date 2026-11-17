@@ -16,6 +16,7 @@ import {
   type PickupMode,
 } from "@/lib/listening";
 import { RETENTION_OPTIONS, getAudioRetention, pruneExpiredAudio, setAudioRetention, type AudioRetention } from "@/lib/retention";
+import { DASHBOARD_ROLES, ROLE_META, type DashboardRole } from "@/lib/roles";
 import { loadSampleSessions } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
@@ -63,14 +64,28 @@ function Section({
 export default function Settings() {
   const theme = useTheme();
   const sessions = useSessions((state) => state.sessions);
-  const { user } = useAuth();
+  const { user, updateRole } = useAuth();
   const syncStatus = useSync((state) => state.status);
   const [usage, setUsage] = useState<{ used: number; quota: number } | null>(null);
   const [retention, setRetention] = useState<AudioRetention>(() => getAudioRetention());
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
   const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
+  const [savingRole, setSavingRole] = useState<DashboardRole | null>(null);
 
   const audioCount = sessions.filter((session) => session.hasAudio).length;
+
+  const chooseRole = async (role: DashboardRole) => {
+    if (user?.role === role || savingRole) return;
+    setSavingRole(role);
+    try {
+      await updateRole(role);
+      toast.success(`Home is set for ${ROLE_META[role].short.toLowerCase()}`);
+    } catch {
+      toast.error("Could not change how JotBox opens");
+    } finally {
+      setSavingRole(null);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -135,6 +150,53 @@ export default function Settings() {
             Manage account
           </Link>
         </section>
+
+        <Section
+          title="How you use JotBox"
+          description="This changes what Home puts first. Work and teams keep the full workspace."
+          aside={
+            <Link to="/welcome" className="btn btn-line btn-sm">
+              Walk through setup
+            </Link>
+          }
+        >
+          <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="How you use JotBox">
+            {DASHBOARD_ROLES.map((role) => {
+              const active = user?.role === role;
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  aria-pressed={active}
+                  disabled={Boolean(savingRole)}
+                  onClick={() => void chooseRole(role)}
+                  className={clsx(
+                    "flex items-start gap-2.5 rounded-xl border p-3 text-left transition-colors disabled:opacity-70",
+                    active ? "border-accent bg-accent-soft" : "border-line bg-raised-2 hover:border-line-strong",
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      "mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-full border",
+                      active ? "border-accent bg-accent text-accent-ink" : "border-line-strong text-transparent",
+                    )}
+                  >
+                    <Check className="h-3 w-3" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-medium text-ink">{ROLE_META[role].label}</span>
+                    <span className="mt-0.5 block text-[12.5px] leading-4 text-muted">{ROLE_META[role].short}</span>
+                  </span>
+                  {savingRole === role && <span className="text-[12px] text-faint">Saving…</span>}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-[12.5px] leading-4 text-faint">
+            Student, seminar, and hobbyist accounts hide organisation memory, Ask, integrations, and Jira from the
+            sidebar and Home. Your notes are not deleted, and the workspace is still reachable by its address.
+          </p>
+        </Section>
 
         <Section title="Appearance" description="JotBox follows your system by default. The choice is remembered here.">
           <div className="grid grid-cols-3 gap-2">

@@ -5,19 +5,26 @@ import {
   ArrowRight,
   ArrowUpRight,
   Clock,
+  Copy,
+  Download,
   FileText,
   Layers,
   ListChecks,
   Mic,
   Plus,
+  Printer,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
+import { useAuth } from "@/auth/AuthProvider";
 import { EmptyState } from "@/components/EmptyState";
 import { SessionRow } from "@/components/SessionRow";
 import { UpcomingMeetings } from "@/components/UpcomingMeetings";
+import { copyNotes, downloadMarkdown, printSession } from "@/lib/exportNotes";
+import { isLeanRole, type DashboardRole } from "@/lib/roles";
 import { useSessions } from "@/lib/store";
 import { loadSampleSessions } from "@/lib/seed";
+import type { Session } from "@/lib/types";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -82,9 +89,93 @@ function FloatCard() {
   );
 }
 
+const LEAN_COPY: Record<Exclude<DashboardRole, "team">, {
+  lede: string;
+  ready: string;
+  body: string;
+  recentTitle: string;
+  recentBody: string;
+  tools: string;
+}> = {
+  student: {
+    lede: "Start a capture, or open your latest lecture notes.",
+    ready: "Ready for class.",
+    body: "Record the lecture in the room, or upload the audio after. JotBox keeps the spoken words and writes notes you can study.",
+    recentTitle: "Recent lecture notes",
+    recentBody: "Your latest classes, with what your lecturer said kept beside them.",
+    tools: "Study tools",
+  },
+  seminar: {
+    lede: "Start a capture, or catch up on the last talk.",
+    ready: "Ready for the talk.",
+    body: "Record a talk, panel, or workshop. JotBox writes the key points while you listen.",
+    recentTitle: "Recent talks",
+    recentBody: "Talks, panels, and workshops you have already captured.",
+    tools: "Talk tools",
+  },
+  hobbyist: {
+    lede: "Start a capture, or read back your latest note.",
+    ready: "Ready when the idea is.",
+    body: "Record a voice note wherever you are. JotBox keeps the words and writes them up for you.",
+    recentTitle: "Recent notes",
+    recentBody: "Ideas, interviews, and voice notes you have kept.",
+    tools: "Note tools",
+  },
+};
+
+function StudyTools({ session, title }: { session: Session; title: string }) {
+  return (
+    <section className="card mt-3.5 p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-faint">{title}</p>
+          <h2 className="mt-1 truncate text-[16.5px] font-semibold tracking-[-0.01em] text-ink">{session.title}</h2>
+          <p className="mt-0.5 text-[13.5px] text-muted">Take your latest note with you.</p>
+        </div>
+        <Link to={`/session/${session.id}`} className="btn btn-line btn-sm flex-none">
+          Open note
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="btn btn-line btn-sm"
+          onClick={() => {
+            void copyNotes(session).then(
+              () => toast.success("Notes copied"),
+              () => toast.error("Could not copy the notes"),
+            );
+          }}
+        >
+          <Copy className="h-3.5 w-3.5" />
+          Copy notes
+        </button>
+        <button type="button" className="btn btn-line btn-sm" onClick={() => downloadMarkdown(session)}>
+          <Download className="h-3.5 w-3.5" />
+          Download
+        </button>
+        <button
+          type="button"
+          className="btn btn-line btn-sm"
+          onClick={() => {
+            if (!printSession(session)) toast.error("Allow pop-ups to print this note");
+          }}
+        >
+          <Printer className="h-3.5 w-3.5" />
+          Print
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const sessions = useSessions((state) => state.sessions);
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const lean = isLeanRole(user?.role);
+  const copy = user?.role && user.role !== "team" ? LEAN_COPY[user.role] : null;
 
   useEffect(() => {
     document.title = "JotBox: your notes";
@@ -109,6 +200,101 @@ export default function Home() {
     toast.success("Example notes added");
     navigate("/session/sample-meeting");
   };
+
+  if (lean && copy) {
+    const latest = recent[0];
+    return (
+      <div className="w-full">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="kicker">{format(new Date(), "EEEE, d MMMM")}</p>
+            <h1 className="mt-1.5 text-[28px] font-semibold tracking-[-0.035em] text-ink sm:text-[32px]">
+              {greeting()}.
+            </h1>
+            <p className="mt-1 text-[15.5px] text-muted">{copy.lede}</p>
+          </div>
+          <Link to="/listen" className="btn btn-primary hidden sm:inline-flex">
+            <Plus className="h-4 w-4" />
+            New capture
+          </Link>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_400px] 2xl:gap-6">
+          <div className="min-w-0">
+            <section className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-accent text-accent-ink">
+                  <Mic className="h-5 w-5" strokeWidth={1.9} />
+                </span>
+                <div>
+                  <p className="text-[16px] font-medium tracking-[-0.01em] text-ink">{copy.ready}</p>
+                  <p className="mt-0.5 max-w-[52ch] text-[14px] leading-5 text-muted">{copy.body}</p>
+                </div>
+              </div>
+              <Link to="/listen" className="btn btn-primary btn-sm w-full flex-none sm:w-auto">
+                Start a capture
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </section>
+
+            <div className="mt-3.5">
+              <UpcomingMeetings />
+            </div>
+
+            {latest && <StudyTools session={latest} title={copy.tools} />}
+
+            <div className="mt-3.5 xl:hidden">
+              <StatsGrid stats={stats} />
+            </div>
+
+            <section className="mt-8 xl:mt-7">
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-ink">{copy.recentTitle}</h2>
+                  <p className="mt-0.5 text-[14px] text-muted">{copy.recentBody}</p>
+                </div>
+                <Link
+                  to="/library"
+                  className="inline-flex flex-none items-center gap-1 whitespace-nowrap text-[14px] font-medium text-muted transition-colors hover:text-ink"
+                >
+                  View library
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              {recent.length === 0 ? (
+                <EmptyState
+                  className="mt-3"
+                  icon={<Mic className="h-5 w-5" />}
+                  title="Your first note starts here"
+                  body="Record a class, talk, or voice note. Or open an example to see how finished JotBox notes read."
+                >
+                  <button type="button" className="btn btn-line" onClick={openExample}>
+                    See an example
+                  </button>
+                  <Link to="/listen" className="btn btn-primary">
+                    Start a capture
+                  </Link>
+                </EmptyState>
+              ) : (
+                <div className="card mt-3 divide-y divide-line p-1.5">
+                  {recent.map((session, index) => (
+                    <div key={session.id} className="stagger-in" style={{ animationDelay: `${index * 55}ms` }}>
+                      <SessionRow session={session} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          <aside className="hidden space-y-3.5 xl:block">
+            <StatsGrid stats={stats} stacked />
+          </aside>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">

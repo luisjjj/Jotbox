@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AUTH_EXPIRED_EVENT, api, type CloudUser } from "@/lib/api";
+import type { DashboardRole } from "@/lib/roles";
 import { cloudSuspended, flushCloudSessions, setCloudSuspended } from "@/lib/cloud";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
@@ -10,6 +11,7 @@ interface AuthValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<CloudUser>;
   signUp: (name: string, email: string, password: string) => Promise<CloudUser>;
+  updateRole: (role: DashboardRole) => Promise<CloudUser>;
   signOut: () => Promise<void>;
 }
 
@@ -64,6 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result.user;
   }, []);
 
+  const updateRole = useCallback(async (role: DashboardRole) => {
+    const result = await api.updateProfile(role);
+    setUser(result.user);
+    return result.user;
+  }, []);
+
   const signOut = useCallback(async () => {
     // Notes that cannot reach the account stay on this device, scoped to this
     // user. A successful flush may clear the local cache; a failed one may not.
@@ -84,8 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthValue>(
-    () => ({ user, loading, signIn, signUp, signOut }),
-    [user, loading, signIn, signUp, signOut],
+    () => ({ user, loading, signIn, signUp, updateRole, signOut }),
+    [user, loading, signIn, signUp, updateRole, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
