@@ -6,6 +6,7 @@ import {
   sendFounderNoteEmail,
   sendReferralPartnerEmail,
   sendRenewalReminderEmail,
+  sendWelcomeEmail,
 } from "../server/api/email.mjs";
 
 const originalEnv = { ...process.env };
@@ -68,6 +69,8 @@ test("sendEmail posts the documented Sendly payload", async () => {
   assert.equal(body.subject, "Hello there");
   assert.equal(body.text, "Plain body");
   assert.match(body.html, /Hello there/);
+  assert.match(body.html, /apple-touch-icon\.png/);
+  assert.match(body.html, /#181b18/);
   assert.equal(body.unsubscribe, undefined);
 });
 
@@ -113,12 +116,13 @@ test("partner invite carries both links and the commission share", async () => {
 
   assert.equal(result.delivered, true);
   const { body } = calls[0];
-  assert.equal(body.subject, "Your JotBox partner dashboard");
-  assert.match(body.text, /Hi Cephas/);
+  assert.equal(body.subject, "Cephas Omorogbe, your JotBox partner dashboard");
+  assert.match(body.text, /Hi Cephas Omorogbe/);
   assert.match(body.text, /https:\/\/www\.jotbox\.online\/r\/cephas/);
   assert.match(body.text, /https:\/\/www\.jotbox\.online\/partner\/token123/);
   assert.match(body.text, /20% of every Pro payment/);
   assert.match(body.html, /Open your dashboard/);
+  assert.match(body.html, /apple-touch-icon\.png/);
 });
 
 test("renewal reminder names the date, the charge and the period key", async () => {
@@ -130,7 +134,8 @@ test("renewal reminder names the date, the charge and the period key", async () 
   assert.equal(result.delivered, true);
   const { init, body } = calls[0];
   assert.equal(init.headers["Idempotency-Key"], `renewal-user-1-${new Date("2026-12-01T10:00:00.000Z").getTime()}`);
-  assert.match(body.subject, /1 December 2026/);
+  assert.match(body.subject, /Ada Lovelace, JotBox Pro renews on 1 December 2026/);
+  assert.match(body.text, /Hi Ada Lovelace/);
   assert.match(body.text, /8,000/);
   assert.match(body.text, /cancel before 1 December 2026/);
   assert.match(body.html, /Manage your plan/);
@@ -150,8 +155,22 @@ test("founder note is personal, mentions usage and sets reply-to", async () => {
   const { init, body } = calls[0];
   assert.equal(init.headers["Idempotency-Key"], "founder-ada_example_com");
   assert.equal(body.replyTo, "founder@jotbox.online");
-  assert.match(body.text, /Hi Ada/);
+  assert.equal(body.from, "Luis from JotBox <hello@jotbox.online>");
+  assert.equal(body.subject, "A quick note from Luis");
+  assert.match(body.text, /Hi Ada Lovelace/);
+  assert.match(body.text, /I am Luis, the founder of JotBox/);
   assert.match(body.text, /3 sessions/);
   assert.match(body.text, /https:\/\/cal\.com\/jotbox/);
   assert.match(body.text, /Luis\nFounder, JotBox/);
+  assert.match(body.html, /A note from Luis/);
+});
+
+test("welcome email addresses the person by their full name", async () => {
+  const result = await sendWelcomeEmail({ email: "ada.lovelace@example.com", name: "" });
+  assert.equal(result.delivered, true);
+  const { body } = calls[0];
+  assert.equal(body.subject, "Ada Lovelace, your JotBox account is ready");
+  assert.match(body.text, /Hi Ada Lovelace/);
+  assert.match(body.html, /Welcome, Ada Lovelace\./);
+  assert.match(body.html, /apple-touch-icon\.png/);
 });

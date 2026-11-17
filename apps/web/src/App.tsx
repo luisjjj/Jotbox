@@ -20,6 +20,7 @@ import Listen from "@/pages/Listen";
 import MemoryPage from "@/pages/Memory";
 import NotFound from "@/pages/NotFound";
 import Partner from "@/pages/Partner";
+import ReferralRedirect from "@/pages/ReferralRedirect";
 import ResetPassword from "@/pages/ResetPassword";
 import SessionPage from "@/pages/SessionPage";
 import SharedPage from "@/pages/SharedPage";
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="/refunds" element={<RefundPolicy />} />
           <Route path="/s/:token" element={<SharedPage />} />
+          <Route path="/r/:code" element={<ReferralRedirect />} />
           <Route path="/partner/:token" element={<Partner />} />
           <Route
             path="/welcome"

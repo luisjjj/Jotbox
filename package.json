@@ -21,6 +21,7 @@
     "enterprise:invite": "node --env-file-if-exists=.env scripts/enterprise-invite.mjs",
     "partners": "node --env-file-if-exists=.env scripts/referrals.mjs",
     "founder:mail": "node --env-file-if-exists=.env scripts/founder-mail.mjs",
+    "email:log": "node --env-file-if-exists=.env scripts/email-log.mjs",
     "ai:check": "node --env-file=.env scripts/ai-check.mjs",
     "ai:test": "node --env-file=.env scripts/ai-check.mjs --test",
     "ai:demo": "node --env-file=.env scripts/ai-check.mjs --mock --test",

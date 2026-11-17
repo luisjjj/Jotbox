@@ -164,11 +164,18 @@ FOUNDER_NAME=Your name
 JOTBOX_PUBLIC_URL=https://jotbox.online
 ```
 
-`EMAIL_FROM` must use a domain verified in Sendly. `JOTBOX_PUBLIC_URL` is the origin used in email links; it defaults to the production deployment.
+`EMAIL_FROM` must use a domain verified in Sendly. `JOTBOX_PUBLIC_URL` is the origin used in email links; it defaults to the production deployment. Emails greet people by their full name and use the JotBox logo and the app's dark green theme.
+
+API sends appear in the **Sendly API** console at [developer.sendlyai.com](https://developer.sendlyai.com), under message log. They do not appear in Sendly Mail or Sendly Workspace, which are separate products. To check deliveries from the terminal:
+
+```bash
+npm run email:log
+npm run email:log -- --status bounced --limit 50
+```
 
 Renewal reminders run from the daily cron at `/api/billing?action=reconcile` and go to active Pro accounts up to three days before the next charge. Each reminder is claimed in `billing_reminders` by billing period, so a retried cron cannot send it twice.
 
-Founder check-ins are opt-in and preview-first:
+Founder check-ins are opt-in and preview-first. `FOUNDER_NAME` becomes the signature and the From display name, and `FOUNDER_EMAIL` receives the replies:
 
 ```bash
 npm run founder:mail -- --preview

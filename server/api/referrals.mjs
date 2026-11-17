@@ -87,12 +87,14 @@ export async function handleReferralVisit(req, res) {
   const slug = raw.trim().toLowerCase();
 
   let target = "/";
+  let valid = false;
   if (isReferralSlug(slug)) {
     const found = await query(
       "select slug from referral_partners where slug = $1 and active = true limit 1",
       [slug],
     );
     if (found.rows[0]) {
+      valid = true;
       res.setHeader(
         "Set-Cookie",
         serializeCookie(REFERRAL_COOKIE, slug, {
@@ -104,6 +106,11 @@ export async function handleReferralVisit(req, res) {
       );
       target = "/?ref=" + encodeURIComponent(slug);
     }
+  }
+
+  if (String(req.headers.accept || "").toLowerCase().includes("application/json")) {
+    sendJson(res, 200, { ok: valid, slug: valid ? slug : "", target });
+    return;
   }
 
   res.statusCode = 302;
