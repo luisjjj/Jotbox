@@ -245,8 +245,12 @@ The repo includes [`vercel.json`](vercel.json) for the SPA build, route fallback
 
 ```bash
 vercel env add DATABASE_URL production --sensitive   # the jotbox_app URL
+vercel env add SENDLY_API_KEY production --sensitive # transactional email
+vercel env add EMAIL_FROM production                 # JotBox <hello@jotbox.online>
 vercel --prod
 ```
+
+Repeat the same three `vercel env add` commands with `preview` and `development`. `EMAIL_FROM` must stay on the verified `jotbox.online` domain; `/api/health` returns `"email": false` until `SENDLY_API_KEY` is present.
 
 Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `logout`, `me`), `billing`, `captures`, `transcribe`, `enhance`, `assist`, `share`, and `orgs` (organisations, members, departments, sharing, audit, and memory; `/api/orgs/*` is rewritten to one shared handler to stay under the Hobby plan's 12-function limit). The smaller routes, health, Windows download, password recovery, and enterprise onboarding, share [`api/utility.mjs`](api/utility.mjs) and are reached through rewrites in [`vercel.json`](vercel.json). Set `DATABASE_URL` to the **app role** URL in Vercel Production, Preview, and Development. Never add `DATABASE_URL_OWNER` to Vercel. Add the provider keys you intend to use (`GROQ_API_KEY`, `WHISPER_BASE_URL`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `PAYSTACK_SECRET_KEY`, `SENDLY_API_KEY`, `EMAIL_FROM`) as sensitive environment variables.
 
