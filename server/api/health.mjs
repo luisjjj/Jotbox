@@ -1,4 +1,5 @@
 import { aiStatus } from "./ai.mjs";
+import { emailConfigured } from "./email.mjs";
 import { ping } from "./pg.mjs";
 import { requireMethod, sendJson } from "./http.mjs";
 
@@ -15,6 +16,7 @@ export async function handleHealth(req, res) {
     ok: true,
     service: "jotbox",
     db,
+    email: emailConfigured(),
     ai: ai.ai,
     reading: ai.transcribe,
     writing: ai.notes,
