@@ -6,7 +6,7 @@ JotBox is a mobile-first notetaker for meetings, seminars, lectures, and voice n
 
 Guest-first. Sign in when you want your notes on another device: sessions, jottings, and transcripts sync through a Neon Postgres database; audio stays on the device.
 
-**Live:** [jotbox-eight.vercel.app](https://jotbox-eight.vercel.app) · **Repo:** [github.com/luisjjj/Jotbox](https://github.com/luisjjj/Jotbox)
+**Live:** [jotbox.online](https://jotbox.online) · **Repo:** [github.com/luisjjj/Jotbox](https://github.com/luisjjj/Jotbox)
 
 ![JotBox landing page](docs/screenshots/landing-desktop.png)
 
@@ -159,7 +159,7 @@ JotBox sends welcome, password reset, password changed, receipt, cancellation, a
 ```env
 RESEND_API_KEY=re_...
 EMAIL_FROM=JotBox <hello@jotbox.app>
-JOTBOX_PUBLIC_URL=https://jotbox-eight.vercel.app
+JOTBOX_PUBLIC_URL=https://jotbox.online
 ```
 
 `EMAIL_FROM` must use a domain verified in Resend. `JOTBOX_PUBLIC_URL` is the origin used in email links; it defaults to the production deployment.

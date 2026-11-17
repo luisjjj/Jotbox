@@ -622,7 +622,7 @@ async function notesWithOpenrouter(payload) {
     url: OPENROUTER_URL,
     headers: {
       Authorization: `Bearer ${openrouterKey()}`,
-      "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox-eight.vercel.app",
+      "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox.online",
       "X-Title": "JotBox",
     },
     model: key("OPENROUTER_NOTES_MODEL") || "meta-llama/llama-3.3-70b-instruct:free",
@@ -1023,7 +1023,7 @@ async function chatJson({ messages, maxTokens = 900, temperature = 0.2 }) {
           : key("XAI_NOTES_MODEL") || "grok-4.7";
       const headers = { "Content-Type": "application/json", Authorization: `Bearer ${provider === "openrouter" ? openrouterKey() : xaiKey()}` };
       if (provider === "openrouter") {
-        headers["HTTP-Referer"] = key("JOTBOX_PUBLIC_URL") || "https://jotbox-eight.vercel.app";
+        headers["HTTP-Referer"] = key("JOTBOX_PUBLIC_URL") || "https://jotbox.online";
         headers["X-Title"] = "JotBox";
       }
       const response = await fetch(url, {

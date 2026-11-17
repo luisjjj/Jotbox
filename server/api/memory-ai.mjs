@@ -286,7 +286,7 @@ export async function answerOrganisationMemory({ question, records, history }) {
           url: OPENROUTER_URL,
           headers: {
             Authorization: `Bearer ${key("OPENROUTER_API_KEY")}`,
-            "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox-eight.vercel.app",
+            "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox.online",
             "X-Title": "JotBox",
           },
           model,

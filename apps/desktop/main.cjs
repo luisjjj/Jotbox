@@ -16,7 +16,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 
-const PROD_URL = "https://jotbox-eight.vercel.app";
+const PROD_URL = "https://jotbox.online";
 const DEV_URL = "http://localhost:5173";
 const SMOKE = process.argv.includes("--smoke-test");
 const DEV = process.argv.includes("--dev");

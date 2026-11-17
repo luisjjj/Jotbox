@@ -41,7 +41,7 @@ const handoffSchema = z.object({
 });
 
 function publicBase() {
-  return (process.env.JOTBOX_PUBLIC_URL || "https://jotbox-eight.vercel.app").replace(/\/+$/, "");
+  return (process.env.JOTBOX_PUBLIC_URL || "https://jotbox.online").replace(/\/+$/, "");
 }
 
 function encryptionKey() {

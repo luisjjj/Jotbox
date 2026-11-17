@@ -346,7 +346,7 @@ def judge_with_groq(reference: str, notes: dict, facts: list[str]) -> dict:
             "Content-Type": "application/json",
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key}",
-            "User-Agent": "JotBox-Eval/1.0 (+https://jotbox-eight.vercel.app)",
+            "User-Agent": "JotBox-Eval/1.0 (+https://jotbox.online)",
         },
         method="POST",
     )

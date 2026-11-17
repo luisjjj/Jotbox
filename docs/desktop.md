@@ -7,7 +7,7 @@ Windows is the first target. The installer is an NSIS setup in `apps/desktop/rel
 ## What the shell does
 
 - **Splash window** is a local, frameless card shown while the web app starts. It closes when the sign-in screen reports that the session check finished, with a 10 second fallback.
-- **Main window** opens `https://jotbox-eight.vercel.app/auth` (or `JOTBOX_DESKTOP_URL`), never the marketing site. Signed-in users are redirected to `/app`. Closing it hides it to the tray; the capture keeps running.
+- **Main window** opens `https://jotbox.online/auth` (or `JOTBOX_DESKTOP_URL`), never the marketing site. Signed-in users are redirected to `/app`. Closing it hides it to the tray; the capture keeps running.
 - **Desktop sign-in** replaces the web marketing layout with a compact card, the app version, and the same fields. None of the landing page links appear inside the shell, because the root route redirects to `/app`.
 - **Island window** loads `/island` in a frameless, transparent, non-focusable window above every other app. It ignores mouse clicks until the pointer is over the pill, so you can work underneath it.
 - **State bridge** in `preload.cjs` publishes the engine state (`status`, `elapsed`, `title`, `interim`, the last two lines, the audio level) to the island and relays island commands back to the main window.
@@ -73,7 +73,7 @@ npm run smoke --workspace @jotbox/desktop
 Set `JOTBOX_SMOKE_URL` to test the deployed site instead of the local preview:
 
 ```bash
-JOTBOX_SMOKE_URL=https://jotbox-eight.vercel.app npm run smoke --workspace @jotbox/desktop
+JOTBOX_SMOKE_URL=https://jotbox.online npm run smoke --workspace @jotbox/desktop
 ```
 
 Exit code 0 means the island rendered, the status was `recording`, the surface was transparent, the hover handlers toggled the expanded state, the splash card was present, the desktop sign-in card rendered at wide and narrow widths, and no horizontal overflow appeared at 380px.

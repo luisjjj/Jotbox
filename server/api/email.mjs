@@ -97,7 +97,7 @@ function firstName(name) {
 }
 
 function publicAppUrl() {
-  return (process.env.JOTBOX_PUBLIC_URL?.trim() || "https://jotbox-eight.vercel.app").replace(/\/+$/, "");
+  return (process.env.JOTBOX_PUBLIC_URL?.trim() || "https://jotbox.online").replace(/\/+$/, "");
 }
 
 export async function sendWelcomeEmail(user) {

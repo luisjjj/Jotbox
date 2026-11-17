@@ -1,6 +1,6 @@
 import pg from "pg";
 
-const BASE = "https://jotbox-eight.vercel.app";
+const BASE = "https://jotbox.online";
 const email = `live.test.${Date.now()}@example.com`;
 const password = "correct-horse-battery-staple";
 let cookie = "";
