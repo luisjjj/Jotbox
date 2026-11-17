@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { Brand } from "@/components/Brand";
 
 const UPDATED = "16 November 2026";
-const CONTACT = "hello@jotbox.app";
+const CONTACT = "hello@jotbox.online";
 
 type Section = { id: string; title: string; body: ReactNode };
 
@@ -85,7 +85,7 @@ function LegalLayout({
           </h1>
           <p className="mt-3 max-w-[62ch] text-[15px] leading-7 text-muted">{subtitle}</p>
           <p className="mt-2 text-[13px] leading-5 text-faint">
-            Last updated {UPDATED}. This document covers jotbox.app, the JotBox Windows desktop app, and the JotBox API.
+            Last updated {UPDATED}. This document covers jotbox.online, the JotBox Windows desktop app, and the JotBox API.
           </p>
         </div>
 

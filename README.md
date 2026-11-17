@@ -27,7 +27,7 @@ Four session shapes set the tone of the notes: **Meeting**, **Seminar**, **Lectu
 - **Exports**: copy as Markdown, download `.md`, print, or save as PDF.
 - **Guest mode**: recording, local notes, and the full UI work without an account.
 - **Accounts and sync**: email/password signup, httpOnly session cookies, hashed passwords (scrypt), database-backed rate limits, and note/transcript sync to Neon.
-- **Email**: welcome, password reset, password changed, receipt, cancellation, and enterprise invite emails through Resend, with a console preview when no key is set.
+- **Email**: welcome, password reset, password changed, receipt, renewal reminder, cancellation, partner invite, and founder check-in emails through Sendly, with a console preview when no key is set.
 - **Connected apps**: opt-in Google Calendar and Outlook "Next up" on the home screen, and one-click Jira tickets from session action items.
 - **Enterprise**: a private, unlisted onboarding link per deal on `/enterprise/onboarding/:token`, with saved checklist steps and sign-in required to finish.
 - **Local-first audio**: sessions live in `localStorage` as an offline cache, audio blobs in IndexedDB, and cloud writes are debounced and retried.
@@ -152,17 +152,31 @@ Set the Paystack webhook to `https://your-domain/api/billing`, then run `npm run
 
 Never put the secret key in a `VITE_` variable or commit `.env`.
 
-### Email notifications (Resend)
+### Email notifications (Sendly)
 
-JotBox sends welcome, password reset, password changed, receipt, cancellation, and enterprise invite emails through [Resend](https://resend.com). Without a key every email is printed to the server log, so local development needs no account.
+JotBox sends welcome, password reset, password changed, receipt, renewal reminder, cancellation, enterprise invite, referral partner, and founder check-in emails through [Sendly](https://sendlyai.com). Without a key every email is printed to the server log, so local development needs no account.
 
 ```env
-RESEND_API_KEY=re_...
-EMAIL_FROM=JotBox <hello@jotbox.app>
+SENDLY_API_KEY=...
+EMAIL_FROM=JotBox <hello@jotbox.online>
+FOUNDER_EMAIL=you@example.com
+FOUNDER_NAME=Your name
 JOTBOX_PUBLIC_URL=https://jotbox.online
 ```
 
-`EMAIL_FROM` must use a domain verified in Resend. `JOTBOX_PUBLIC_URL` is the origin used in email links; it defaults to the production deployment.
+`EMAIL_FROM` must use a domain verified in Sendly. `JOTBOX_PUBLIC_URL` is the origin used in email links; it defaults to the production deployment.
+
+Renewal reminders run from the daily cron at `/api/billing?action=reconcile` and go to active Pro accounts up to three days before the next charge. Each reminder is claimed in `billing_reminders` by billing period, so a retried cron cannot send it twice.
+
+Founder check-ins are opt-in and preview-first:
+
+```bash
+npm run founder:mail -- --preview
+npm run founder:mail -- --send --to you@example.com
+npm run founder:mail -- --send --limit 20 --min-sessions 2 --call-url https://cal.com/you
+```
+
+Each account is claimed in `founder_outreach` before the email goes out, so a rerun cannot mail the same person twice.
 
 Password recovery is live at `/forgot-password` and `/reset-password`. Tokens are 256-bit, stored SHA-256 hashed, expire after 60 minutes, are single use, and resetting a password signs out every existing session. Requests are rate limited per IP and per email, and the API always returns the same message so it cannot be used to probe which addresses have accounts.
 
@@ -179,7 +193,7 @@ npm run enterprise:invite -- --list
 npm run enterprise:invite -- --revoke <invite-id>
 ```
 
-The command stores only a hash of the token, prints the link once, and emails it when Resend is configured. Pass `--no-email` to skip sending or `--days` to change the 30-day expiry.
+The command stores only a hash of the token, prints the link once, and emails it when Sendly is configured. Pass `--no-email` to skip sending or `--days` to change the 30-day expiry.
 
 The link opens `/enterprise/onboarding/:token`, a page that is not linked anywhere in the frontend and is marked `noindex` with `no-referrer`. It shows the agreed seats and price, six walkthrough steps with saved checklist state, and host talk tracks. It does not grant a session: the customer still signs in or creates an account before finishing, and the finished state records who accepted. Expired or revoked links return a generic 404.
 
@@ -234,7 +248,7 @@ vercel env add DATABASE_URL production --sensitive   # the jotbox_app URL
 vercel --prod
 ```
 
-Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `logout`, `me`), `billing`, `captures`, `transcribe`, `enhance`, `assist`, `share`, and `orgs` (organisations, members, departments, sharing, audit, and memory; `/api/orgs/*` is rewritten to one shared handler to stay under the Hobby plan's 12-function limit). The smaller routes, health, Windows download, password recovery, and enterprise onboarding, share [`api/utility.mjs`](api/utility.mjs) and are reached through rewrites in [`vercel.json`](vercel.json). Set `DATABASE_URL` to the **app role** URL in Vercel Production, Preview, and Development. Never add `DATABASE_URL_OWNER` to Vercel. Add the provider keys you intend to use (`GROQ_API_KEY`, `WHISPER_BASE_URL`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `PAYSTACK_SECRET_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`) as sensitive environment variables.
+Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `logout`, `me`), `billing`, `captures`, `transcribe`, `enhance`, `assist`, `share`, and `orgs` (organisations, members, departments, sharing, audit, and memory; `/api/orgs/*` is rewritten to one shared handler to stay under the Hobby plan's 12-function limit). The smaller routes, health, Windows download, password recovery, and enterprise onboarding, share [`api/utility.mjs`](api/utility.mjs) and are reached through rewrites in [`vercel.json`](vercel.json). Set `DATABASE_URL` to the **app role** URL in Vercel Production, Preview, and Development. Never add `DATABASE_URL_OWNER` to Vercel. Add the provider keys you intend to use (`GROQ_API_KEY`, `WHISPER_BASE_URL`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `PAYSTACK_SECRET_KEY`, `SENDLY_API_KEY`, `EMAIL_FROM`) as sensitive environment variables.
 
 **Request size:** Vercel Functions cap a request body at roughly **4.5 MB**, so long recordings must go through the self-hosted worker directly or through object storage. Short clips work through `/api/transcribe` as-is. See [docs/ai-providers.md](docs/ai-providers.md) for the options.
 

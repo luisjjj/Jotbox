@@ -491,3 +491,26 @@ create index if not exists referral_payouts_partner_idx on referral_payouts (par
 insert into schema_migrations (version)
 values ('011_referrals')
 on conflict (version) do nothing;
+
+-- A renewal reminder is claimed before it is sent. The primary key makes a
+-- retried or overlapping cron safe: one reminder per person per billing period.
+create table if not exists billing_reminders (
+  user_id uuid not null references users(id) on delete cascade,
+  kind text not null default 'renewal' check (kind in ('renewal')),
+  period_end timestamptz not null,
+  sent_at timestamptz not null default now(),
+  primary key (user_id, kind, period_end)
+);
+
+create index if not exists billing_reminders_sent_idx on billing_reminders (kind, sent_at desc);
+
+-- Founder check-ins go out once per account.
+create table if not exists founder_outreach (
+  user_id uuid primary key references users(id) on delete cascade,
+  sent_at timestamptz not null default now(),
+  subject text not null default ''
+);
+
+insert into schema_migrations (version)
+values ('012_lifecycle_email')
+on conflict (version) do nothing;

@@ -182,7 +182,7 @@ async function createInvite(args) {
     return;
   }
   if (!emailConfigured()) {
-    console.log("Email is not configured yet, so the link was only printed. Add RESEND_API_KEY to send invites automatically.");
+    console.log("Email is not configured yet, so the link was only printed. Add SENDLY_API_KEY to send invites automatically.");
     return;
   }
   const sent = await sendEnterpriseInviteEmail({

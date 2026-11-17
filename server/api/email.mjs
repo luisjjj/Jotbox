@@ -1,17 +1,17 @@
 /**
- * Transactional email through Resend.
+ * Transactional email through Sendly.
  *
- * When RESEND_API_KEY is missing, messages are printed to the server log and
+ * When SENDLY_API_KEY is missing, messages are printed to the server log and
  * the call still succeeds, so sign-up and billing never fail because email is
  * not switched on yet.
  */
 
-const RESEND_API = "https://api.resend.com/emails";
+const SENDLY_API = "https://api.sendlyai.com/v1/messages";
 const EMAIL_TIMEOUT_MS = 10_000;
-const DEFAULT_FROM = "JotBox <hello@jotbox.app>";
+const DEFAULT_FROM = "JotBox <hello@jotbox.online>";
 
 export function emailConfigured(env = process.env) {
-  return Boolean(env.RESEND_API_KEY?.trim());
+  return Boolean(env.SENDLY_API_KEY?.trim());
 }
 
 function escapeHtml(value) {
@@ -52,7 +52,36 @@ function paragraph(text) {
   return `<p style="margin:0 0 12px;font-size:15px;line-height:1.65;color:#33423a;">${escapeHtml(text)}</p>`;
 }
 
-export async function sendEmail({ to, subject, text, html, replyTo }) {
+function linkBlock(label, url) {
+  return `<p style="margin:0 0 12px;font-size:15px;line-height:1.65;color:#33423a;">${escapeHtml(label)}<br><a href="${escapeHtml(url)}" style="color:#1f5748;word-break:break-all;">${escapeHtml(url)}</a></p>`;
+}
+
+function longDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+/**
+ * Sendly validates replyTo as a bare address and rejects a display name, so
+ * strip "Name <addr>" down before it reaches the API.
+ */
+function replyAddress(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/<([^<>\s]+@[^<>\s]+)>/);
+  return match ? match[1] : raw;
+}
+
+export async function sendEmail({
+  to,
+  subject,
+  text,
+  html,
+  replyTo,
+  headers,
+  idempotencyKey,
+  unsubscribe = false,
+}) {
   const recipient = String(to || "").trim().toLowerCase();
   if (!recipient) return { delivered: false, reason: "no_recipient" };
 
@@ -63,11 +92,12 @@ export async function sendEmail({ to, subject, text, html, replyTo }) {
 
   let response;
   try {
-    response = await fetch(RESEND_API, {
+    response = await fetch(SENDLY_API, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY.trim()}`,
+        Authorization: `Bearer ${process.env.SENDLY_API_KEY.trim()}`,
         "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       },
       body: JSON.stringify({
         from: process.env.EMAIL_FROM?.trim() || DEFAULT_FROM,
@@ -75,7 +105,9 @@ export async function sendEmail({ to, subject, text, html, replyTo }) {
         subject,
         text,
         html: html || layout({ heading: subject, body: paragraph(text) }),
-        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(replyTo ? { replyTo: replyAddress(replyTo) } : {}),
+        ...(headers && typeof headers === "object" ? { headers } : {}),
+        ...(unsubscribe ? { unsubscribe: true } : {}),
       }),
       signal: AbortSignal.timeout(EMAIL_TIMEOUT_MS),
     });
@@ -86,8 +118,14 @@ export async function sendEmail({ to, subject, text, html, replyTo }) {
 
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    console.error("[jotbox-email] Resend refused", response.status, body?.message);
-    return { delivered: false, reason: "provider" };
+    console.error("[jotbox-email] Sendly refused", response.status, body?.message || body?.error);
+    return { delivered: false, reason: "provider", status: response.status };
+  }
+
+  const accepted = Number(body?.accepted ?? 1);
+  if (!Number.isFinite(accepted) || accepted < 1) {
+    console.warn("[jotbox-email] Sendly skipped", recipient, body?.skipped ?? "unknown");
+    return { delivered: false, reason: "suppressed", id: body?.id ?? null };
   }
   return { delivered: true, id: body?.id ?? null };
 }
@@ -182,6 +220,93 @@ export async function sendReceiptEmail(user, { amount, currency, reference, inte
       actionUrl: `${publicAppUrl()}/account`,
       footnote: "This receipt is for your records. Billing questions? Reply to this email.",
     }),
+  });
+}
+
+export async function sendRenewalReminderEmail(user, { amount, currency, nextPaymentAt }) {
+  const paid = money(amount, currency);
+  const when = longDate(nextPaymentAt) || "soon";
+  const cycle = new Date(nextPaymentAt).getTime();
+  const keyUser = String(user.id || user.email || "").replace(/[^A-Za-z0-9_-]+/g, "_");
+  return sendEmail({
+    to: user.email,
+    subject: `JotBox Pro renews on ${when}`,
+    text: `Hi ${firstName(user.name)},\n\nYour JotBox Pro plan renews on ${when}. We will charge ${paid} then.\n\nNothing to do if you want to keep Pro: unlimited listening and every Pro feature stay on.\n\nIf you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 60 minutes of listening each month.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
+    html: layout({
+      heading: `Pro renews on ${when}`,
+      body:
+        paragraph(`Your JotBox Pro plan renews on ${when}. We will charge ${paid} then.`) +
+        paragraph("Nothing to do if you want to keep Pro: unlimited listening and every Pro feature stay on.") +
+        paragraph(`If you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 60 minutes of listening each month.`),
+      action: "Manage your plan",
+      actionUrl: `${publicAppUrl()}/account`,
+      footnote: "You are receiving this because Pro is active on your account.",
+    }),
+    idempotencyKey: Number.isFinite(cycle) ? `renewal-${keyUser}-${cycle}` : undefined,
+  });
+}
+
+export async function sendReferralPartnerEmail({
+  to,
+  name,
+  referralUrl,
+  dashboardUrl,
+  commissionPercent = 20,
+}) {
+  const share = Number.isFinite(Number(commissionPercent)) ? Number(commissionPercent) : 20;
+  const person = firstName(name);
+  return sendEmail({
+    to,
+    subject: "Your JotBox partner dashboard",
+    text: `Hi ${person},\n\nThank you for working with JotBox. This is your personal referral link:\n\n${referralUrl}\n\nAnyone who signs up through it is counted to you, and you earn ${share}% of every Pro payment they make. Your dashboard shows who joined, who paid, and what is owed to you:\n\n${dashboardUrl}\n\nThe dashboard link is private, so please keep it to yourself. Payouts are handled by hand, so there is nothing for you to set up on Paystack.\n\nIf you want a different link name or have any questions, just reply to this email.\n\nJotBox`,
+    html: layout({
+      heading: "Your JotBox partner dashboard",
+      body:
+        paragraph(`Thank you for working with JotBox. This is your personal referral link.`) +
+        linkBlock("Referral link", referralUrl) +
+        paragraph(`Anyone who signs up through it is counted to you, and you earn ${share}% of every Pro payment they make.`) +
+        paragraph("Your dashboard shows who joined, who paid, and what is owed to you. The link is private, so please keep it to yourself.") +
+        paragraph("Payouts are handled by hand, so there is nothing for you to set up on Paystack."),
+      action: "Open your dashboard",
+      actionUrl: dashboardUrl,
+      footnote: "If you want a different link name or have any questions, just reply to this email.",
+    }),
+  });
+}
+
+export async function sendFounderNoteEmail({
+  to,
+  name,
+  sessions,
+  callUrl,
+  replyTo,
+  founderName = "",
+}) {
+  const person = firstName(name);
+  const count = Number(sessions) || 0;
+  const signature = founderName ? `${founderName}\nFounder, JotBox` : "Founder, JotBox";
+  const useLine =
+    count > 0
+      ? `I saw that you have used JotBox for ${count} session${count === 1 ? "" : "s"}, and I wanted to say thank you personally.`
+      : "I saw that you signed up for JotBox, and I wanted to say thank you personally.";
+  const callLine = callUrl
+    ? `If it is easier to talk, pick a time here: ${callUrl}`
+    : "If a call is easier, just reply and we will find a time.";
+  return sendEmail({
+    to,
+    subject: "A quick note from the JotBox founder",
+    text: `Hi ${person},\n\n${useLine}\n\nI am trying to make JotBox better for the people who actually use it. What is working, what is not, and what would make it a habit for you?\n\n${callLine}\n\nEither way, just reply to this email. I read every one.\n\n${signature}`,
+    html: layout({
+      heading: "A quick note from the founder",
+      body:
+        paragraph(useLine) +
+        paragraph("I am trying to make JotBox better for the people who actually use it. What is working, what is not, and what would make it a habit for you?") +
+        paragraph(callLine) +
+        paragraph("Either way, just reply to this email. I read every one."),
+      footnote: founderName ? `${escapeHtml(founderName)}, founder of JotBox.` : "From the founder of JotBox.",
+    }),
+    replyTo: replyTo || undefined,
+    idempotencyKey: `founder-${String(to).replace(/[^A-Za-z0-9_-]+/g, "_")}`,
   });
 }
 

@@ -804,7 +804,7 @@ export default function Landing() {
                   ))}
                 </ul>
                 <a
-                  href="mailto:hello@jotbox.app?subject=JotBox%20Enterprise"
+                  href="mailto:hello@jotbox.online?subject=JotBox%20Enterprise"
                   className="btn btn-line mt-6 w-full"
                 >
                   <Mail className="h-3.5 w-3.5" />

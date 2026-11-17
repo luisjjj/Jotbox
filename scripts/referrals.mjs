@@ -4,12 +4,14 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { query, getPool } from "../server/api/pg.mjs";
 import { commissionFor, maskEmail } from "../server/api/referrals.mjs";
+import { sendReferralPartnerEmail } from "../server/api/email.mjs";
 
 /**
  * Manage referral partners and manual payouts.
  *
  * Usage:
  *   npm run partners -- --create --name "Cephas" --slug cephas --email cephas@example.com
+ *   npm run partners -- --invite cephas --to cephas@example.com
  *   npm run partners -- --list
  *   npm run partners -- --show cephas
  *   npm run partners -- --rotate cephas
@@ -21,7 +23,6 @@ const root = path.resolve(here, "..");
 const DEFAULT_PERCENT = 20;
 
 function loadEnv() {
-  if (process.env.DATABASE_URL) return;
   const file = path.join(root, ".env");
   if (!fs.existsSync(file)) return;
   for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
@@ -58,10 +59,14 @@ function usage() {
   console.log(`Referral partners and manual payouts.
 
   npm run partners -- --create --name "Cephas" --slug cephas [--email cephas@example.com] [--percent 20]
+  npm run partners -- --invite <slug> --to cephas@example.com [--dashboard <existing dashboard link>]
   npm run partners -- --list
   npm run partners -- --show <slug>
   npm run partners -- --rotate <slug>
   npm run partners -- --pay <slug> --amount 5000 [--note "October payout"]
+
+  --invite emails the partner their referral link and dashboard. Without
+  --dashboard it rotates the dashboard link and the previous one stops working.
 `);
 }
 
@@ -278,6 +283,90 @@ async function showPartner(slug) {
   console.log("");
 }
 
+async function invitePartner(args) {
+  const slug = String(args.invite === true ? "" : args.invite || "").trim();
+  if (!slug) {
+    console.error("Add the partner slug after --invite.");
+    usage();
+    process.exitCode = 1;
+    return;
+  }
+
+  const found = await query(
+    `select id, name, slug, email, commission_bp, access_token_hash
+       from referral_partners
+      where slug = $1`,
+    [slug],
+  );
+  const partner = found.rows[0];
+  if (!partner) {
+    console.error(`No partner with slug "${slug}".`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const to = String(args.to === true ? "" : args.to || "").trim().toLowerCase();
+  const recipient = to || partner.email;
+  if (!recipient || !recipient.includes("@")) {
+    console.error("Add --to cephas@example.com so the invite has somewhere to go.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const provided = String(args.dashboard === true ? "" : args.dashboard || "").trim();
+  let token;
+  let rotate = false;
+  if (provided) {
+    const match = provided.match(/\/partner\/([A-Za-z0-9_-]+)/);
+    token = match?.[1] || "";
+    if (!token || tokenHash(token) !== partner.access_token_hash) {
+      console.error("That dashboard link does not belong to this partner. Drop --dashboard to mint a new one.");
+      process.exitCode = 1;
+      return;
+    }
+  } else {
+    token = crypto.randomBytes(32).toString("base64url");
+    rotate = true;
+  }
+
+  const referralUrl = `${publicOrigin()}/r/${partner.slug}`;
+  const dashboardUrl = `${publicOrigin()}/partner/${token}`;
+  const result = await sendReferralPartnerEmail({
+    to: recipient,
+    name: partner.name,
+    referralUrl,
+    dashboardUrl,
+    commissionPercent: Number(partner.commission_bp) / 100,
+  });
+
+  if (!result.delivered) {
+    console.error(`Could not send the invite to ${recipient} (${result.reason}).`);
+    if (result.reason === "not_configured") console.error("Set SENDLY_API_KEY in .env first.");
+    process.exitCode = 1;
+    return;
+  }
+
+  await query(
+    `update referral_partners
+        set email = $2,
+            access_token_hash = case when $3::boolean then $4 else access_token_hash end,
+            updated_at = now()
+      where id = $1`,
+    [partner.id, recipient, rotate, tokenHash(token)],
+  );
+
+  console.log("");
+  console.log(`Partner invite sent to ${recipient}.`);
+  console.log(`  referral:     ${referralUrl}`);
+  console.log(`  dashboard:    ${dashboardUrl}`);
+  console.log(
+    rotate
+      ? "The dashboard link is private and replaces the previous one."
+      : "The existing dashboard link was kept.",
+  );
+  console.log("");
+}
+
 async function rotateToken(slug) {
   const token = crypto.randomBytes(32).toString("base64url");
   const updated = await query(
@@ -360,6 +449,10 @@ async function main() {
   }
   if (args.show) {
     await showPartner(String(args.show === true ? "" : args.show).trim());
+    return;
+  }
+  if (args.invite) {
+    await invitePartner(args);
     return;
   }
   if (args.rotate) {

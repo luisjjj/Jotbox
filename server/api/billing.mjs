@@ -2,7 +2,7 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
 import { usageView } from "./usage.mjs";
-import { sendCancellationEmail, sendReceiptEmail } from "./email.mjs";
+import { sendCancellationEmail, sendReceiptEmail, sendRenewalReminderEmail } from "./email.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -36,6 +36,8 @@ const MAX_PERIOD_DAYS = 32;
 const ACTIVE_GRACE_DAYS = 1;
 const ATTENTION_GRACE_DAYS = 2;
 const RECONCILE_AFTER_MS = 10 * 60 * 1000;
+const REMINDER_WINDOW_DAYS = 3;
+const REMINDER_BATCH = 25;
 const MIN_PRO_AMOUNT_KOBO = 100_00;
 const PLAN_CHECK_MS = 10 * 60 * 1000;
 
@@ -641,6 +643,82 @@ async function sendReceipt(userId, receipt) {
   });
 }
 
+/**
+ * One reminder per billing period. The claim row is written before the send,
+ * so an overlapping or retried cron cannot mail the same person twice. A lost
+ * network answer keeps the claim on purpose: sending twice is worse than a
+ * missed reminder.
+ */
+export async function sendRenewalReminders({ limit = REMINDER_BATCH } = {}) {
+  const batch = Math.max(1, Math.min(100, Number(limit) || REMINDER_BATCH));
+  const due = await query(
+    `select u.id, u.email, u.name,
+            s.amount, s.currency,
+            coalesce(s.current_period_end, s.next_payment_at) as renews_at
+       from billing_subscriptions s
+       join users u on u.id = s.user_id
+      where s.status = 'active'
+        and coalesce(s.current_period_end, s.next_payment_at) > now()
+        and coalesce(s.current_period_end, s.next_payment_at) <= now() + ($1::int * interval '1 day')
+        and not exists (
+          select 1 from billing_reminders r
+           where r.user_id = s.user_id
+             and r.kind = 'renewal'
+             and r.period_end = coalesce(s.current_period_end, s.next_payment_at)
+        )
+      order by coalesce(s.current_period_end, s.next_payment_at) asc
+      limit $2`,
+    [REMINDER_WINDOW_DAYS, batch],
+  );
+
+  let sent = 0;
+  let skipped = 0;
+  await Promise.all(
+    due.rows.map(async (row) => {
+      const claimed = await query(
+        `insert into billing_reminders (user_id, kind, period_end)
+         values ($1, 'renewal', $2)
+         on conflict do nothing
+         returning user_id`,
+        [row.id, row.renews_at],
+      );
+      if (!claimed.rows[0]) {
+        skipped += 1;
+        return;
+      }
+      try {
+        const result = await sendRenewalReminderEmail(
+          { id: row.id, email: row.email, name: row.name },
+          { amount: row.amount, currency: row.currency, nextPaymentAt: row.renews_at },
+        );
+        if (result.delivered) {
+          sent += 1;
+          return;
+        }
+        skipped += 1;
+        if (result.reason !== "network") {
+          await query(
+            "delete from billing_reminders where user_id = $1 and kind = 'renewal' and period_end = $2",
+            [row.id, row.renews_at],
+          ).catch(() => {});
+        }
+      } catch (error) {
+        skipped += 1;
+        await query(
+          "delete from billing_reminders where user_id = $1 and kind = 'renewal' and period_end = $2",
+          [row.id, row.renews_at],
+        ).catch(() => {});
+        console.warn(
+          "[jotbox-billing] renewal reminder failed",
+          row.id,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }),
+  );
+  return { checked: due.rows.length, sent, skipped };
+}
+
 async function statusFor(userId, { reconcile = false } = {}) {
   const config = billingConfig();
   if (reconcile && config.configured) {
@@ -1084,7 +1162,18 @@ async function reconcile(req, res) {
       );
     }
   }
-  sendJson(res, 200, { received: true, reconciled: done, failed });
+
+  let reminders = { checked: 0, sent: 0, skipped: 0 };
+  try {
+    reminders = await sendRenewalReminders();
+  } catch (error) {
+    console.warn(
+      "[jotbox-billing] renewal reminders failed",
+      error instanceof Error ? error.message : error,
+    );
+    reminders = { checked: 0, sent: 0, skipped: 0, failed: true };
+  }
+  sendJson(res, 200, { received: true, reconciled: done, failed, reminders });
 }
 
 async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
