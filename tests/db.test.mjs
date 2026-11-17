@@ -28,6 +28,8 @@ const REQUIRED_TABLES = [
   "billing_subscriptions",
   "billing_events",
   "usage_ledger",
+  "referral_partners",
+  "referral_payouts",
 ];
 
 const REQUIRED_COLUMNS = {
@@ -72,6 +74,18 @@ const REQUIRED_COLUMNS = {
   ],
   billing_events: ["id", "provider", "event", "reference", "payload", "created_at"],
   usage_ledger: ["user_id", "capture_id", "seconds", "recorded_at"],
+  users: ["referral_partner_id", "referred_at"],
+  referral_partners: [
+    "id",
+    "name",
+    "slug",
+    "email",
+    "commission_bp",
+    "access_token_hash",
+    "active",
+    "created_at",
+  ],
+  referral_payouts: ["id", "partner_id", "amount", "currency", "paid_at", "note"],
 };
 
 test("database schema supports recordings, org memory and audit", { skip: pool ? false : "DATABASE_URL is not set" }, async () => {
@@ -103,6 +117,7 @@ test("database schema supports recordings, org memory and audit", { skip: pool ?
   assert.ok(applied.includes("005_usage_metering"));
   assert.ok(applied.includes("006_billing_hardening"));
   assert.ok(applied.includes("007_usage_ledger"));
+  assert.ok(applied.includes("011_referrals"));
 
   const constraints = await pool.query(
     `select conname from pg_constraint where conrelid = 'captures'::regclass and contype = 'c'`,

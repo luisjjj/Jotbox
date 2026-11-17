@@ -455,3 +455,39 @@ alter table users add column if not exists onboarded_at timestamptz;
 insert into schema_migrations (version)
 values ('010_dashboard_roles')
 on conflict (version) do nothing;
+
+-- Referral partners earn a share of Pro payments from the people they send.
+-- The slug is public in the referral link. The dashboard token is only stored
+-- as a hash, so reading the table cannot produce a working partner link.
+create table if not exists referral_partners (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (length(trim(name)) between 1 and 120),
+  slug text not null unique check (slug ~ '^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$'),
+  email text not null default '',
+  commission_bp integer not null default 2000 check (commission_bp between 0 and 10000),
+  access_token_hash text not null unique,
+  active boolean not null default true,
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table users add column if not exists referral_partner_id uuid references referral_partners(id) on delete set null;
+alter table users add column if not exists referred_at timestamptz;
+create index if not exists users_referral_partner_idx on users (referral_partner_id, created_at desc);
+
+create table if not exists referral_payouts (
+  id uuid primary key default gen_random_uuid(),
+  partner_id uuid not null references referral_partners(id) on delete cascade,
+  amount integer not null check (amount > 0),
+  currency text not null default 'NGN',
+  paid_at timestamptz not null default now(),
+  note text not null default '',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists referral_payouts_partner_idx on referral_payouts (partner_id, paid_at desc);
+
+insert into schema_migrations (version)
+values ('011_referrals')
+on conflict (version) do nothing;

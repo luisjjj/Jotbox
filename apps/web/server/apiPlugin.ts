@@ -6,7 +6,7 @@ import { handleCoreApi } from "../../../server/api/router.mjs";
 export function notesApi(): Plugin {
   const handle = async (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => {
     const pathname = (req.url ?? "").split("?")[0];
-    if (!pathname.startsWith("/api/")) {
+    if (!pathname.startsWith("/api/") && !pathname.startsWith("/r/")) {
       next();
       return;
     }

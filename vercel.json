@@ -69,6 +69,14 @@
       "destination": "/api/utility?route=onboarding&token=$1"
     },
     {
+      "source": "/r/(.*)",
+      "destination": "/api/utility?route=referral&code=$1"
+    },
+    {
+      "source": "/api/referrals/(.*)",
+      "destination": "/api/utility?route=referrals&token=$1"
+    },
+    {
       "source": "/api/orgs",
       "destination": "/api/orgs-handler"
     },

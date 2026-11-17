@@ -16,6 +16,7 @@ import { handleShare } from "./share.mjs";
 import { handleDownloadWindows } from "./download.mjs";
 import { handleOnboarding } from "./onboarding.mjs";
 import { handleIntegrationCallback, handleIntegrations } from "./integrations.mjs";
+import { handleReferralVisit, handleReferrals } from "./referrals.mjs";
 
 /**
  * Shared dispatcher for the Vite dev/preview server. The Vercel deployment
@@ -54,6 +55,17 @@ export async function handleCoreApi(req, res) {
   }
   if (pathname === "/api/auth/reset-password") {
     await handleResetPassword(req, res);
+    return true;
+  }
+  if (pathname.startsWith("/r/")) {
+    req.url = `/api/referrals?code=${encodeURIComponent(pathname.slice(3))}`;
+    await handleReferralVisit(req, res);
+    return true;
+  }
+  if (pathname === "/api/referrals" || pathname.startsWith("/api/referrals/")) {
+    const token = pathname.slice("/api/referrals/".length);
+    req.url = `/api/referrals?token=${encodeURIComponent(token)}`;
+    await handleReferrals(req, res);
     return true;
   }
   if (pathname === "/api/captures") {

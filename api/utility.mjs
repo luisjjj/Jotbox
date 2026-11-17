@@ -3,6 +3,7 @@ import { handleDownloadWindows } from "../server/api/download.mjs";
 import { handleHealth } from "../server/api/health.mjs";
 import { guard, HttpError } from "../server/api/http.mjs";
 import { handleOnboarding } from "../server/api/onboarding.mjs";
+import { handleReferralVisit, handleReferrals } from "../server/api/referrals.mjs";
 
 // One function for the small routes keeps the Hobby plan under 12 functions.
 export default guard((req, res) => {
@@ -20,6 +21,14 @@ export default guard((req, res) => {
     const token = search.get("token") || "";
     req.url = `/api/onboarding?token=${encodeURIComponent(token)}`;
     return handleOnboarding(req, res);
+  }
+  if (route === "referral") {
+    req.url = `/api/referrals?code=${encodeURIComponent(search.get("code") || "")}`;
+    return handleReferralVisit(req, res);
+  }
+  if (route === "referrals") {
+    req.url = `/api/referrals?token=${encodeURIComponent(search.get("token") || "")}`;
+    return handleReferrals(req, res);
   }
   throw new HttpError(404, "Not found.");
 });

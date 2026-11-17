@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { query } from "./pg.mjs";
 import { hashPassword, token, tokenHash, verifyPassword } from "./passwords.mjs";
+import { isReferralSlug } from "./referrals.mjs";
 import {
   appUrlFor,
   sendPasswordChangedEmail,
@@ -21,6 +22,7 @@ import {
 } from "./http.mjs";
 
 const COOKIE = "jotbox_session";
+const REFERRAL_COOKIE = "jotbox_ref";
 const SESSION_DAYS = 30;
 const SESSION_SECONDS = SESSION_DAYS * 24 * 60 * 60;
 const RESET_MINUTES = 60;
@@ -87,6 +89,25 @@ async function clearAttempts(kind, key) {
   await query("delete from auth_attempts where kind = $1 and key = $2", [kind, key]);
 }
 
+async function referralPartnerFor(email, req) {
+  const raw = parseCookies(req)[REFERRAL_COOKIE];
+  const slug = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!isReferralSlug(slug)) return null;
+  try {
+    const result = await query(
+      "select id, email from referral_partners where slug = $1 and active = true limit 1",
+      [slug],
+    );
+    const partner = result.rows[0];
+    if (!partner) return null;
+    if (partner.email && String(partner.email).toLowerCase() === email) return null;
+    return partner.id;
+  } catch (error) {
+    console.error("[jotbox-auth] referral lookup failed", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
 async function issueSession(userId, req, res) {
   await query("delete from auth_sessions where expires_at < now()");
   const raw = token();
@@ -148,14 +169,15 @@ export async function handleRegister(req, res) {
 
   const { email, password, name } = parsed.data;
   const passwordHash = await hashPassword(password);
+  const partnerId = await referralPartnerFor(email, req);
 
   let user;
   try {
     const inserted = await query(
-      `insert into users (email, name, password_hash)
-       values ($1, $2, $3)
+      `insert into users (email, name, password_hash, referral_partner_id, referred_at)
+       values ($1, $2, $3, $4, $5)
        returning id, email, name, dashboard_role, onboarded_at, created_at`,
-      [email, name, passwordHash],
+      [email, name, passwordHash, partnerId, partnerId ? new Date() : null],
     );
     user = publicUser(inserted.rows[0]);
   } catch (error) {

@@ -3,3 +3,5 @@ Allow: /
 Disallow: /api/
 Disallow: /enterprise/
 Disallow: /reset-password
+Disallow: /r/
+Disallow: /partner/

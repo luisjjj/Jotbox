@@ -32,8 +32,51 @@ export interface EnterpriseInvite {
   signedInEmail: string | null;
 }
 
-export type IntegrationProvider = "google" | "outlook" | "jira";
+export interface PartnerReferral {
+  email: string;
+  joinedAt: number;
+  status: string;
+  payments: number;
+  grossKobo: number;
+  commissionKobo: number;
+  lastPaidAt: number | null;
+}
 
+export interface PartnerPayment {
+  reference: string;
+  amountKobo: number;
+  commissionKobo: number;
+  currency: string;
+  paidAt: number;
+  email: string;
+}
+
+export interface PartnerPayout {
+  id: string;
+  amountKobo: number;
+  currency: string;
+  paidAt: number;
+  note: string;
+}
+
+export interface PartnerDashboard {
+  partner: { name: string; slug: string; commissionPercent: number; link: string };
+  stats: {
+    currency: string;
+    signups: number;
+    paying: number;
+    active: number;
+    grossKobo: number;
+    commissionKobo: number;
+    paidOutKobo: number;
+    balanceKobo: number;
+  };
+  referrals: PartnerReferral[];
+  payments: PartnerPayment[];
+  payouts: PartnerPayout[];
+}
+
+export type IntegrationProvider = "google" | "outlook" | "jira";
 export interface IntegrationProviderStatus {
   provider: IntegrationProvider;
   label: string;
@@ -450,6 +493,8 @@ export const api = {
     request<{ id: string }>(`/api/share?id=${encodeURIComponent(id)}`, { method: "DELETE" }),
   getPublicShare: (token: string) =>
     request<{ capture: PublicShare }>(`/api/share?token=${encodeURIComponent(token)}`),
+  getPartnerDashboard: (token: string) =>
+    request<PartnerDashboard>(`/api/referrals/${encodeURIComponent(token)}`),
   billingStatus: () => request<BillingStatus>("/api/billing"),
   reconcileBilling: () => request<BillingStatus>("/api/billing?action=reconcile"),
   startCheckout: () =>
