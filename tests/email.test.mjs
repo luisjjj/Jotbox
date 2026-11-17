@@ -153,7 +153,7 @@ test("founder note is personal, mentions usage and sets reply-to", async () => {
 
   assert.equal(result.delivered, true);
   const { init, body } = calls[0];
-  assert.equal(init.headers["Idempotency-Key"], "founder-ada_example_com");
+  assert.match(init.headers["Idempotency-Key"], /^founder-ada_example_com-[0-9a-f]{16}$/);
   assert.equal(body.replyTo, "founder@jotbox.online");
   assert.equal(body.from, "Luis from JotBox <hello@jotbox.online>");
   assert.equal(body.subject, "A quick note from Luis");

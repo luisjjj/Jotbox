@@ -6,6 +6,8 @@
  * not switched on yet.
  */
 
+import crypto from "node:crypto";
+
 const SENDLY_API = "https://api.sendlyai.com/v1/messages";
 const EMAIL_TIMEOUT_MS = 10_000;
 const DEFAULT_FROM = "JotBox <hello@jotbox.online>";
@@ -173,6 +175,10 @@ function founderFrom(founderName) {
   return `${name} from JotBox <${fromAddress()}>`;
 }
 
+function contentKey(...parts) {
+  return crypto.createHash("sha256").update(parts.join("\n")).digest("hex").slice(0, 16);
+}
+
 function publicAppUrl() {
   return (process.env.JOTBOX_PUBLIC_URL?.trim() || "https://jotbox.online").replace(/\/+$/, "");
 }
@@ -337,10 +343,12 @@ export async function sendFounderNoteEmail({
   const ask = sender
     ? `I am ${sender}, the founder of JotBox, and I am trying to make it better for the people who actually use it. What is working, what is not, and what would make it a habit for you?`
     : "I am trying to make JotBox better for the people who actually use it. What is working, what is not, and what would make it a habit for you?";
+  const subject = sender ? `A quick note from ${sender}` : "A quick note from the JotBox founder";
+  const text = `Hi ${person},\n\n${useLine}\n\n${ask}\n\n${callLine}\n\nEither way, just reply to this email. I read every one.\n\n${signature}`;
   return sendEmail({
     to,
-    subject: sender ? `A quick note from ${sender}` : "A quick note from the JotBox founder",
-    text: `Hi ${person},\n\n${useLine}\n\n${ask}\n\n${callLine}\n\nEither way, just reply to this email. I read every one.\n\n${signature}`,
+    subject,
+    text,
     html: layout({
       heading: sender ? `A note from ${sender}` : "A quick note from the founder",
       body:
@@ -352,7 +360,7 @@ export async function sendFounderNoteEmail({
     }),
     from: founderFrom(sender),
     replyTo: replyTo || undefined,
-    idempotencyKey: `founder-${String(to).replace(/[^A-Za-z0-9_-]+/g, "_")}`,
+    idempotencyKey: `founder-${String(to).replace(/[^A-Za-z0-9_-]+/g, "_")}-${contentKey(subject, text)}`,
   });
 }
 
