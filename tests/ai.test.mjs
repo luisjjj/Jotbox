@@ -84,13 +84,13 @@ test("speech prompt carries the session title, focus and roster names", () => {
     focus: "balanced",
   });
   assert.match(prompt, /This meeting is called "Quarterly earnings review"\./);
-  assert.match(prompt, /Only transcribe speech that belongs to this session/);
-  assert.match(prompt, /Leave out side conversations, background media and room noise/);
+  assert.match(prompt, /Keep every spoken word, even in a noisy room/);
+  assert.match(prompt, /Leave out side conversations and background media only when no one in the session is speaking/);
   assert.match(prompt, /Ada, Chinedu/);
   assert.match(prompt, /soft, far or fast/i);
 
   const open = ai.sttPrompt({ title: "Lecture notes", kind: "lecture", names: [], focus: "off" });
-  assert.doesNotMatch(open, /Only transcribe speech that belongs to this session/);
+  assert.doesNotMatch(open, /Keep every spoken word/);
 
   assert.equal(ai.sanitizeSttContext({ title: "", names: [] }), null);
   assert.equal(ai.sanitizeSttContext(null), null);
@@ -161,12 +161,13 @@ test("transcription falls over from Groq to the worker and normalises words", as
   assert.equal(result.words.length, 3);
   assert.equal(result.words[0].start, 0.1);
   assert.equal(result.words[2].speaker, undefined);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.match(calls[0], /api\.groq\.com/);
-  assert.match(calls[1], /whisper\.test\/v1\/audio\/transcriptions/);
-  assert.equal(forms[1].get("condition_on_previous_text"), "false");
-  assert.equal(forms[1].get("vad_filter"), "true");
-  assert.match(String(forms[1].get("vad_parameters")), /speech_pad_ms/);
+  assert.match(calls[1], /api\.groq\.com/);
+  assert.match(calls[2], /whisper\.test\/v1\/audio\/transcriptions/);
+  assert.equal(forms[2].get("condition_on_previous_text"), "false");
+  assert.equal(forms[2].get("vad_filter"), "true");
+  assert.match(String(forms[2].get("vad_parameters")), /speech_pad_ms/);
 });
 
 test("transcription removes noise segments and keeps the room's words", async () => {
@@ -214,6 +215,81 @@ test("transcription removes noise segments and keeps the room's words", async ()
   assert.equal(form.get("temperature"), "0");
   assert.match(String(form.get("prompt")), /Quarterly earnings review/);
   assert.match(String(form.get("prompt")), /Ada/);
+});
+
+test("live transcription keeps quiet noisy speech instead of dropping the chunk", async () => {
+  process.env.GROQ_API_KEY = "test-groq";
+
+  globalThis.fetch = async () =>
+    Response.json({
+      text: "make we pause the promise",
+      language: "en-NG",
+      words: [
+        { word: "make", start: 0, end: 0.3 },
+        { word: "we", start: 0.3, end: 0.4 },
+        { word: "pause", start: 0.4, end: 0.7 },
+        { word: "the", start: 0.7, end: 0.8 },
+        { word: "promise", start: 0.8, end: 1.2 },
+      ],
+      segments: [
+        {
+          text: " make we pause the promise ",
+          start: 0,
+          end: 2,
+          no_speech_prob: 0.92,
+          avg_logprob: -1.9,
+          compression_ratio: 2.9,
+        },
+      ],
+    });
+
+  const result = await ai.transcribeAudio({
+    buffer: Buffer.from("audio"),
+    contentType: "audio/webm",
+    filename: "live.webm",
+    live: true,
+  });
+
+  assert.equal(result.text, "make we pause the promise");
+  assert.equal(result.filtered, 0);
+  assert.equal(result.words.length, 5);
+});
+
+test("transcript cleanup collapses recognition loops and drops repeated lines", () => {
+  assert.equal(
+    ai.tidyTranscript("make we pause the pause the pause the promise"),
+    "make we pause the promise",
+  );
+  assert.equal(
+    ai.tidyTranscript("Ada: send the note\nAda: send the note\nChinedu: confirm the batches"),
+    "Ada: send the note\nChinedu: confirm the batches",
+  );
+  assert.equal(ai.tidyTranscript("[music]\nWe agreed on 4pm"), "We agreed on 4pm");
+});
+
+test("segment speakers are copied onto words when a provider diarizes", () => {
+  const result = ai.normalizeTranscription(
+    {
+      text: "Ada spoke first. Chinedu answered.",
+      words: [
+        { word: "Ada", start: 0, end: 0.3 },
+        { word: "spoke", start: 0.3, end: 0.6 },
+        { word: "first.", start: 0.6, end: 1 },
+        { word: "Chinedu", start: 1.2, end: 1.6 },
+        { word: "answered.", start: 1.6, end: 2 },
+      ],
+      segments: [
+        { text: " Ada spoke first. ", start: 0, end: 1, speaker: 0 },
+        { text: " Chinedu answered. ", start: 1.2, end: 2, speaker: 1 },
+      ],
+    },
+    "xai",
+  );
+
+  assert.deepEqual(
+    result.words.map((word) => word.speaker),
+    [0, 0, 0, 1, 1],
+  );
 });
 
 test("worker tuning can be turned off for a plain OpenAI-compatible server", async () => {

@@ -247,6 +247,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   });
   const speechRef = useRef<SpeechRec | null>(null);
   const listenRef = useRef(false);
+  const liveFallbackRef = useRef<(() => void) | null>(null);
   const stopStreamRef = useRef<() => void>(() => {});
   const analyserRef = useRef<AnalyserNode | null>(null);
   const stopRef = useRef<() => Promise<void>>(async () => {});
@@ -505,8 +506,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         } catch {
           live.failures += 1;
           if (live.failures >= 2) {
+            const fallback = liveFallbackRef.current;
             stopServerLive();
-            setCaptions(false);
+            if (fallback) fallback();
+            else setCaptions(false);
             break;
           }
         }
@@ -562,21 +565,16 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     }, LIVE_SEGMENT_MS);
   };
 
-  const armServerSpeech = () => {
+  const armServerSpeech = (onExhausted?: () => void) => {
     const live = serverLiveRef.current;
     stopServerLive();
+    liveFallbackRef.current = onExhausted ?? null;
     live.active = true;
     live.failures = 0;
     startServerSegment();
   };
 
-  const armSpeech = () => {
-    // Electron exposes webkitSpeechRecognition, but it has no speech service
-    // behind it and fails immediately. Use the server path in the shell.
-    if (desktop) {
-      armServerSpeech();
-      return;
-    }
+  const armWebSpeech = () => {
     const Ctor = speechCtor();
     if (!Ctor) {
       setCaptions(false);
@@ -624,6 +622,19 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     } catch {
       setCaptions(false);
     }
+  };
+
+  const armSpeech = () => {
+    // Every environment uses the server reader first, because the browser
+    // speech service fails quietly in noisy rooms. Web Speech is only a
+    // backup for browsers where the endpoint cannot be reached.
+    armServerSpeech(() => {
+      if (!desktop) {
+        armWebSpeech();
+        return;
+      }
+      setCaptions(false);
+    });
   };
 
   const finishRecorder = () => {
