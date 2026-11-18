@@ -154,6 +154,7 @@ Useful flags:
 - `--no-notes` skips the note writer and only tests reading.
 - `--mock` uses the local demo reader, so it works with no API key and no audio.
 - `--prompt=path` loads the reader prompt from a file, so a winning prompt is reproducible. `eval/prompts/pidgin.txt` is the current Pidgin-first prompt.
+- `--language=en|pcm|yo|ha|ig` sends the session language the way the app does. `pcm` keeps the Pidgin register while Whisper reads the audio as English; `ig` only runs on a self-hosted reader with an Igbo model.
 - `--out=path` chooses the run folder. The default is `eval/results/<timestamp>/`.
 
 `--normalize` needs ffmpeg. The runner checks `FFMPEG_PATH`, then `PATH`, then the usual Windows winget and Chocolatey install folders:

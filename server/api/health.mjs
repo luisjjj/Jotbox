@@ -21,6 +21,7 @@ export async function handleHealth(req, res) {
     reading: ai.transcribe,
     writing: ai.notes,
     pidgin: ai.pidgin,
+    languages: ai.sttLanguages,
     tone: ai.tone,
   });
 }

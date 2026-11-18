@@ -1,5 +1,5 @@
 import { defaultTitle, transcriptText } from "./format";
-import { filterLines, focusContext, getFocusMode, knownNames } from "./listening";
+import { filterLines, focusContext, getFocusMode, getSessionLanguage, knownNames } from "./listening";
 import { localNotes } from "./localNotes";
 import { wordsToLines } from "./transcript";
 import type { Participant, SessionKind, SessionNotes, SttWord, TranscriptLine } from "./types";
@@ -70,7 +70,10 @@ function encodeContext(value: unknown) {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function transcribe(blob: Blob, context: { title: string; kind: SessionKind; names: string[]; focus: string }) {
+async function transcribe(
+  blob: Blob,
+  context: { title: string; kind: SessionKind; names: string[]; focus: string; language: string },
+) {
   const response = await timedFetch(
     "/api/transcribe",
     {
@@ -168,6 +171,7 @@ export async function buildNotes(input: {
         kind: input.kind,
         names: knownNames(participants),
         focus,
+        language: getSessionLanguage(),
       });
       if (fromAudio.length) lines = fromAudio;
     } catch {

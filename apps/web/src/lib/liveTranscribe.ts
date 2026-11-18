@@ -1,4 +1,4 @@
-import { getFocusMode, knownNames } from "./listening";
+import { getFocusMode, getSessionLanguage, knownNames } from "./listening";
 import type { Participant, SessionKind } from "./types";
 
 function encodeContext(value: unknown) {
@@ -24,6 +24,7 @@ export async function transcribeChunk(
           kind: room.kind,
           names: knownNames(room.participants),
           focus: getFocusMode(),
+          language: getSessionLanguage(),
         }),
       },
       body: blob,

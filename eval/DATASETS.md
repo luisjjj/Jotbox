@@ -24,6 +24,22 @@ Catalogs worth watching:
 - [Lacuna Fund datasets](https://lacunafund.org/datasets/language/)
 - [Open Trusted Data Initiative catalog](https://the-ai-alliance.github.io/open-trusted-data-initiative/catalog/)
 
+## Language coverage
+
+Checked against Groq `whisper-large-v3` on 18 November 2026. Groq accepts `yo` (Yoruba) and `ha` (Hausa). It rejects `ig` with `invalid_language`, because Igbo is not in Whisper's language list. Pidgin has no code of its own, so it runs as `en` with the Pidgin register prompt.
+
+| Session language | Provider path | Status |
+| --- | --- | --- |
+| English | Groq `en`, short vocabulary prompt | shipped |
+| Pidgin | Groq `en`, Pidgin register prompt | shipped, 39.8% WER with glossary on the public Pidgin sample |
+| Yoruba | Groq `yo` | shipped, needs a public eval sample |
+| Hausa | Groq `ha` | shipped, needs a public eval sample |
+| Igbo | self-hosted reader only | blocked until an Igbo-capable worker is connected |
+
+For Igbo, the hosted Whisper path cannot help. Connect a self-hosted faster-whisper worker running an Igbo-capable model, such as Sunbird's Whisper adaptation for African languages or Meta MMS, then set `WHISPER_BASE_URL`. The gateway already asks that worker for `language=ig` and returns a plain message to the app when no worker is configured.
+
+For Yoruba and Hausa evaluation, use the gated NaijaVoices sample or African Voices. Both need an account, so import a small hand-checked slice into a manifest and record the license beside it. Until that exists, the launch claim is provider coverage, not measured accuracy.
+
 ## What public corpora cannot tell you
 
 - They are mostly short, clean, read or prompted utterances. Meeting audio is longer, quieter at the edge, and full of interruptions.

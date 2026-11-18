@@ -43,6 +43,7 @@ const wantGlossary = has("glossary");
 const wantNormalize = has("normalize");
 const mock = has("mock");
 const promptFile = arg("prompt", "");
+const language = arg("language", "");
 
 if (promptFile) {
   const promptPath = resolve(process.cwd(), promptFile);
@@ -273,7 +274,7 @@ const run = {
   run: outDir.split(/[\\/]/).pop(),
   startedAt: new Date().toISOString(),
   manifest: manifestPath,
-  variant: { glossary: wantGlossary, normalize: wantNormalize, mock },
+  variant: { glossary: wantGlossary, normalize: wantNormalize, mock, language: language || "default" },
   providers: { reading: status.transcribe, writing: status.notes },
   clips: [],
 };
@@ -364,6 +365,7 @@ for (const clip of clips) {
       kind: "meeting",
       names: clip.names || [],
       focus: "balanced",
+      ...(language ? { language } : {}),
     };
     entry.prompt = sttPrompt(context);
 

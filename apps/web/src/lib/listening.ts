@@ -2,9 +2,11 @@ import type { Participant, SessionKind, TranscriptLine } from "./types";
 
 export type FocusMode = "off" | "balanced" | "strict";
 export type PickupMode = "balanced" | "far";
+export type SessionLanguage = "en" | "pcm" | "yo" | "ha" | "ig";
 
 const FOCUS_KEY = "jotbox-focus-mode";
 const PICKUP_KEY = "jotbox-pickup-mode";
+const LANGUAGE_KEY = "jotbox-session-language";
 
 export const FOCUS_OPTIONS: { value: FocusMode; label: string; hint: string }[] = [
   {
@@ -37,6 +39,34 @@ export const PICKUP_OPTIONS: { value: PickupMode; label: string; hint: string }[
   },
 ];
 
+export const LANGUAGE_OPTIONS: { value: SessionLanguage; label: string; hint: string }[] = [
+  {
+    value: "en",
+    label: "English",
+    hint: "Nigerian English lectures and meetings. Igbo, Yoruba and Hausa words stay as spoken.",
+  },
+  {
+    value: "pcm",
+    label: "Pidgin",
+    hint: "Nigerian Pidgin. The words stay exactly as the room said them.",
+  },
+  {
+    value: "yo",
+    label: "Yoruba",
+    hint: "Yoruba is written in Yoruba, not translated to English.",
+  },
+  {
+    value: "ha",
+    label: "Hausa",
+    hint: "Hausa is written in Hausa, not translated to English.",
+  },
+  {
+    value: "ig",
+    label: "Igbo",
+    hint: "Igbo is written in Igbo. This needs the Igbo reader on the server.",
+  },
+];
+
 export function getFocusMode(): FocusMode {
   if (typeof localStorage === "undefined") return "balanced";
   const stored = localStorage.getItem(FOCUS_KEY);
@@ -54,6 +84,18 @@ export function getPickupMode(): PickupMode {
 
 export function setPickupMode(mode: PickupMode) {
   localStorage.setItem(PICKUP_KEY, mode);
+}
+
+export function getSessionLanguage(): SessionLanguage {
+  if (typeof localStorage === "undefined") return "en";
+  const stored = localStorage.getItem(LANGUAGE_KEY);
+  return LANGUAGE_OPTIONS.some((option) => option.value === stored)
+    ? (stored as SessionLanguage)
+    : "en";
+}
+
+export function setSessionLanguage(language: SessionLanguage) {
+  localStorage.setItem(LANGUAGE_KEY, language);
 }
 
 export function pickupConstraints(mode: PickupMode = getPickupMode()): MediaTrackConstraints {

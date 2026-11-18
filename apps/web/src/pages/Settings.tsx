@@ -7,14 +7,20 @@ import { APP_CONFIG } from "@jotbox/config";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   FOCUS_OPTIONS,
+  LANGUAGE_OPTIONS,
   PICKUP_OPTIONS,
   getFocusMode,
   getPickupMode,
+  getSessionLanguage,
   setFocusMode,
   setPickupMode,
+  setSessionLanguage,
   type FocusMode,
   type PickupMode,
+  type SessionLanguage,
 } from "@/lib/listening";
+import { useSttLanguages } from "@/hooks/useSttLanguages";
+import { Select } from "@/components/Select";
 import { RETENTION_OPTIONS, getAudioRetention, pruneExpiredAudio, setAudioRetention, type AudioRetention } from "@/lib/retention";
 import { DASHBOARD_ROLES, ROLE_META, type DashboardRole } from "@/lib/roles";
 import { loadSampleSessions } from "@/lib/seed";
@@ -70,6 +76,8 @@ export default function Settings() {
   const [retention, setRetention] = useState<AudioRetention>(() => getAudioRetention());
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
   const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
+  const [language, setLanguage] = useState<SessionLanguage>(() => getSessionLanguage());
+  const sttLanguages = useSttLanguages();
   const [savingRole, setSavingRole] = useState<DashboardRole | null>(null);
 
   const audioCount = sessions.filter((session) => session.hasAudio).length;
@@ -279,6 +287,30 @@ export default function Settings() {
               </div>
               <p className="mt-2 text-[12.5px] leading-4 text-muted">
                 {PICKUP_OPTIONS.find((option) => option.value === pickup)?.hint}
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-[14px] font-medium text-ink">Session language</p>
+              <Select
+                className="mt-2 w-full sm:max-w-[300px]"
+                value={language}
+                onChange={(value) => {
+                  const next = value as SessionLanguage;
+                  setLanguage(next);
+                  setSessionLanguage(next);
+                }}
+                options={LANGUAGE_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                  disabled:
+                    option.value === "ig" && sttLanguages !== null && !sttLanguages.includes("ig"),
+                }))}
+                aria-label="Session language"
+              />
+              <p className="mt-2 text-[12.5px] leading-4 text-muted">
+                {sttLanguages !== null && !sttLanguages.includes(language)
+                  ? "The Igbo reader is not connected on this server yet. Pick another language for now."
+                  : LANGUAGE_OPTIONS.find((option) => option.value === language)?.hint}
               </p>
             </div>
           </div>

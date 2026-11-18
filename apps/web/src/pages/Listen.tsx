@@ -35,14 +35,20 @@ import { isDesktop } from "@/lib/desktop";
 import { useUsage } from "@/lib/usageStore";
 import {
   FOCUS_OPTIONS,
+  LANGUAGE_OPTIONS,
   PICKUP_OPTIONS,
   getFocusMode,
   getPickupMode,
+  getSessionLanguage,
   setFocusMode,
   setPickupMode,
+  setSessionLanguage,
   type FocusMode,
   type PickupMode,
+  type SessionLanguage,
 } from "@/lib/listening";
+import { useSttLanguages } from "@/hooks/useSttLanguages";
+import { Select } from "@/components/Select";
 import type { Participant, SessionKind } from "@/lib/types";
 import { KindBadge, KindIcon } from "@/components/KindBadge";
 import { PreMeetingBrief } from "@/components/PreMeetingBrief";
@@ -232,6 +238,8 @@ function Setup() {
   const [people, setPeople] = useState<Participant[]>([]);
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
   const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
+  const [language, setLanguage] = useState<SessionLanguage>(() => getSessionLanguage());
+  const sttLanguages = useSttLanguages();
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [busy, setBusy] = useState<"mic" | "tab" | null>(null);
   const [onDesktop] = useState(() => isDesktop());
@@ -402,6 +410,30 @@ function Setup() {
               </div>
               <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
                 {PICKUP_OPTIONS.find((option) => option.value === pickup)?.hint}
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="label">Language</p>
+              <Select
+                className="mt-1.5 w-full sm:max-w-[300px]"
+                value={language}
+                onChange={(value) => {
+                  const next = value as SessionLanguage;
+                  setLanguage(next);
+                  setSessionLanguage(next);
+                }}
+                options={LANGUAGE_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                  disabled:
+                    option.value === "ig" && sttLanguages !== null && !sttLanguages.includes("ig"),
+                }))}
+                aria-label="Session language"
+              />
+              <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
+                {sttLanguages !== null && !sttLanguages.includes(language)
+                  ? "The Igbo reader is not connected on this server yet. Pick another language for now."
+                  : LANGUAGE_OPTIONS.find((option) => option.value === language)?.hint}
               </p>
             </div>
           </div>

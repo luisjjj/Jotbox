@@ -41,13 +41,36 @@ const KIND_LABEL = {
   voice: "voice note",
 };
 
-const STT_PROMPT = [
-  "Transcribe verbatim. Keep each speaker's exact words.",
-  "Speakers may mix Nigerian Pidgin, English, Yoruba, Igbo and Hausa in one sentence. Keep Pidgin as spoken; do not translate or correct it.",
-  "Keep names, places, amounts and dates, and spell names and acronyms the way the room says them.",
-  "Follow soft, far or fast speakers through language switches.",
-  "When the room is noisy or the speaker is far from the microphone, still write the words you can hear. Return nothing only when a stretch has no speech at all.",
+// A short hint beats a long instruction list. Long prompts get echoed verbatim
+// on noisy audio and push the room vocabulary out of the 896 character budget.
+const STT_PROMPT_EN = [
+  "Verbatim transcript of a lecture or meeting in Nigerian English.",
+  "Keep Igbo, Yoruba and Hausa words as spoken.",
+  "Keep names, places, amounts and dates exactly as said.",
 ].join(" ");
+
+// This is the prompt that won the public Nigerian Pidgin set (39.1% WER with
+// the room glossary, against 47.5% for a plain English prompt).
+const STT_PROMPT_PCM = [
+  "Transcribe verbatim in Nigerian Pidgin. Do not translate to English and do not correct grammar.",
+  "Keep Pidgin exactly as spoken: wetin dey happen, make we check am, I no fit, dem don go, pikin, abeg, wahala, sotey, wey, na im, di, dey, don.",
+  "Keep names, places and amounts exactly as said. Leave out background media and side talk.",
+].join(" ");
+
+const STT_PROMPTS = {
+  en: STT_PROMPT_EN,
+  pcm: STT_PROMPT_PCM,
+  yo: "Verbatim Yoruba transcript. Keep Yoruba as spoken and do not translate it to English. Keep names, places, amounts and dates exactly as said.",
+  ha: "Verbatim Hausa transcript. Keep Hausa as spoken and do not translate it to English. Keep names, places, amounts and dates exactly as said.",
+  ig: "Verbatim Igbo transcript. Keep Igbo as spoken and do not translate it to English. Keep names, places, amounts and dates exactly as said.",
+};
+
+// Pidgin runs through Whisper as English audio; the prompt carries the register.
+const STT_CODES = { en: "en", pcm: "en", yo: "yo", ha: "ha", ig: "ig" };
+
+// Igbo is missing from Whisper's hosted language list, so it only runs on a
+// self-hosted reader with an Igbo model (for example Sunbird's adaptation).
+const STT_WORKER_ONLY = new Set(["ig"]);
 
 const STT_PROMPT_LIMIT = 896;
 const STT_BASE_LIMIT = 560;
@@ -124,10 +147,24 @@ function whisperBase() {
   return key("WHISPER_BASE_URL").replace(/\/+$/, "");
 }
 
-function sttLanguage() {
+function sttLanguage(requested) {
+  const asked = typeof requested === "string" ? requested.trim().toLowerCase() : "";
+  if (STT_CODES[asked]) return asked;
   const value = key("JOTBOX_STT_LANGUAGE").toLowerCase();
   if (value === "auto" || value === "none") return null;
   return value || DEFAULT_LANGUAGE;
+}
+
+function sttCode(language) {
+  if (!language) return null;
+  return STT_CODES[language] || language;
+}
+
+function sttHostedLanguages() {
+  const languages = ["en", "pcm"];
+  if (groqKey()) languages.push("yo", "ha");
+  if (whisperBase()) languages.push("ig");
+  return languages;
 }
 
 function sttVocabulary() {
@@ -156,20 +193,21 @@ export function sanitizeSttContext(input) {
   const title = plainText(input.title, 120);
   const kind = ["meeting", "seminar", "lecture", "voice"].includes(input.kind) ? input.kind : "";
   const focus = ["off", "balanced", "strict"].includes(input.focus) ? input.focus : "balanced";
-  if (!title && !names.length) return null;
-  return { title, kind, names, focus };
+  const asked = plainText(input.language, 8).toLowerCase();
+  const language = STT_CODES[asked] ? asked : "";
+  if (!title && !names.length && !language) return null;
+  return { title, kind, names, focus, language };
 }
 
 export function sttPrompt(context) {
-  const base = (key("JOTBOX_STT_PROMPT") || STT_PROMPT).slice(0, STT_BASE_LIMIT);
+  const language = sanitizeSttContext(context)?.language || sttLanguage();
+  const base = (key("JOTBOX_STT_PROMPT") || STT_PROMPTS[language] || STT_PROMPT_EN).slice(0, STT_BASE_LIMIT);
   const vocab = sttVocabulary();
   const room = sanitizeSttContext(context);
   const kind = room?.kind && KIND_LABEL[room.kind] ? KIND_LABEL[room.kind] : "session";
   const topic = room?.title ? `This ${kind} is called "${room.title}".` : "";
   const focus =
-    room?.focus === "off"
-      ? ""
-      : "Keep every spoken word, even in a noisy room. Leave out side conversations and background media only when no one in the session is speaking.";
+    room?.focus === "off" ? "" : "Keep every word you can hear, even in a noisy room.";
   const terms = [...new Set([...(room?.names ?? []), ...vocab.split(", ").filter(Boolean)])];
   const lead = [base, topic, focus].filter(Boolean).join(" ");
 
@@ -228,6 +266,7 @@ export function aiStatus() {
     pidgin: true,
     tone: key("JOTBOX_AI_TONE") || DEFAULT_TONE,
     sttLanguage: sttLanguage() || "auto",
+    sttLanguages: sttHostedLanguages(),
     sttVocabulary: vocabulary ? vocabulary.split(", ").length : 0,
     sttModel: whisperBase()
       ? key("WHISPER_MODEL") || WORKER_STT_DEFAULT
@@ -468,12 +507,12 @@ export function normalizeTranscription(data, provider, options = {}) {
   };
 }
 
-async function transcribeWithGroq(buffer, contentType, filename, context, options = {}) {
+async function transcribeWithGroq(buffer, contentType, filename, context, options = {}, language = null) {
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: contentType }), filename);
   form.append("model", key("GROQ_STT_MODEL") || DEFAULT_GROQ_STT);
-  const language = sttLanguage();
-  if (language) form.append("language", language);
+  const code = sttCode(language);
+  if (code) form.append("language", code);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "word");
   form.append("prompt", sttPrompt(context));
@@ -489,13 +528,13 @@ async function transcribeWithGroq(buffer, contentType, filename, context, option
   return normalizeTranscription(await response.json(), "groq", options);
 }
 
-async function transcribeWithWorker(buffer, contentType, filename, context, options = {}) {
+async function transcribeWithWorker(buffer, contentType, filename, context, options = {}, language = null) {
   const base = whisperBase();
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: contentType }), filename);
   form.append("model", key("WHISPER_MODEL") || WORKER_STT_DEFAULT);
-  const language = sttLanguage();
-  if (language) form.append("language", language);
+  const code = sttCode(language);
+  if (code) form.append("language", code);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "word");
   form.append("prompt", sttPrompt(context));
@@ -523,11 +562,11 @@ async function transcribeWithWorker(buffer, contentType, filename, context, opti
   return normalizeTranscription(await response.json(), "self-hosted", options);
 }
 
-async function transcribeWithXai(buffer, contentType, filename, context, options = {}) {
+async function transcribeWithXai(buffer, contentType, filename, context, options = {}, language = null) {
   const form = new FormData();
   form.append("model", key("XAI_STT_MODEL") || "grok-voice-transcribe-2.0");
-  const language = sttLanguage();
-  if (language) form.append("language", language);
+  const code = sttCode(language);
+  if (code) form.append("language", code);
   form.append("format", "true");
   form.append("diarize", "true");
   form.append("prompt", sttPrompt(context));
@@ -572,19 +611,30 @@ function mockTranscription() {
 
 export async function transcribeAudio({ buffer, contentType, filename, context, live = false }) {
   const options = { live };
+  const language = sttLanguage(context?.language);
+  const workerOnly = STT_WORKER_ONLY.has(language);
   const attempts = [];
   const providers = [];
   if (buffer.length > GROQ_FREE_MAX && whisperBase()) providers.push("worker");
-  if (groqKey() && buffer.length <= GROQ_FREE_MAX) providers.push("groq");
+  if (groqKey() && buffer.length <= GROQ_FREE_MAX && !workerOnly) providers.push("groq");
   if (whisperBase()) providers.push("worker");
-  if (xaiKey()) providers.push("xai");
+  if (xaiKey() && !workerOnly) providers.push("xai");
   if (mockEnabled()) providers.push("demo");
+
+  if (!providers.some((provider) => provider !== "demo")) {
+    if (workerOnly) {
+      throw new HttpError(
+        400,
+        "Igbo needs the Igbo reader on this server. Switch this capture to English, Pidgin, Yoruba or Hausa for now.",
+      );
+    }
+  }
 
   for (const provider of providers) {
     try {
-      if (provider === "groq") return await transcribeWithGroq(buffer, contentType, filename, context, options);
-      if (provider === "worker") return await transcribeWithWorker(buffer, contentType, filename, context, options);
-      if (provider === "xai") return await transcribeWithXai(buffer, contentType, filename, context, options);
+      if (provider === "groq") return await transcribeWithGroq(buffer, contentType, filename, context, options, language);
+      if (provider === "worker") return await transcribeWithWorker(buffer, contentType, filename, context, options, language);
+      if (provider === "xai") return await transcribeWithXai(buffer, contentType, filename, context, options, language);
       if (provider === "demo") return mockTranscription();
     } catch (error) {
       attempts.push({ provider, message: error instanceof Error ? error.message : "failed" });

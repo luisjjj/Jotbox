@@ -42,15 +42,14 @@ afterEach(resetEnv);
 const ai = await import("../server/api/ai.mjs");
 
 test("speech prompt treats Pidgin as normal speech and takes room vocabulary", () => {
-  const prompt = ai.sttPrompt();
-  assert.match(prompt, /Nigerian Pidgin/);
-  assert.match(prompt, /do not translate or correct it/);
-  assert.match(prompt, /Keep names, places, amounts and dates/);
-  assert.match(prompt, /soft, far or fast speakers/);
-  assert.match(prompt, /spell names and acronyms the way the room says them/);
+  const prompt = ai.sttPrompt({ language: "pcm" });
+  assert.match(prompt, /Transcribe verbatim in Nigerian Pidgin/);
+  assert.match(prompt, /Do not translate to English and do not correct grammar/);
+  assert.match(prompt, /wetin dey happen, make we check am/);
+  assert.match(prompt, /Keep names, places and amounts exactly as said/);
 
   process.env.JOTBOX_STT_VOCAB = "Chinedu, Ibadan, NIPOST";
-  assert.match(ai.sttPrompt(), /Chinedu, Ibadan, NIPOST/);
+  assert.match(ai.sttPrompt({ language: "pcm" }), /Chinedu, Ibadan, NIPOST/);
 
   process.env.JOTBOX_STT_PROMPT = "Transcribe the room verbatim.";
   const override = ai.sttPrompt();
@@ -83,17 +82,45 @@ test("speech prompt carries the session title, focus and roster names", () => {
     names: ["Ada", "Chinedu"],
     focus: "balanced",
   });
+  assert.match(prompt, /Verbatim transcript of a lecture or meeting in Nigerian English/);
   assert.match(prompt, /This meeting is called "Quarterly earnings review"\./);
-  assert.match(prompt, /Keep every spoken word, even in a noisy room/);
-  assert.match(prompt, /Leave out side conversations and background media only when no one in the session is speaking/);
+  assert.match(prompt, /Keep every word you can hear, even in a noisy room\./);
   assert.match(prompt, /Ada, Chinedu/);
-  assert.match(prompt, /soft, far or fast/i);
 
   const open = ai.sttPrompt({ title: "Lecture notes", kind: "lecture", names: [], focus: "off" });
-  assert.doesNotMatch(open, /Keep every spoken word/);
+  assert.doesNotMatch(open, /Keep every word you can hear/);
 
   assert.equal(ai.sanitizeSttContext({ title: "", names: [] }), null);
   assert.equal(ai.sanitizeSttContext(null), null);
+});
+
+test("speech prompt follows the chosen language and keeps Pidgin on its own register", () => {
+  assert.match(ai.sttPrompt({ language: "yo" }), /Verbatim Yoruba transcript/);
+  assert.match(ai.sttPrompt({ language: "ha" }), /Verbatim Hausa transcript/);
+  assert.match(ai.sttPrompt({ language: "ig" }), /Verbatim Igbo transcript/);
+  assert.match(ai.sttPrompt({ language: "pcm" }), /Nigerian Pidgin/);
+  assert.match(ai.sttPrompt({ language: "en" }), /Nigerian English/);
+
+  assert.deepEqual(ai.sanitizeSttContext({ title: "", names: [], language: "yo" }), {
+    title: "",
+    kind: "",
+    names: [],
+    focus: "balanced",
+    language: "yo",
+  });
+  assert.equal(ai.sanitizeSttContext({ language: "xx" }), null);
+});
+
+test("Igbo asks for the Igbo reader instead of failing at the hosted provider", async () => {
+  await assert.rejects(
+    ai.transcribeAudio({
+      buffer: Buffer.from("tiny"),
+      contentType: "audio/wav",
+      filename: "tiny.wav",
+      context: { language: "ig" },
+    }),
+    (error) => error.status === 400 && /Igbo/.test(error.message),
+  );
 });
 
 test("status reports English, warm tone and Pidgin on by default", () => {
