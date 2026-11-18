@@ -1,0 +1,28 @@
+{
+  "name": "jotbox-video",
+  "private": true,
+  "version": "1.0.0",
+  "description": "JotBox product walkthrough video built with Remotion, three.js, and GSAP.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "music": "node scripts/make-music.mjs",
+    "render:wide": "remotion render src/index.ts JotBox-Wide out/jotbox-walkthrough-16x9.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --audio-codec=aac --audio-bitrate=192k",
+    "render:vertical": "remotion render src/index.ts JotBox-Vertical out/jotbox-walkthrough-9x16.mp4 --codec=h264 --crf=16 --pixel-format=yuv420p --audio-codec=aac --audio-bitrate=192k",
+    "still:wide": "remotion still src/index.ts JotBox-Wide out/poster-16x9.png --frame=4800",
+    "still:vertical": "remotion still src/index.ts JotBox-Vertical out/poster-9x16.png --frame=4800"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.544",
+    "gsap": "3.15.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.544",
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@types/three": "^0.187.0",
+    "typescript": "^5.5.0"
+  }
+}
