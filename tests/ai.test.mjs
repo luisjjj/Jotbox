@@ -247,8 +247,10 @@ test("transcription removes noise segments and keeps the room's words", async ()
 test("live transcription keeps quiet noisy speech instead of dropping the chunk", async () => {
   process.env.GROQ_API_KEY = "test-groq";
 
-  globalThis.fetch = async () =>
-    Response.json({
+  let form;
+  globalThis.fetch = async (url, init) => {
+    form = init.body;
+    return Response.json({
       text: "make we pause the promise",
       language: "en-NG",
       words: [
@@ -269,6 +271,7 @@ test("live transcription keeps quiet noisy speech instead of dropping the chunk"
         },
       ],
     });
+  };
 
   const result = await ai.transcribeAudio({
     buffer: Buffer.from("audio"),
@@ -280,6 +283,30 @@ test("live transcription keeps quiet noisy speech instead of dropping the chunk"
   assert.equal(result.text, "make we pause the promise");
   assert.equal(result.filtered, 0);
   assert.equal(result.words.length, 5);
+  assert.equal(form.get("prompt"), null);
+});
+
+test("live previews carry no prompt so Whisper cannot recite instructions", () => {
+  assert.equal(ai.sttPrompt({ title: "Weekly sync", kind: "meeting", names: ["Ada"], focus: "balanced" }, { live: true }), "");
+  assert.match(ai.sttPrompt({ title: "Weekly sync", kind: "meeting", names: ["Ada"] }), /Weekly sync/);
+});
+
+test("a segment that recites the prompt is dropped instead of shown as speech", () => {
+  const prompt = ai.sttPrompt({ title: "Weekly sync", kind: "meeting", names: ["Ada"] });
+  const result = ai.normalizeTranscription(
+    {
+      words: [],
+      segments: [
+        { text: " Keep every word you can hear, even in a noisy room. ", start: 0, end: 2 },
+        { text: " Ada will send the payout file before four. ", start: 2, end: 5 },
+      ],
+    },
+    "groq",
+    { prompt },
+  );
+
+  assert.equal(result.filtered, 1);
+  assert.equal(result.text, "Ada will send the payout file before four.");
 });
 
 test("transcript cleanup collapses recognition loops and drops repeated lines", () => {

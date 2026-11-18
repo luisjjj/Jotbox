@@ -199,7 +199,12 @@ export function sanitizeSttContext(input) {
   return { title, kind, names, focus, language };
 }
 
-export function sttPrompt(context) {
+export function sttPrompt(context, options = {}) {
+  // Whisper treats the prompt as words it already heard, so on a short or
+  // silent live chunk it reads the instructions back as captions. Live previews
+  // go without a prompt; the full recording still gets the tuned one.
+  if (options?.live === true) return "";
+
   const language = sanitizeSttContext(context)?.language || sttLanguage();
   const base = (key("JOTBOX_STT_PROMPT") || STT_PROMPTS[language] || STT_PROMPT_EN).slice(0, STT_BASE_LIMIT);
   const vocab = sttVocabulary();
@@ -345,7 +350,7 @@ function cleanWord(text) {
 }
 
 const HALLUCINATIONS = [
-  /^(?:thank you for watching|thanks for watching|please subscribe|subscribe|like and subscribe)[.!]?$/i,
+  /^(?:thank you(?: very much)?(?: for watching)?|thanks(?: for watching)?|please subscribe|subscribe|like and subscribe)[.!]?$/i,
   /^\[?(?:music|applause|laughter|silence|noise|background noise|inaudible|crosstalk)\]?[.!]?$/i,
   /^(?:you|uh|um|hmm|mm)[.!]?$/i,
 ];
@@ -365,6 +370,29 @@ function dedupeRepeats(text) {
 function segmentIsHallucination(segment) {
   const text = cleanWord(segment?.text);
   return !text || HALLUCINATIONS.some((pattern) => pattern.test(text));
+}
+
+function speechTokens(text) {
+  return cleanWord(text)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}'’-]+/gu, " ")
+    .split(" ")
+    .filter(Boolean);
+}
+
+// A quiet stretch can make Whisper recite the prompt as if it were speech. Room
+// speech almost never repeats five prompt words in a row, so treat that as echo.
+function segmentRecitesPrompt(segment, prompt) {
+  if (!prompt) return false;
+  const said = speechTokens(segment?.text);
+  if (said.length < 5) return false;
+  const haystack = ` ${speechTokens(prompt).join(" ")} `;
+  for (let size = Math.min(said.length, 12); size >= 5; size -= 1) {
+    for (let start = 0; start + size <= said.length; start += 1) {
+      if (haystack.includes(` ${said.slice(start, start + size).join(" ")} `)) return true;
+    }
+  }
+  return false;
 }
 
 export function tidyTranscript(text) {
@@ -433,9 +461,11 @@ export function normalizeTranscription(data, provider, options = {}) {
     : [];
 
   const segments = Array.isArray(data?.segments) ? data.segments : [];
-  const kept = segments.filter((segment) =>
-    live ? !segmentIsHallucination(segment) : !segmentIsNoise(segment),
-  );
+  const prompt = typeof options?.prompt === "string" ? options.prompt : "";
+  const kept = segments.filter((segment) => {
+    if (segmentRecitesPrompt(segment, prompt)) return false;
+    return live ? !segmentIsHallucination(segment) : !segmentIsNoise(segment);
+  });
   const filtered = segments.length - kept.length;
 
   // Providers that diarize usually put the speaker on the segment, not on each
@@ -492,7 +522,7 @@ export function normalizeTranscription(data, provider, options = {}) {
   }
   if (!text) text = words.map((word) => word.text).join(" ");
   text = dedupeRepeats(text);
-  if (HALLUCINATIONS.some((pattern) => pattern.test(text))) {
+  if (HALLUCINATIONS.some((pattern) => pattern.test(text)) || segmentRecitesPrompt({ text }, prompt)) {
     text = "";
     words = [];
   }
@@ -515,7 +545,8 @@ async function transcribeWithGroq(buffer, contentType, filename, context, option
   if (code) form.append("language", code);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "word");
-  form.append("prompt", sttPrompt(context));
+  const prompt = sttPrompt(context, options);
+  if (prompt) form.append("prompt", prompt);
   form.append("temperature", "0");
 
   const response = await fetchWithRetry(`${GROQ_BASE}/audio/transcriptions`, {
@@ -525,7 +556,7 @@ async function transcribeWithGroq(buffer, contentType, filename, context, option
     signal: AbortSignal.timeout(180_000),
   });
   if (!response.ok) throw providerError("groq-stt", response, await response.text());
-  return normalizeTranscription(await response.json(), "groq", options);
+  return normalizeTranscription(await response.json(), "groq", { ...options, prompt });
 }
 
 async function transcribeWithWorker(buffer, contentType, filename, context, options = {}, language = null) {
@@ -537,7 +568,8 @@ async function transcribeWithWorker(buffer, contentType, filename, context, opti
   if (code) form.append("language", code);
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "word");
-  form.append("prompt", sttPrompt(context));
+  const prompt = sttPrompt(context, options);
+  if (prompt) form.append("prompt", prompt);
   form.append("temperature", "0");
   if (key("JOTBOX_STT_WORKER_TUNING") !== "off") {
     form.append("condition_on_previous_text", "false");
@@ -559,7 +591,7 @@ async function transcribeWithWorker(buffer, contentType, filename, context, opti
     signal: AbortSignal.timeout(180_000),
   });
   if (!response.ok) throw providerError("whisper-worker", response, await response.text());
-  return normalizeTranscription(await response.json(), "self-hosted", options);
+  return normalizeTranscription(await response.json(), "self-hosted", { ...options, prompt });
 }
 
 async function transcribeWithXai(buffer, contentType, filename, context, options = {}, language = null) {
@@ -569,7 +601,8 @@ async function transcribeWithXai(buffer, contentType, filename, context, options
   if (code) form.append("language", code);
   form.append("format", "true");
   form.append("diarize", "true");
-  form.append("prompt", sttPrompt(context));
+  const prompt = sttPrompt(context, options);
+  if (prompt) form.append("prompt", prompt);
   form.append("file", new Blob([buffer], { type: contentType }), filename);
 
   const response = await fetchWithRetry(XAI_STT_URL, {
@@ -579,7 +612,7 @@ async function transcribeWithXai(buffer, contentType, filename, context, options
     signal: AbortSignal.timeout(180_000),
   });
   if (!response.ok) throw providerError("xai-stt", response, await response.text());
-  return normalizeTranscription(await response.json(), "xai", options);
+  return normalizeTranscription(await response.json(), "xai", { ...options, prompt });
 }
 
 const MOCK_LINES = [

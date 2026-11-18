@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { Brand } from "@/components/Brand";
 
 const UPDATED = "16 November 2026";
-const CONTACT = "hello@jotbox.com";
+const CONTACT = "hello@jotbox.online";
 
 type Section = { id: string; title: string; body: ReactNode };
 

@@ -19,7 +19,7 @@ import { api, ApiError, type EnterpriseInvite } from "@/lib/api";
 import { Brand } from "@/components/Brand";
 
 const WINDOWS_DOWNLOAD = "/api/download/windows";
-const CONTACT_EMAIL = "hello@jotbox.com";
+const CONTACT_EMAIL = "hello@jotbox.online";
 
 type Step = {
   id: string;
