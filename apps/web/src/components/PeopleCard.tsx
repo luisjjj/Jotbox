@@ -11,6 +11,10 @@ export function PeopleCard({ session }: { session: Session }) {
   const [name, setName] = useState("");
   const participants = session.participants ?? [];
   const speakers = speakerLabels(session.transcript);
+  const lineCounts = new Map<string, number>();
+  for (const line of session.transcript ?? []) {
+    if (line.speaker) lineCounts.set(line.speaker, (lineCounts.get(line.speaker) ?? 0) + 1);
+  }
 
   const add = (event: FormEvent) => {
     event.preventDefault();
@@ -106,13 +110,38 @@ export function PeopleCard({ session }: { session: Session }) {
       {speakers.length > 0 && (
         <div className="mt-3 border-t border-line pt-2.5">
           <p className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-faint">Speaker names</p>
-          <ul className="mt-1.5 space-y-1.5">
+          <ul className="mt-1.5 space-y-2">
             {speakers.map((speaker) => (
-              <li key={speaker} className="flex items-center gap-2">
-                <span className="w-24 flex-none truncate text-[12.5px] text-faint">{speaker}</span>
+              <li key={speaker} className="rounded-lg border border-line bg-raised px-2.5 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-soft">{speaker}</span>
+                  <span className="flex-none text-[11.5px] text-faint">
+                    {lineCounts.get(speaker) ?? 0} lines
+                  </span>
+                </div>
+                {participants.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {participants.map((person) => (
+                      <button
+                        key={person.id}
+                        type="button"
+                        className={clsx(
+                          "chip py-0.5 text-[11px]",
+                          speaker === person.name && "border-accent bg-accent-soft text-accent",
+                        )}
+                        onClick={() => rename(speaker, person.name)}
+                        title={`Name ${speaker} as ${person.name}`}
+                      >
+                        {person.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <input
-                  className="field h-8 min-w-0 flex-1 text-[13px]"
-                  defaultValue={speaker}
+                  key={`${speaker}-name`}
+                  className="field mt-1.5 h-8 w-full text-[13px]"
+                  defaultValue={/^Speaker \d+$/.test(speaker) ? "" : speaker}
+                  placeholder="Or type a name"
                   onBlur={(event) => rename(speaker, event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") event.currentTarget.blur();
@@ -124,9 +153,15 @@ export function PeopleCard({ session }: { session: Session }) {
             ))}
           </ul>
           <p className="mt-1.5 text-[12px] leading-4 text-faint">
-            Names are used across the notes. Rename once, and every line follows.
+            Speakers are split from the audio. Pick who each one is, and every line and the notes follow.
           </p>
         </div>
+      )}
+
+      {participants.length === 0 && speakers.length > 0 && (
+        <p className="mt-1.5 text-[12px] leading-4 text-faint">
+          Add the people who spoke above, then tap a name to label each speaker.
+        </p>
       )}
 
       {participants.length === 0 && speakers.length === 0 && (

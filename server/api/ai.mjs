@@ -46,7 +46,7 @@ const STT_PROMPT = [
   "Speakers may mix Nigerian Pidgin, English, Yoruba, Igbo and Hausa in one sentence. Keep Pidgin as spoken; do not translate or correct it.",
   "Keep names, places, amounts and dates, and spell names and acronyms the way the room says them.",
   "Follow soft, far or fast speakers through language switches.",
-  "Leave out background media, laughter and side talk.",
+  "When the room is noisy or the speaker is far from the microphone, still write the words you can hear. Return nothing only when a stretch has no speech at all.",
 ].join(" ");
 
 const STT_PROMPT_LIMIT = 896;
@@ -169,7 +169,7 @@ export function sttPrompt(context) {
   const focus =
     room?.focus === "off"
       ? ""
-      : "Only transcribe speech that belongs to this session. Leave out side conversations, background media and room noise.";
+      : "Keep every spoken word, even in a noisy room. Leave out side conversations and background media only when no one in the session is speaking.";
   const terms = [...new Set([...(room?.names ?? []), ...vocab.split(", ").filter(Boolean)])];
   const lead = [base, topic, focus].filter(Boolean).join(" ");
 
@@ -243,6 +243,31 @@ function providerError(provider, response, detail, message) {
   );
 }
 
+// Live captions cannot wait for a manual retry, so absorb one transient
+// rate-limit or upstream error before giving up on a chunk.
+async function fetchWithRetry(url, init, attempts = 2) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, init);
+      if ((response.status === 429 || response.status >= 500) && attempt < attempts - 1) {
+        lastError = new Error(`retry ${response.status}`);
+        await new Promise((resolve) => setTimeout(resolve, 450 * (attempt + 1)));
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 450 * (attempt + 1)));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError ?? new Error("retry exhausted");
+}
+
 async function readBody(req, limit) {
   if (Buffer.isBuffer(req.body)) {
     if (req.body.length > limit) throw new HttpError(413, "That recording is too large for JotBox.");
@@ -286,6 +311,40 @@ const HALLUCINATIONS = [
   /^(?:you|uh|um|hmm|mm)[.!]?$/i,
 ];
 
+function dedupeRepeats(text) {
+  let out = cleanWord(text);
+  for (let pass = 0; pass < 3; pass += 1) {
+    const next = out
+      .replace(/\b([\w'’-]+)(?:\s+\1\b){2,}/gi, "$1")
+      .replace(/\b([\w'’-]+(?:\s+[\w'’-]+){1,3})\s+\1(?:\s+\1)*\b/gi, "$1");
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
+function segmentIsHallucination(segment) {
+  const text = cleanWord(segment?.text);
+  return !text || HALLUCINATIONS.some((pattern) => pattern.test(text));
+}
+
+export function tidyTranscript(text) {
+  const lines = String(text ?? "")
+    .split(/\n+/)
+    .map((line) => dedupeRepeats(line))
+    .filter((line) => line && !HALLUCINATIONS.some((pattern) => pattern.test(line)));
+  const kept = [];
+  for (const line of lines) {
+    const previous = kept[kept.length - 1];
+    if (previous && previous.toLowerCase() === line.toLowerCase()) continue;
+    kept.push(line);
+  }
+  return kept
+    .join("\n")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .trim();
+}
+
 function sttThreshold(name, fallback) {
   const raw = key(name);
   if (!raw) return fallback;
@@ -315,7 +374,8 @@ function segmentIsNoise(segment) {
   return false;
 }
 
-export function normalizeTranscription(data, provider) {
+export function normalizeTranscription(data, provider, options = {}) {
+  const live = options?.live === true;
   let words = Array.isArray(data?.words)
     ? data.words
         .map((word) => {
@@ -334,8 +394,40 @@ export function normalizeTranscription(data, provider) {
     : [];
 
   const segments = Array.isArray(data?.segments) ? data.segments : [];
-  const kept = segments.filter((segment) => !segmentIsNoise(segment));
+  const kept = segments.filter((segment) =>
+    live ? !segmentIsHallucination(segment) : !segmentIsNoise(segment),
+  );
   const filtered = segments.length - kept.length;
+
+  // Providers that diarize usually put the speaker on the segment, not on each
+  // word. Copy it onto the words so the transcript can group turns.
+  if (!words.some((word) => word.speaker !== undefined)) {
+    const labeled = segments
+      .map((segment) => ({
+        start: Number(segment?.start),
+        end: Number(segment?.end),
+        speaker: Number(segment?.speaker),
+      }))
+      .filter((segment) => Number.isFinite(segment.speaker) && Number.isFinite(segment.start));
+    if (labeled.length) {
+      words = words.map((word) => {
+        let match = labeled.find(
+          (segment) => word.start >= segment.start - 0.05 && word.start <= segment.end + 0.05,
+        );
+        if (!match) {
+          let nearest = Infinity;
+          for (const segment of labeled) {
+            const distance = Math.min(Math.abs(word.start - segment.start), Math.abs(word.start - segment.end));
+            if (distance <= 0.25 && distance < nearest) {
+              nearest = distance;
+              match = segment;
+            }
+          }
+        }
+        return match ? { ...word, speaker: match.speaker } : word;
+      });
+    }
+  }
 
   let text = "";
   if (segments.length && filtered > 0) {
@@ -360,6 +452,7 @@ export function normalizeTranscription(data, provider) {
     text = segments.map((segment) => cleanWord(segment?.text)).filter(Boolean).join(" ");
   }
   if (!text) text = words.map((word) => word.text).join(" ");
+  text = dedupeRepeats(text);
   if (HALLUCINATIONS.some((pattern) => pattern.test(text))) {
     text = "";
     words = [];
@@ -375,7 +468,7 @@ export function normalizeTranscription(data, provider) {
   };
 }
 
-async function transcribeWithGroq(buffer, contentType, filename, context) {
+async function transcribeWithGroq(buffer, contentType, filename, context, options = {}) {
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: contentType }), filename);
   form.append("model", key("GROQ_STT_MODEL") || DEFAULT_GROQ_STT);
@@ -386,17 +479,17 @@ async function transcribeWithGroq(buffer, contentType, filename, context) {
   form.append("prompt", sttPrompt(context));
   form.append("temperature", "0");
 
-  const response = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
+  const response = await fetchWithRetry(`${GROQ_BASE}/audio/transcriptions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${groqKey()}` },
     body: form,
     signal: AbortSignal.timeout(180_000),
   });
   if (!response.ok) throw providerError("groq-stt", response, await response.text());
-  return normalizeTranscription(await response.json(), "groq");
+  return normalizeTranscription(await response.json(), "groq", options);
 }
 
-async function transcribeWithWorker(buffer, contentType, filename, context) {
+async function transcribeWithWorker(buffer, contentType, filename, context, options = {}) {
   const base = whisperBase();
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: contentType }), filename);
@@ -420,17 +513,17 @@ async function transcribeWithWorker(buffer, contentType, filename, context) {
   }
 
   const headers = key("WHISPER_API_KEY") ? { Authorization: `Bearer ${key("WHISPER_API_KEY")}` } : {};
-  const response = await fetch(`${base}/audio/transcriptions`, {
+  const response = await fetchWithRetry(`${base}/audio/transcriptions`, {
     method: "POST",
     headers,
     body: form,
     signal: AbortSignal.timeout(180_000),
   });
   if (!response.ok) throw providerError("whisper-worker", response, await response.text());
-  return normalizeTranscription(await response.json(), "self-hosted");
+  return normalizeTranscription(await response.json(), "self-hosted", options);
 }
 
-async function transcribeWithXai(buffer, contentType, filename, context) {
+async function transcribeWithXai(buffer, contentType, filename, context, options = {}) {
   const form = new FormData();
   form.append("model", key("XAI_STT_MODEL") || "grok-voice-transcribe-2.0");
   const language = sttLanguage();
@@ -440,14 +533,14 @@ async function transcribeWithXai(buffer, contentType, filename, context) {
   form.append("prompt", sttPrompt(context));
   form.append("file", new Blob([buffer], { type: contentType }), filename);
 
-  const response = await fetch(XAI_STT_URL, {
+  const response = await fetchWithRetry(XAI_STT_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${xaiKey()}` },
     body: form,
     signal: AbortSignal.timeout(180_000),
   });
   if (!response.ok) throw providerError("xai-stt", response, await response.text());
-  return normalizeTranscription(await response.json(), "xai");
+  return normalizeTranscription(await response.json(), "xai", options);
 }
 
 const MOCK_LINES = [
@@ -477,7 +570,8 @@ function mockTranscription() {
   };
 }
 
-export async function transcribeAudio({ buffer, contentType, filename, context }) {
+export async function transcribeAudio({ buffer, contentType, filename, context, live = false }) {
+  const options = { live };
   const attempts = [];
   const providers = [];
   if (buffer.length > GROQ_FREE_MAX && whisperBase()) providers.push("worker");
@@ -488,9 +582,9 @@ export async function transcribeAudio({ buffer, contentType, filename, context }
 
   for (const provider of providers) {
     try {
-      if (provider === "groq") return await transcribeWithGroq(buffer, contentType, filename, context);
-      if (provider === "worker") return await transcribeWithWorker(buffer, contentType, filename, context);
-      if (provider === "xai") return await transcribeWithXai(buffer, contentType, filename, context);
+      if (provider === "groq") return await transcribeWithGroq(buffer, contentType, filename, context, options);
+      if (provider === "worker") return await transcribeWithWorker(buffer, contentType, filename, context, options);
+      if (provider === "xai") return await transcribeWithXai(buffer, contentType, filename, context, options);
       if (provider === "demo") return mockTranscription();
     } catch (error) {
       attempts.push({ provider, message: error instanceof Error ? error.message : "failed" });
@@ -682,12 +776,93 @@ function mockNotes({ kind, title, scratch, transcript }) {
   };
 }
 
+const CLEAN_SYSTEM = `You tidy a raw speech transcript before it becomes meeting notes.
+Rules:
+- Keep Nigerian Pidgin exactly as spoken. Never translate, paraphrase, summarize, or correct dialect.
+- Only fix punctuation, capitalisation, spacing, and repeated words or phrases caused by speech recognition.
+- Keep every speaker label that is present, such as "Ada:".
+- Remove lines that are only noise markers, such as "[music]" or "thank you for watching".
+- Never add new words, names, numbers, or facts.
+Return only a JSON object with this exact shape: {"transcript":"string"}`;
+
+async function cleanTranscriptWithGroq(text, participants = []) {
+  const models = [...new Set([key("GROQ_NOTES_MODEL"), ...GROQ_NOTES_FALLBACKS].filter(Boolean))];
+  const people = participants
+    .map((person) => (typeof person === "string" ? person : person?.name))
+    .map((name) => plainText(name, 80))
+    .filter(Boolean)
+    .slice(0, 20);
+  let lastError;
+
+  for (const model of models) {
+    try {
+      const response = await fetch(`${GROQ_BASE}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey()}` },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          max_tokens: Number(key("JOTBOX_CLEAN_MAX_TOKENS") || 3_000),
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: CLEAN_SYSTEM },
+            {
+              role: "user",
+              content: [
+                `People in the room: ${people.length ? people.join(", ") : "(not listed)"}`,
+                "",
+                "Raw transcript:",
+                text,
+              ].join("\n"),
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!response.ok) throw new Error(`cleanup ${response.status}`);
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      const parsed = JSON.parse(
+        String(content || "")
+          .trim()
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/```$/i, ""),
+      );
+      const cleaned = typeof parsed?.transcript === "string" ? parsed.transcript.trim() : "";
+      if (!cleaned) throw new Error("empty cleanup");
+      const ratio = cleaned.length / Math.max(1, text.length);
+      if (ratio < 0.55 || ratio > 1.2) throw new Error(`cleanup length ${ratio.toFixed(2)}`);
+      return cleaned;
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `[jotbox-ai] transcript cleanup model ${model} failed`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+  throw lastError ?? new Error("cleanup failed");
+}
+
+async function cleanTranscriptForNotes({ transcript, participants = [] }) {
+  const raw = tidyTranscript(transcript);
+  if (raw.length < 300 || !groqKey()) return raw;
+  try {
+    return tidyTranscript(await cleanTranscriptWithGroq(raw, participants)) || raw;
+  } catch {
+    return raw;
+  }
+}
+
 export async function enhanceSession({ kind, title, scratch, transcript, tone, participants = [] }) {
   const payload = {
     kind: KIND_LABEL[kind] ? kind : "meeting",
     title: String(title || "").slice(0, 160),
     scratch: String(scratch || "").slice(0, MAX_SCRATCH),
-    transcript: String(transcript || "").slice(0, MAX_TRANSCRIPT),
+    transcript: await cleanTranscriptForNotes({
+      transcript: String(transcript || "").slice(0, MAX_TRANSCRIPT),
+      participants: Array.isArray(participants) ? participants.slice(0, 20) : [],
+    }),
     tone: TONE_HINT[tone] ? tone : key("JOTBOX_AI_TONE") || DEFAULT_TONE,
     participants: Array.isArray(participants) ? participants.slice(0, 20) : [],
   };
@@ -1345,7 +1520,7 @@ export async function handleLiveTranscribe(req, res) {
   const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
   const filename = `live.${extensionFor(contentType)}`;
   const context = sttContextFromRequest(req);
-  sendJson(res, 200, await transcribeAudio({ buffer: body, contentType, filename, context }));
+  sendJson(res, 200, await transcribeAudio({ buffer: body, contentType, filename, context, live: true }));
 }
 
 export async function handleEnhance(req, res) {
