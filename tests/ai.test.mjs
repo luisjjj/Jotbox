@@ -483,3 +483,101 @@ test("a server with no reading or writing service says so plainly", async () => 
     /cannot write notes/,
   );
 });
+
+test("speaker naming keeps only roster names with verbatim evidence", async () => {
+  process.env.GROQ_API_KEY = "test-groq";
+  let sent;
+
+  globalThis.fetch = async (_url, init = {}) => {
+    sent = JSON.parse(String(init.body));
+    return Response.json({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              matches: [
+                { speaker: "Speaker 1", name: "Ada", confidence: "high", quote: "My name is Ada" },
+                { speaker: "Speaker 1", name: "Chinedu", confidence: "high", quote: "My name is Ada" },
+                { speaker: "Speaker 2", name: "Bola", confidence: "high", quote: "Ada, can you send it?" },
+                { speaker: "Speaker 9", name: "Chinedu", confidence: "high", quote: "Hello" },
+                { speaker: "Speaker 2", name: "Chinedu", confidence: "low", quote: "Ada, can you send it?" },
+                { speaker: "Speaker 3", name: "Ada", confidence: "low", quote: "Sure." },
+                { speaker: "Speaker 3", name: "Tunde", confidence: "high", quote: "Tunde will handle it" },
+              ],
+            }),
+          },
+        },
+      ],
+    });
+  };
+
+  const result = await ai.suggestSpeakerNames({
+    title: "Weekly sync",
+    kind: "meeting",
+    participants: ["Ada", "Chinedu", "Tunde"],
+    transcript: [
+      { at: 0, speaker: "Speaker 1", text: "My name is Ada and I handle operations." },
+      { at: 3, speaker: "Speaker 2", text: "Ada, can you send it?" },
+      { at: 6, speaker: "Speaker 2", text: "I will send the file." },
+      { at: 9, speaker: "Speaker 3", text: "Sure." },
+    ],
+  });
+
+  assert.equal(result.provider, "groq");
+  assert.deepEqual(result.matches, [
+    { speaker: "Speaker 1", name: "Ada", confidence: "high", quote: "My name is Ada" },
+    { speaker: "Speaker 2", name: "Chinedu", confidence: "low", quote: "Ada, can you send it?" },
+    { speaker: "Speaker 3", name: "Tunde", confidence: "high", quote: "" },
+  ]);
+  assert.equal(sent.temperature, 0);
+  assert.match(sent.messages[0].content, /Use only names from the people list/);
+  assert.match(sent.messages[1].content, /People listed for the session: Ada, Chinedu, Tunde/);
+  assert.match(sent.messages[1].content, /Speaker 1 \(1 lines\)/);
+});
+
+test("speaker naming stays quiet without a roster", async () => {
+  process.env.GROQ_API_KEY = "test-groq";
+
+  const result = await ai.suggestSpeakerNames({
+    title: "Weekly sync",
+    kind: "meeting",
+    participants: [],
+    transcript: [{ at: 0, speaker: "Speaker 1", text: "Hello there." }],
+  });
+
+  assert.deepEqual(result, { matches: [], provider: "none" });
+});
+
+test("speaker naming ignores labels that are already names", async () => {
+  process.env.GROQ_API_KEY = "test-groq";
+
+  const result = await ai.suggestSpeakerNames({
+    title: "Weekly sync",
+    kind: "meeting",
+    participants: ["Ada"],
+    transcript: [{ at: 0, speaker: "Ada", text: "I called the bank." }],
+  });
+
+  assert.deepEqual(result, { matches: [], provider: "none" });
+});
+
+test("demo speaker naming reads introductions and direct address", async () => {
+  process.env.JOTBOX_AI_MOCK = "1";
+
+  const result = await ai.suggestSpeakerNames({
+    title: "Weekly sync",
+    kind: "meeting",
+    participants: ["Ada", "Chinedu"],
+    transcript: [
+      { at: 0, speaker: "Speaker 1", text: "My name is Ada, I run operations." },
+      { at: 5, speaker: "Speaker 1", text: "Chinedu, can you send the file?" },
+      { at: 8, speaker: "Speaker 2", text: "I will send it before noon." },
+    ],
+  });
+
+  assert.equal(result.provider, "demo");
+  assert.deepEqual(result.matches, [
+    { speaker: "Speaker 1", name: "Ada", confidence: "high", quote: "My name is Ada, I run operations." },
+    { speaker: "Speaker 2", name: "Chinedu", confidence: "high", quote: "I will send it before noon." },
+  ]);
+});

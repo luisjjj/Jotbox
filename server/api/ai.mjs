@@ -1363,6 +1363,154 @@ export async function draftFollowUpMessage({ session, channel, language }) {
   return { text, provider };
 }
 
+const NAMES_SYSTEM = `You match speaker labels in a transcript to the people listed for the session.
+Rules:
+- Use only names from the people list. Never invent a name.
+- Assign a name only with direct evidence in the words: the speaker introduces themselves ("I am Ada", "my name is Ada"), someone addresses them by name and they answer next, the line says the speaker's name, or the chair hands over to them.
+- A name inside a speaker's own line usually points to the person being addressed. If Speaker 1 says "Ada, send the file" and Speaker 2 answers, Speaker 2 is more likely Ada than Speaker 1.
+- Never guess from topic, job, gender, accent, turn order alone, or who spoke most.
+- One speaker for one name, and one name for one speaker. If two labels look like the same person, pick the clearer one and leave the other out.
+- Leave a speaker out when the evidence is weak. An empty list is better than a wrong name.
+- quote: the exact words that support the match, copied from the transcript without the speaker label, 140 characters at most.
+Return only a JSON object with this exact shape:
+{"matches":[{"speaker":"Speaker 1","name":"Ada","confidence":"high","quote":"..."}]}
+Use "high" when the person says their own name or is addressed and answers, otherwise "low".`;
+
+function nameLines(transcript) {
+  return (Array.isArray(transcript) ? transcript : []).flatMap((line) => {
+    if (!line || typeof line.text !== "string") return [];
+    const text = plainText(line.text, 700);
+    if (!text) return [];
+    return [{ speaker: plainText(line.speaker, 80), text }];
+  });
+}
+
+function nameTranscript(lines, maxChars = 23_000) {
+  const joined = lines.map((line) => (line.speaker ? `${line.speaker}: ${line.text}` : line.text)).join("\n");
+  if (joined.length <= maxChars) return joined;
+  return `${joined.slice(0, maxChars - 9_000)}\n[...middle omitted...]\n${joined.slice(-9_000)}`;
+}
+
+function namesMessages({ title, kind, people, labels, transcript }) {
+  return [
+    { role: "system", content: NAMES_SYSTEM },
+    {
+      role: "user",
+      content: [
+        `Session kind: ${KIND_LABEL[kind] || "meeting"}`,
+        `Title: ${title || "(none)"}`,
+        `People listed for the session: ${people.join(", ")}`,
+        `Speaker labels: ${labels.map((item) => `${item.speaker} (${item.count} lines)`).join(", ")}`,
+        "",
+        "Transcript:",
+        transcript,
+      ].join("\n"),
+    },
+  ];
+}
+
+function demoSpeakerNames({ people, labels, lines }) {
+  const matches = [];
+  const used = new Set();
+  const matched = new Set();
+  const known = new Map(people.map((name) => [name.toLowerCase(), name]));
+  const labelset = new Set(labels.map((item) => item.speaker));
+
+  const add = (speaker, name, quote, confidence) => {
+    if (!labelset.has(speaker) || matched.has(speaker) || used.has(name)) return;
+    matched.add(speaker);
+    used.add(name);
+    matches.push({ speaker, name, confidence, quote: plainText(quote, 140) });
+  };
+
+  lines.forEach((line, index) => {
+    if (!labelset.has(line.speaker)) return;
+    const intro = line.text.match(/\b(?:i am|i'm|my name is|na me)\s+([A-Za-z][\w'-]{1,30})/i);
+    const own = intro ? known.get(intro[1].toLowerCase()) : "";
+    if (own) add(line.speaker, own, line.text, "high");
+
+    const next = lines[index + 1];
+    if (!next || next.speaker === line.speaker) return;
+    const call = line.text.match(/^([A-Z][\w'-]{1,30})[,:-]\s/);
+    const addressed = call ? known.get(call[1].toLowerCase()) : "";
+    if (addressed) add(next.speaker, addressed, next.text, "high");
+  });
+
+  return matches;
+}
+
+export async function suggestSpeakerNames({ title, kind, participants = [], transcript = [] }) {
+  const people = [
+    ...new Map(
+      (Array.isArray(participants) ? participants : [])
+        .map((person) => plainText(typeof person === "string" ? person : person?.name, 80))
+        .filter(Boolean)
+        .map((name) => [name.toLowerCase(), name]),
+    ).values(),
+  ].slice(0, 20);
+  const lines = nameLines(transcript);
+  const counts = new Map();
+  for (const line of lines) {
+    if (!line.speaker) continue;
+    if (people.some((name) => name.toLowerCase() === line.speaker.toLowerCase())) continue;
+    counts.set(line.speaker, (counts.get(line.speaker) ?? 0) + 1);
+  }
+  const labels = [...counts.entries()].map(([speaker, count]) => ({ speaker, count }));
+  if (!people.length || !labels.length) return { matches: [], provider: "none" };
+
+  if (mockEnabled()) {
+    return {
+      matches: demoSpeakerNames({ people, labels, lines }),
+      provider: "demo",
+    };
+  }
+
+  const { value, provider } = await chatJson({
+    messages: namesMessages({
+      title: plainText(title, 160),
+      kind,
+      people,
+      labels,
+      transcript: nameTranscript(lines, 23_000),
+    }),
+    maxTokens: 700,
+    temperature: 0,
+  });
+
+  const labelSet = new Map(labels.map((item) => [item.speaker.toLowerCase(), item.speaker]));
+  const personMap = new Map(people.map((name) => [name.toLowerCase(), name]));
+  const haystack = lines
+    .map((line) => line.text)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  const usedNames = new Set();
+  const usedSpeakers = new Set();
+  const matches = [];
+
+  for (const item of Array.isArray(value?.matches) ? value.matches : []) {
+    if (!item || typeof item.speaker !== "string" || typeof item.name !== "string") continue;
+    const speaker = labelSet.get(item.speaker.trim().toLowerCase());
+    const name = personMap.get(item.name.trim().toLowerCase());
+    if (!speaker || !name) continue;
+    if (usedSpeakers.has(speaker) || usedNames.has(name)) continue;
+    const quote = plainText(item.quote, 140);
+    const cleanQuote = quote.replace(/\s+/g, " ").toLowerCase();
+    const supported = cleanQuote.length >= 8 && haystack.includes(cleanQuote);
+    usedSpeakers.add(speaker);
+    usedNames.add(name);
+    matches.push({
+      speaker,
+      name,
+      confidence: item.confidence === "high" ? "high" : "low",
+      quote: supported ? quote : "",
+    });
+    if (matches.length >= 20) break;
+  }
+
+  return { matches, provider };
+}
+
 const assistSession = z.object({
   title: z.string().max(200).optional().default(""),
   kind: z.enum(["meeting", "seminar", "lecture", "voice"]).optional().default("meeting"),
@@ -1386,6 +1534,23 @@ const assistHistory = z
   .max(8)
   .optional()
   .default([]);
+
+const namesInput = z.object({
+  title: z.string().max(200).optional().default(""),
+  kind: z.enum(["meeting", "seminar", "lecture", "voice"]).optional().default("meeting"),
+  participants: z.array(z.string().max(80)).max(20).optional().default([]),
+  transcript: z
+    .array(
+      z.object({
+        at: z.number().finite().min(0).max(24 * 3600).optional(),
+        speaker: z.string().max(160).optional(),
+        text: z.string().max(8_000),
+      }),
+    )
+    .max(5_000)
+    .optional()
+    .default([]),
+});
 
 const briefInput = z.object({
   title: z.string().max(200).optional().default(""),
@@ -1466,7 +1631,13 @@ export async function handleAssist(req, res) {
     return;
   }
 
-  throw new HttpError(400, "Choose ask, insights, followup or brief.");
+  if (mode === "names") {
+    const input = namesInput.parse(body);
+    sendJson(res, 200, await suggestSpeakerNames(input));
+    return;
+  }
+
+  throw new HttpError(400, "Choose ask, insights, followup, names or brief.");
 }
 
 const buckets = new Map();

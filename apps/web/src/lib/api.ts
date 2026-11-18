@@ -1,4 +1,5 @@
-import type { Session } from "./types";
+import type { Session, TranscriptLine } from "./types";
+import type { SpeakerMatch } from "./speakers";
 import type { DashboardRole } from "./roles";
 
 export interface CloudUser {
@@ -540,4 +541,14 @@ export const api = {
         `/api/integrations?action=handoffs&sessionId=${encodeURIComponent(sessionId)}`,
       )
     ).handoffs,
+  suggestSpeakers: (input: {
+    title: string;
+    kind: Session["kind"];
+    participants: string[];
+    transcript: TranscriptLine[];
+  }) =>
+    request<{ matches: SpeakerMatch[] }>("/api/assist", {
+      method: "POST",
+      body: JSON.stringify({ mode: "names", ...input }),
+    }),
 };
