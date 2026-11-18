@@ -20,6 +20,12 @@ import {
   type SessionLanguage,
 } from "@/lib/listening";
 import { useSttLanguages } from "@/hooks/useSttLanguages";
+import {
+  captureNoticeEnabled,
+  captureNoticeSupported,
+  requestCaptureNotice,
+  setCaptureNotice,
+} from "@/lib/captureNotice";
 import { Select } from "@/components/Select";
 import { RETENTION_OPTIONS, getAudioRetention, pruneExpiredAudio, setAudioRetention, type AudioRetention } from "@/lib/retention";
 import { DASHBOARD_ROLES, ROLE_META, type DashboardRole } from "@/lib/roles";
@@ -77,6 +83,7 @@ export default function Settings() {
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
   const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
   const [language, setLanguage] = useState<SessionLanguage>(() => getSessionLanguage());
+  const [notice, setNotice] = useState(() => captureNoticeEnabled());
   const sttLanguages = useSttLanguages();
   const [savingRole, setSavingRole] = useState<DashboardRole | null>(null);
 
@@ -312,6 +319,34 @@ export default function Settings() {
                   ? "The Igbo reader is not connected on this server yet. Pick another language for now."
                   : LANGUAGE_OPTIONS.find((option) => option.value === language)?.hint}
               </p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-[14px] font-medium text-ink">Recording reminder</p>
+              <p className="mt-1 max-w-[52ch] text-[12.5px] leading-4 text-muted">
+                A quiet notification while a capture runs, so you can see JotBox is still listening after you switch apps. On iPhone, add JotBox to your Home Screen first.
+              </p>
+              <button
+                type="button"
+                className="btn btn-line mt-3"
+                disabled={!captureNoticeSupported()}
+                onClick={async () => {
+                  if (notice) {
+                    setCaptureNotice(false);
+                    setNotice(false);
+                    return;
+                  }
+                  const enabled = await requestCaptureNotice();
+                  setNotice(enabled);
+                  if (!enabled) {
+                    toast("Notifications are blocked for JotBox. Allow them in your browser or phone settings, then try again.");
+                  }
+                }}
+              >
+                {notice ? "Turn off" : "Turn on"}
+              </button>
+              {!captureNoticeSupported() && (
+                <p className="mt-2 text-[12.5px] leading-4 text-muted">This browser cannot show capture notifications.</p>
+              )}
             </div>
           </div>
         </Section>

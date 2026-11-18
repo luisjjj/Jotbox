@@ -13,6 +13,7 @@ import { toast } from "react-hot-toast";
 import { saveAudio } from "@/lib/audioStore";
 import { conditionStream, shapeRoomAudio } from "@/lib/audioConditioning";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
+import { clearCaptureNotice, showCaptureNotice } from "@/lib/captureNotice";
 import { desktopBridge } from "@/lib/desktop";
 import { defaultTitle, formatClock } from "@/lib/format";
 import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/lib/insights";
@@ -1217,7 +1218,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   }, [status, elapsed]);
 
   useEffect(() => {
-    if (status !== "recording") return;
+    if (status !== "recording") {
+      void clearCaptureNotice();
+      return;
+    }
+    void showCaptureNotice(titleRef.current || defaultTitle(kindRef.current));
     type Sentinel = { release: () => Promise<void> };
     let sentinel: Sentinel | null = null;
     const wake = async () => {
