@@ -65,6 +65,7 @@ export default defineConfig(({ mode }) => {
       notesApi(),
       VitePWA({
         registerType: "autoUpdate",
+        injectRegister: null,
         includeAssets: [
           "favicon.svg",
           "favicon.ico",
