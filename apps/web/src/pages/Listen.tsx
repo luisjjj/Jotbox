@@ -628,7 +628,7 @@ ${line}` : line;
           </div>
         </div>
 
-        <div className="flex w-full items-center gap-2 sm:w-auto">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
           <Waveform active={!paused} bars={26} className="mr-auto hidden h-9 w-24 lg:flex" />
           <button
             type="button"
@@ -677,7 +677,11 @@ ${line}` : line;
             {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
             {paused ? "Resume" : "Pause"}
           </button>
-          <button type="button" className="btn btn-danger flex-1 sm:flex-none" onClick={handleStop}>
+          <button
+            type="button"
+            className="btn btn-danger w-full flex-none sm:w-auto"
+            onClick={handleStop}
+          >
             <Square className="h-3.5 w-3.5 fill-current" />
             Stop & write
           </button>
