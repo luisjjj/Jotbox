@@ -5,6 +5,7 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import { loadSampleSessions } from "./lib/seed";
 import { applyStoredTheme } from "./lib/theme";
+import "./lib/posthog";
 import IslandPage from "./pages/IslandPage";
 import "./index.css";
 

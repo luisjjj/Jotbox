@@ -13,6 +13,7 @@ import {
   type FollowUpLanguage,
 } from "@/lib/followUp";
 import { ApiError } from "@/lib/api";
+import posthog, { posthogEnabled } from "@/lib/posthog";
 import { ensurePro, usePlan } from "@/lib/usageStore";
 import type { Session } from "@/lib/types";
 
@@ -51,6 +52,7 @@ export function FollowUpDialog({
     try {
       const result = await draftFollowUp({ session, channel, language });
       setText(result.text);
+      if (posthogEnabled) posthog.capture("follow_up_drafted", { channel, language });
     } catch (error) {
       if (error instanceof ApiError && error.status === 402) {
         setPaywall(true);
@@ -73,6 +75,7 @@ export function FollowUpDialog({
 
   const send = () => {
     if (!text.trim()) return;
+    if (posthogEnabled) posthog.capture("follow_up_sent", { channel, language });
     if (channel === "email") {
       const subject = encodeURIComponent(`${session.title}: recap`);
       window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(text)}`;
