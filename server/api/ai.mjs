@@ -83,6 +83,9 @@ const STT_BASE_LIMIT = 560;
 const STT_VOCAB_LIMIT = 720;
 
 const DEFAULT_GROQ_STT = "whisper-large-v3";
+// Live captions are a disposable preview: the kept transcript always comes from
+// the full-audio pass, so turbo can halve the audio-seconds live previews burn.
+const DEFAULT_GROQ_LIVE_STT = "whisper-large-v3-turbo";
 const WORKER_STT_DEFAULT = "Systran/faster-whisper-small";
 
 const NOTES_SYSTEM = `You are JotBox, a note writer for meetings, seminars, lectures and voice notes recorded in Nigeria and across West Africa.
@@ -282,6 +285,9 @@ export function aiStatus() {
     sttModel: whisperBase()
       ? key("WHISPER_MODEL") || WORKER_STT_DEFAULT
       : key("GROQ_STT_MODEL") || DEFAULT_GROQ_STT,
+    sttLiveModel: whisperBase()
+      ? key("WHISPER_MODEL") || WORKER_STT_DEFAULT
+      : key("GROQ_LIVE_STT_MODEL") || DEFAULT_GROQ_LIVE_STT,
   };
 }
 
@@ -555,7 +561,12 @@ export function normalizeTranscription(data, provider, options = {}) {
 async function transcribeWithGroq(buffer, contentType, filename, context, options = {}, language = null) {
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: contentType }), filename);
-  form.append("model", key("GROQ_STT_MODEL") || DEFAULT_GROQ_STT);
+  form.append(
+    "model",
+    options.live
+      ? key("GROQ_LIVE_STT_MODEL") || DEFAULT_GROQ_LIVE_STT
+      : key("GROQ_STT_MODEL") || DEFAULT_GROQ_STT,
+  );
   const code = sttCode(language);
   if (code) form.append("language", code);
   form.append("response_format", "verbose_json");

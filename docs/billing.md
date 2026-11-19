@@ -122,3 +122,60 @@ The limit is enforced in three places:
 3. `POST /api/captures` checks the month's usage with the server clock and refuses a free capture that would pass the limit. Clearing local data or calling the API directly does not bypass this. The capture stays in the local cache so it can sync after an upgrade.
 
 The server counts every capture row, including live and failed rows, so abandoned recordings still use time. Deleting a capture does not refund its minutes: the `usage_ledger` row stays behind after the capture row is gone. Uploaded audio counts by its real duration.
+
+## What listening costs
+
+Groq bills speech by audio duration, not by request. `whisper-large-v3` costs $0.111 per audio hour and `whisper-large-v3-turbo` costs $0.04. Live captions and the final transcript both send the same audio, so a recorded session normally costs two passes. The kept transcript is always rebuilt from the full-audio pass, so live previews now use turbo through `GROQ_LIVE_STT_MODEL` while the final pass stays on `GROQ_STT_MODEL` (`whisper-large-v3`).
+
+Prices and limits below are as published at the time of writing; confirm them in the Groq console before relying on them.
+
+| Session | Both passes on large-v3 | Now: live turbo, final large-v3 |
+| --- | --- | --- |
+| 15 min | $0.056 | $0.038 |
+| 30 min | $0.111 | $0.075 |
+| 60 min | $0.222 | $0.151 |
+| 90 min | $0.333 | $0.227 |
+| 120 min | $0.444 | $0.302 |
+
+Per 1,000 session-hours the change takes speech cost from $222 to $151, about 32% lower.
+
+On a $5 Pro plan, the break-even point on speech alone moves from 22.5 hours to 33.1 hours a month.
+
+| Monthly listening | Both passes on large-v3 | Now |
+| --- | --- | --- |
+| 5 h | $1.11 | $0.76 |
+| 10 h | $2.22 | $1.51 |
+| 20 h | $4.44 | $3.02 |
+| 30 h | $6.66 | $4.53 |
+| 40 h | $8.88 | $6.04 |
+
+At 30 hours a month, Pro now leaves $0.47 before payment fees instead of losing $1.66. A user who talks for 40 hours still costs more than the plan earns.
+
+### Free tier limits
+
+Groq's free plan allows, per organization and per model: 20 requests a minute, 2,000 requests a day, 7,200 audio-seconds an hour (2 audio-hours) and 28,800 audio-seconds a day (8 audio-hours). Live chunks are 10 seconds, so one live session makes six requests a minute.
+
+Because live previews and the final pass now hit different models, the free daily allowance roughly doubles:
+
+| Session length | Sessions a day before | Sessions a day now |
+| --- | --- | --- |
+| 15 min | 16.0 | 22.2 |
+| 30 min | 8.0 | 11.1 |
+| 60 min | 4.0 | 5.6 |
+| 90 min | 2.7 | 3.7 |
+| 120 min | 2.0 | 2.8 |
+
+At 60 minutes the binding limit is now the 2,000 live requests a day, not audio time. A single always-on recording with live captions uses 2 audio-hours an hour, which fills the free hourly audio cap by itself. After the split, two can run at once: sustained concurrency goes from 1 to 2.
+
+### Dev tier
+
+The Dev tier raises throughput to roughly 200,000 audio-seconds an hour for large-v3 and 400,000 for turbo, with higher request limits. Sustained concurrent recordings go from 27.8 to 55.6 for the same speech spend. The exact request caps should be confirmed in the console.
+
+### Levers that move the number further
+
+- **Live chunk size.** 10-second chunks create the requests-a-day ceiling on free. 20-second chunks would roughly double free daily sessions, at the cost of caption latency.
+- **Silence gate.** The capture already computes an RMS level for the meter. Skipping silent chunks would cut both audio seconds and requests.
+- **Retries.** A failed notes build retries with a fresh full-audio pass, which costs another final transcription. Note rewrites do not re-transcribe.
+- **Self-hosted worker.** `WHISPER_BASE_URL` moves long or heavy recordings to a flat-cost worker and away from Groq metering.
+- **Pro fair use.** At 30 hours a month Pro still clears $0.47. A soft monthly cap near 30 to 40 hours protects the margin without changing the headline of unlimited.
+

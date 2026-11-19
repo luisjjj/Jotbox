@@ -228,6 +228,7 @@ instead. They are already wired into `/api/transcribe`:
 | Control | Environment | What it does |
 | --- | --- | --- |
 | Model | `GROQ_STT_MODEL`, `XAI_STT_MODEL` | `whisper-large-v3` is more accurate than `turbo` on accented, noisy rooms; `turbo` is faster and cheaper |
+| Live model | `GROQ_LIVE_STT_MODEL` | The model used for live caption chunks. Defaults to `whisper-large-v3-turbo` because live text is a throwaway preview: the kept transcript is always rebuilt from the full recording with `GROQ_STT_MODEL`. This roughly halves the audio-seconds live previews burn |
 | Language | `JOTBOX_STT_LANGUAGE` | `en` is correct for English **and** Nigerian Pidgin, because Pidgin is English-lexified. `auto` omits the language token and lets the model guess; use it only for genuinely other-language meetings |
 | Vocabulary | `JOTBOX_STT_VOCAB` | Comma, semicolon, or newline separated names, places, products and Pidgin spellings. The gateway adds them to the decoding prompt, which biases spelling without changing the audio |
 | Prompt | `JOTBOX_STT_PROMPT` | Replaces the built-in verbatim/Pidgin prompt. Leave unset unless you have a specific reason |
@@ -261,6 +262,7 @@ Example:
 JOTBOX_STT_LANGUAGE=en
 JOTBOX_STT_VOCAB=JotBox, Ibadan, Abuja, GTBank, NIPOST, wetin dey, no wahala, make we
 GROQ_STT_MODEL=whisper-large-v3
+GROQ_LIVE_STT_MODEL=whisper-large-v3-turbo
 # Keep more faint speech: raise the no-speech cut toward 0.75.
 # Drop more room noise: lower it toward 0.55.
 # JOTBOX_STT_NO_SPEECH=0.65

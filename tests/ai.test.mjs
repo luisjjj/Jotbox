@@ -10,6 +10,7 @@ const MANAGED = [
   "WHISPER_MODEL",
   "GROQ_NOTES_MODEL",
   "GROQ_STT_MODEL",
+  "GROQ_LIVE_STT_MODEL",
   "VERCEL",
   "JOTBOX_AI_MOCK",
   "JOTBOX_AI_TONE",
@@ -131,6 +132,7 @@ test("status reports English, warm tone and Pidgin on by default", () => {
   assert.equal(status.transcribe, null);
   assert.equal(status.notes, null);
   assert.equal(status.sttModel, "whisper-large-v3");
+  assert.equal(status.sttLiveModel, "whisper-large-v3-turbo");
 
   process.env.JOTBOX_STT_LANGUAGE = "auto";
   assert.equal(ai.aiStatus().sttLanguage, "auto");
@@ -284,6 +286,24 @@ test("live transcription keeps quiet noisy speech instead of dropping the chunk"
   assert.equal(result.filtered, 0);
   assert.equal(result.words.length, 5);
   assert.equal(form.get("prompt"), null);
+  assert.equal(form.get("model"), "whisper-large-v3-turbo");
+});
+
+test("live and final passes can each name their own Groq model", async () => {
+  process.env.GROQ_API_KEY = "test-groq";
+  process.env.GROQ_STT_MODEL = "whisper-large-v3";
+  process.env.GROQ_LIVE_STT_MODEL = "whisper-large-v3-turbo";
+
+  const models = [];
+  globalThis.fetch = async (url, init) => {
+    models.push(init.body.get("model"));
+    return Response.json({ text: "hello", words: [], segments: [] });
+  };
+
+  await ai.transcribeAudio({ buffer: Buffer.from("audio"), contentType: "audio/webm", filename: "live.webm", live: true });
+  await ai.transcribeAudio({ buffer: Buffer.from("audio"), contentType: "audio/webm", filename: "final.webm" });
+
+  assert.deepEqual(models, ["whisper-large-v3-turbo", "whisper-large-v3"]);
 });
 
 test("live previews carry no prompt so Whisper cannot recite instructions", () => {

@@ -99,6 +99,7 @@ Capture setup and Settings also expose two listening controls. **Session focus**
 ```env
 GROQ_API_KEY=gsk_...
 GROQ_STT_MODEL=whisper-large-v3
+GROQ_LIVE_STT_MODEL=whisper-large-v3-turbo
 GROQ_NOTES_MODEL=openai/gpt-oss-120b
 
 # Optional: long recordings
