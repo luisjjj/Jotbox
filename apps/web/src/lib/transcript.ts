@@ -4,10 +4,11 @@ export function wordsToLines(words: SttWord[] | undefined, text: string): Transc
   if (!words?.length) {
     const trimmed = text.trim();
     if (!trimmed) return [];
-    return [{ id: crypto.randomUUID(), text: trimmed, at: 0 }];
+    return [{ id: crypto.randomUUID(), text: trimmed, at: 0, speaker: "Speaker 1" }];
   }
 
   const lines: TranscriptLine[] = [];
+  const diarized = words.some((word) => word.speaker !== undefined);
   let buffer: SttWord[] = [];
 
   const flush = () => {
@@ -23,7 +24,9 @@ export function wordsToLines(words: SttWord[] | undefined, text: string): Transc
         id: crypto.randomUUID(),
         text: joined,
         at: buffer[0].start,
-        speaker: speaker === undefined ? undefined : `Speaker ${speaker + 1}`,
+        // A reader without diarisation still gets a turn label, so the
+        // transcript shows Speaker 1 instead of anonymous blocks.
+        speaker: speaker === undefined ? (diarized ? undefined : "Speaker 1") : `Speaker ${speaker + 1}`,
       });
     }
     buffer = [];

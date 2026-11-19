@@ -16,6 +16,7 @@ describe("wordsToLines", () => {
     expect(lines).toHaveLength(1);
     expect(lines[0].text).toBe("We agreed to pause the promise.");
     expect(lines[0].at).toBe(0);
+    expect(lines[0].speaker).toBe("Speaker 1");
   });
 
   it("splits when a new speaker starts and labels them", () => {
@@ -58,9 +59,9 @@ describe("wordsToLines", () => {
     for (const line of lines) expect(line.text.length).toBeLessThanOrEqual(230);
   });
 
-  it("does not label speakers when timings lack diarisation", () => {
+  it("labels an undiarised recording as Speaker 1", () => {
     const lines = wordsToLines([word("Hello", 0, 0.2), word("there", 0.3, 0.5)], "");
-    expect(lines[0].speaker).toBeUndefined();
+    expect(lines[0].speaker).toBe("Speaker 1");
   });
 });
 

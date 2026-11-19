@@ -150,6 +150,14 @@ npm run eval:public:score:glossary:words
 Raw runs live in `eval/results/`, which is gitignored. `audio/` is also gitignored, so recordings
 never enter the repository.
 
+## 2026-11 shipped prompt check
+
+The mixed-register set changed the Pidgin prompt to "Nigerian English mixed with Nigerian Pidgin"
+and added the cross-talk line. This public pack was re-run with that shipped prompt and no
+glossary on 2026-11-19: 43.8% WER and 60.0% keyword recall, against 43.5% and 62.5% for the
+previous Pidgin prompt. The change is neutral on clean single-speaker Pidgin and wins on the
+Brekete cross-talk clips, so the public floor still holds.
+
 ## Next step
 
 Run the private golden set. It is the only place that can score hallucination on noise, briefing

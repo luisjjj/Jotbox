@@ -43,17 +43,23 @@ const KIND_LABEL = {
 
 // A short hint beats a long instruction list. Long prompts get echoed verbatim
 // on noisy audio and push the room vocabulary out of the 896 character budget.
+// The Pidgin clause and the marker list come from the 2026-11 Brekete
+// mixed-register set, where an English-only prompt translated Pidgin and lost
+// turns whenever two people spoke at once.
 const STT_PROMPT_EN = [
-  "Verbatim transcript of a lecture or meeting in Nigerian English.",
-  "Keep Igbo, Yoruba and Hausa words as spoken.",
-  "Keep names, places, amounts and dates exactly as said.",
+  "Transcribe verbatim in Nigerian English, including Nigerian Pidgin. Do not translate Pidgin and do not correct grammar.",
+  "Keep Pidgin exactly as spoken: wetin dey happen, make we check am, I no fit, dem don go, pikin, abeg, wahala, wey, na im, di, dey, don.",
+  "When people talk over each other, keep every clear word and do not invent the unclear part.",
+  "Keep names, places and amounts exactly as said. Leave out background media and side talk.",
 ].join(" ");
 
-// This is the prompt that won the public Nigerian Pidgin set (39.1% WER with
-// the room glossary, against 47.5% for a plain English prompt).
+// This prompt family won the public Nigerian Pidgin set (39.1% WER with the
+// room glossary, against 47.5% for a plain English prompt) and then the
+// mixed-register set, where it averaged 7.0% WER against a consensus reference.
 const STT_PROMPT_PCM = [
-  "Transcribe verbatim in Nigerian Pidgin. Do not translate to English and do not correct grammar.",
+  "Transcribe verbatim in Nigerian English mixed with Nigerian Pidgin. Do not translate to English and do not correct grammar.",
   "Keep Pidgin exactly as spoken: wetin dey happen, make we check am, I no fit, dem don go, pikin, abeg, wahala, sotey, wey, na im, di, dey, don.",
+  "When people talk over each other, keep every clear word and do not invent the unclear part.",
   "Keep names, places and amounts exactly as said. Leave out background media and side talk.",
 ].join(" ");
 
@@ -441,6 +447,15 @@ function segmentIsNoise(segment) {
   return false;
 }
 
+function speakerIndex(value) {
+  if (value === null || value === undefined || value === "") return undefined;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return numeric;
+  // Providers label turns as SPEAKER_00, speaker_1 or Speaker 2.
+  const match = String(value).match(/(\d+)\s*$/);
+  return match ? Number(match[1]) : undefined;
+}
+
 export function normalizeTranscription(data, provider, options = {}) {
   const live = options?.live === true;
   let words = Array.isArray(data?.words)
@@ -449,12 +464,12 @@ export function normalizeTranscription(data, provider, options = {}) {
           const text = cleanWord(word?.word ?? word?.text);
           const start = Number(word?.start);
           const end = Number(word?.end);
-          const speaker = Number(word?.speaker);
+          const speaker = speakerIndex(word?.speaker);
           return {
             text,
             start: Number.isFinite(start) ? start : 0,
             end: Number.isFinite(end) ? end : Number.isFinite(start) ? start : 0,
-            ...(Number.isFinite(speaker) ? { speaker } : {}),
+            ...(speaker !== undefined ? { speaker } : {}),
           };
         })
         .filter((word) => word.text)
@@ -475,9 +490,9 @@ export function normalizeTranscription(data, provider, options = {}) {
       .map((segment) => ({
         start: Number(segment?.start),
         end: Number(segment?.end),
-        speaker: Number(segment?.speaker),
+        speaker: speakerIndex(segment?.speaker),
       }))
-      .filter((segment) => Number.isFinite(segment.speaker) && Number.isFinite(segment.start));
+      .filter((segment) => segment.speaker !== undefined && Number.isFinite(segment.start));
     if (labeled.length) {
       words = words.map((word) => {
         let match = labeled.find(

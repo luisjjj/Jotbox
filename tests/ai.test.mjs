@@ -43,7 +43,7 @@ const ai = await import("../server/api/ai.mjs");
 
 test("speech prompt treats Pidgin as normal speech and takes room vocabulary", () => {
   const prompt = ai.sttPrompt({ language: "pcm" });
-  assert.match(prompt, /Transcribe verbatim in Nigerian Pidgin/);
+  assert.match(prompt, /Transcribe verbatim in Nigerian English mixed with Nigerian Pidgin/);
   assert.match(prompt, /Do not translate to English and do not correct grammar/);
   assert.match(prompt, /wetin dey happen, make we check am/);
   assert.match(prompt, /Keep names, places and amounts exactly as said/);
@@ -82,7 +82,7 @@ test("speech prompt carries the session title, focus and roster names", () => {
     names: ["Ada", "Chinedu"],
     focus: "balanced",
   });
-  assert.match(prompt, /Verbatim transcript of a lecture or meeting in Nigerian English/);
+  assert.match(prompt, /Transcribe verbatim in Nigerian English/);
   assert.match(prompt, /This meeting is called "Quarterly earnings review"\./);
   assert.match(prompt, /Keep every word you can hear, even in a noisy room\./);
   assert.match(prompt, /Ada, Chinedu/);
@@ -343,6 +343,25 @@ test("segment speakers are copied onto words when a provider diarizes", () => {
   assert.deepEqual(
     result.words.map((word) => word.speaker),
     [0, 0, 0, 1, 1],
+  );
+});
+
+test("provider speaker labels like SPEAKER_00 map to turn indexes", () => {
+  const result = ai.normalizeTranscription(
+    {
+      text: "One two three",
+      words: [
+        { word: "One", start: 0, end: 0.2, speaker: "SPEAKER_00" },
+        { word: "two", start: 0.2, end: 0.4, speaker: "SPEAKER_00" },
+        { word: "three", start: 0.5, end: 0.7, speaker: "SPEAKER_01" },
+      ],
+    },
+    "groq",
+  );
+
+  assert.deepEqual(
+    result.words.map((word) => word.speaker),
+    [0, 0, 1],
   );
 });
 

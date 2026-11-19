@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "JotBox Nigerian golden set",
-  "description": "Private clips, 30 to 90 seconds each, with human-typed transcripts. Audio stays on this machine and is gitignored.",
+  "description": "Private clips, 30 to 90 seconds each, with a human-typed or consensus reference. Audio stays on this machine and is gitignored. The 2026-11 Brekete family clips use a consensus reference built from three whisper passes; see transcripts/brekete-consensus.md.",
   "glossary": "glossary.txt",
   "thresholds": {
     "wer": 0.12,
@@ -37,5 +37,142 @@
       "recording": "20 to 45 seconds of room tone, fan, traffic or a generator with no speech. The reader must return no words."
     }
   },
-  "clips": []
+  "clips": [
+    {
+      "id": "brekete-mixed-1490",
+      "category": "pidgin",
+      "audio": "audio/brekete-mixed-1490.mp3",
+      "transcript": "transcripts/brekete-mixed-1490.txt",
+      "seconds": 90,
+      "title": "Leadership and advice in a mixed English and Pidgin panel",
+      "names": [
+        "Kelechi",
+        "Pamela",
+        "Salizo"
+      ],
+      "keywords": [
+        "Kelechi",
+        "Pamela",
+        [
+          "Salizo",
+          "Salisu"
+        ],
+        "lawyers",
+        "good leader",
+        [
+          "in sabi wetin",
+          "sabi wetin"
+        ],
+        "I go say my mind"
+      ],
+      "facts": [],
+      "noise": false
+    },
+    {
+      "id": "brekete-talk-1920",
+      "category": "fast",
+      "audio": "audio/brekete-talk-1920.mp3",
+      "transcript": "transcripts/brekete-talk-1920.txt",
+      "seconds": 90,
+      "title": "Cross-talk about teaching and understanding",
+      "names": [
+        "Kesi"
+      ],
+      "keywords": [
+        "Kesi",
+        "quadratic equation",
+        "one plus one",
+        "three year old son",
+        [
+          "youth we learn",
+          "in youth we learn"
+        ],
+        [
+          "in age we understand"
+        ]
+      ],
+      "facts": [],
+      "noise": false
+    },
+    {
+      "id": "brekete-pidgin-3440",
+      "category": "pidgin",
+      "audio": "audio/brekete-pidgin-3440.mp3",
+      "transcript": "transcripts/brekete-pidgin-3440.txt",
+      "seconds": 90,
+      "title": "Pension and gratuity follow-up with the ordinary president",
+      "names": [
+        "Ordinary President"
+      ],
+      "keywords": [
+        "pension and gratuity",
+        [
+          "ordinary president",
+          "Ordinary President"
+        ],
+        "account statement",
+        "ten years",
+        "online",
+        "one week",
+        "two days",
+        [
+          "Wuna live am",
+          "una live am"
+        ]
+      ],
+      "facts": [],
+      "noise": false
+    },
+    {
+      "id": "brekete-wordgame-6950",
+      "category": "fast",
+      "audio": "audio/brekete-wordgame-6950.mp3",
+      "transcript": "transcripts/brekete-wordgame-6950.txt",
+      "seconds": 90,
+      "title": "Fast word game with overlapping voices",
+      "names": [],
+      "keywords": [
+        "mediation",
+        "home",
+        "wife",
+        "sister",
+        "uncle",
+        "niece",
+        [
+          "wetin happen"
+        ],
+        "complainant",
+        "witness",
+        "female gods"
+      ],
+      "facts": [],
+      "noise": false
+    },
+    {
+      "id": "brekete-caller-11960",
+      "category": "pidgin",
+      "audio": "audio/brekete-caller-11960.mp3",
+      "transcript": "transcripts/brekete-caller-11960.txt",
+      "seconds": 90,
+      "title": "Caller thanks the show in heavy Pidgin",
+      "names": [
+        "Brekete"
+      ],
+      "keywords": [
+        [
+          "Brekete family",
+          "Sobrekete family"
+        ],
+        "pay me",
+        [
+          "help am",
+          "help dat boy"
+        ],
+        "thank you sir",
+        "better thing"
+      ],
+      "facts": [],
+      "noise": false
+    }
+  ]
 }

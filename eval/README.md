@@ -273,6 +273,23 @@ looking at the sample, so treat that as an upper bound until the private golden 
 Full numbers, including the false positive on `local government`, are in
 [BASELINE.md](public/pidgin-asr/BASELINE.md).
 
+## Brekete mixed-register set
+
+Five 90 second windows from the Brekete Family broadcast of 18 November 2026 add what the
+private set was missing: Nigerian English mixed with heavy Pidgin, callers, and several
+people talking over each other. The references are a consensus of three reader passes, so
+treat the scores as a comparison against a machine reference, not a human transcript.
+
+```bash
+npm run eval:run -- --only=pidgin,fast --no-notes --pause 3200
+npm run eval:score
+```
+
+The prompt files for the winning variants are `eval/prompts/english-mixed.txt` and
+`eval/prompts/mixed.txt`; both match the prompts the app ships. Full method, numbers and
+caveats are in
+[golden/transcripts/brekete-consensus.md](golden/transcripts/brekete-consensus.md).
+
 ## Comparing changes
 
 A change is only useful if it moves a gate without breaking another. Keep the run folders and compare the reports:
