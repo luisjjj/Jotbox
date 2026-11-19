@@ -156,12 +156,13 @@ test("Scribe reads the full recording with speaker ids and keyterms", async () =
     return Response.json({
       text: "Ah wetin happen ?",
       language_code: "en",
+      language_probability: 0.9,
       words: [
-        { text: "Ah", type: "word", start: 0.1, end: 0.3, speaker_id: "speaker_0" },
-        { text: " ", type: "spacing", start: 0.3, end: 0.35, speaker_id: "speaker_0" },
-        { text: "wetin", type: "word", start: 0.35, end: 0.6, speaker_id: "speaker_0" },
-        { text: "(laughter)", type: "audio_event", start: 0.6, end: 0.9, speaker_id: "speaker_1" },
-        { text: "happen", type: "word", start: 0.9, end: 1.2, speaker_id: "speaker_1" },
+        { text: "Ah", type: "word", start: 0.1, end: 0.3, speaker_id: "speaker_0", logprob: -0.1 },
+        { text: " ", type: "spacing", start: 0.3, end: 0.35, speaker_id: "speaker_0", logprob: -0.1 },
+        { text: "wetin", type: "word", start: 0.35, end: 0.6, speaker_id: "speaker_0", logprob: -0.1 },
+        { text: "(laughter)", type: "audio_event", start: 0.6, end: 0.9, speaker_id: "speaker_1", logprob: -0.1 },
+        { text: "happen", type: "word", start: 0.9, end: 1.2, speaker_id: "speaker_1", logprob: -0.1 },
       ],
     });
   };
@@ -184,7 +185,7 @@ test("Scribe reads the full recording with speaker ids and keyterms", async () =
       ["happen", 1],
     ],
   );
-  assert.equal(headers["xi-api-key"], "test-scribe");
+  assert.equal(new Headers(headers).get("xi-api-key"), "test-scribe");
   assert.equal(form.get("model_id"), "scribe_v3");
   assert.equal(form.get("diarize"), "true");
   assert.equal(form.get("timestamps_granularity"), "word");
@@ -199,7 +200,7 @@ test("Scribe sends a supported language code for Yoruba", async () => {
 
   globalThis.fetch = async (_url, init = {}) => {
     form = init.body;
-    return Response.json({ text: "Sannu", language_code: "yo", words: [] });
+    return Response.json({ text: "Sannu", language_code: "yo", language_probability: 0.9, words: [] });
   };
 
   await ai.transcribeAudio({
@@ -222,7 +223,7 @@ test("Scribe retries without options the account rejects", async () => {
       keyterms: init.body.getAll("keyterms"),
     });
     if (forms.length === 1) return Response.json({ detail: "unsupported language" }, { status: 422 });
-    return Response.json({ text: "Hello there.", language_code: "en", words: [] });
+    return Response.json({ text: "Hello there.", language_code: "en", language_probability: 0.9, words: [] });
   };
 
   const result = await ai.transcribeAudio({

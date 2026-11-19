@@ -1,3 +1,4 @@
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { z } from "zod";
 import { requireSession } from "./auth.mjs";
 import { isProUser } from "./billing.mjs";
@@ -23,7 +24,6 @@ const GROQ_BASE = "https://api.groq.com/openai/v1";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const XAI_STT_URL = "https://api.x.ai/v1/stt";
 const XAI_CHAT_URL = "https://api.x.ai/v1/chat/completions";
-const ELEVENLABS_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 
 const MAX_AUDIO = 80 * 1024 * 1024;
 const MAX_LIVE_AUDIO = 2 * 1024 * 1024;
@@ -543,7 +543,7 @@ export function normalizeTranscription(data, provider, options = {}) {
           const text = cleanWord(word?.word ?? word?.text);
           const start = Number(word?.start);
           const end = Number(word?.end);
-          const speaker = speakerIndex(word?.speaker ?? word?.speaker_id);
+          const speaker = speakerIndex(word?.speaker ?? word?.speaker_id ?? word?.speakerId);
           return {
             text,
             start: Number.isFinite(start) ? start : 0,
@@ -630,7 +630,9 @@ export function normalizeTranscription(data, provider, options = {}) {
         ? data.language
         : typeof data?.language_code === "string"
           ? data.language_code
-          : null,
+          : typeof data?.languageCode === "string"
+            ? data.languageCode
+            : null,
     provider,
     filtered,
   };
@@ -719,42 +721,79 @@ async function transcribeWithXai(buffer, contentType, filename, context, options
   return normalizeTranscription(await response.json(), "xai", { ...options, prompt });
 }
 
-async function transcribeWithElevenLabs(buffer, contentType, filename, context, options = {}, language = null) {
-  const form = new FormData();
-  form.append("file", new Blob([buffer], { type: contentType }), filename);
-  form.append("model_id", key("ELEVENLABS_STT_MODEL") || DEFAULT_ELEVENLABS_STT);
-  form.append("timestamps_granularity", "word");
+let scribeClient = null;
+let scribeClientKey = "";
+
+function scribeClientFor() {
+  const apiKey = elevenLabsKey();
+  if (!scribeClient || scribeClientKey !== apiKey) {
+    scribeClient = new ElevenLabsClient({
+      apiKey,
+      timeoutInSeconds: 240,
+      maxRetries: 0,
+      // Keep the gateway retry policy so a rate limit is absorbed the same way
+      // as every other provider.
+      fetch: fetchWithRetry,
+    });
+    scribeClientKey = apiKey;
+  }
+  return scribeClient;
+}
+
+function scribeBody(buffer, contentType, filename, context, options, language, tuned) {
+  const body = {
+    file: { data: buffer, filename, contentType },
+    modelId: key("ELEVENLABS_STT_MODEL") || DEFAULT_ELEVENLABS_STT,
+    timestampsGranularity: "word",
+  };
   if (options.live !== true) {
     // Diarising a two second live chunk produces speaker ids that do not line
     // up with the next chunk, so only the full recording asks for speakers.
-    form.append("diarize", "true");
-    form.append("tag_audio_events", "false");
+    body.diarize = true;
+    body.tagAudioEvents = false;
   }
+  if (!tuned) return body;
   const code = elevenLabsCode(language);
-  if (code) form.append("language_code", code);
-  for (const term of sttKeyterms(context)) form.append("keyterms", term);
+  if (code) body.languageCode = code;
+  const terms = sttKeyterms(context);
+  if (terms.length) body.keyterms = terms;
+  return body;
+}
 
-  const send = () =>
-    fetchWithRetry(ELEVENLABS_STT_URL, {
-      method: "POST",
-      headers: { "xi-api-key": elevenLabsKey() },
-      body: form,
-      signal: AbortSignal.timeout(240_000),
-    });
+function describeScribeError(error) {
+  const body = error?.body;
+  if (typeof body === "string") return body;
+  if (body != null) {
+    try {
+      return JSON.stringify(body);
+    } catch {
+      return String(error?.message ?? "");
+    }
+  }
+  return String(error?.message ?? error ?? "unknown error");
+}
 
-  let response = await send();
-  let detail = "";
-  if (response.status === 400 || response.status === 422) {
-    detail = await response.text();
-    console.error("[jotbox-ai] elevenlabs rejected options", response.status, detail.slice(0, 500));
+async function transcribeWithElevenLabs(buffer, contentType, filename, context, options = {}, language = null) {
+  const client = scribeClientFor();
+  const tuned = scribeBody(buffer, contentType, filename, context, options, language, true);
+  let result;
+  try {
+    result = await client.speechToText.convert(tuned);
+  } catch (error) {
+    const status = error?.statusCode;
     // A language code or keyterm list the account does not support should not
     // lose the recording. Retry once with auto-detect and no keyterms.
-    form.delete("language_code");
-    form.delete("keyterms");
-    response = await send();
+    if ((status === 400 || status === 422) && (tuned.languageCode || tuned.keyterms)) {
+      console.error("[jotbox-ai] elevenlabs rejected options", status, describeScribeError(error).slice(0, 500));
+      const plain = scribeBody(buffer, contentType, filename, context, options, language, false);
+      result = await client.speechToText.convert(plain).catch((retryError) => {
+        throw providerError("elevenlabs-stt", { status: retryError?.statusCode }, describeScribeError(retryError));
+      });
+    } else {
+      throw providerError("elevenlabs-stt", { status }, describeScribeError(error));
+    }
   }
-  if (!response.ok) throw providerError("elevenlabs-stt", response, detail || (await response.text()));
-  return normalizeTranscription(await response.json(), "elevenlabs", { ...options, prompt: "" });
+  return normalizeTranscription(result, "elevenlabs", { ...options, prompt: "" });
 }
 
 const MOCK_LINES = [
