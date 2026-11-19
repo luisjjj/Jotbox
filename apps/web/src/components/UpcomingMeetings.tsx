@@ -99,11 +99,14 @@ export function UpcomingMeetings() {
                     className="icon-btn h-7 w-7"
                     aria-label={`Start notes for ${event.title || "this meeting"}`}
                     title="Start notes"
-                    onClick={() =>
-                      navigate(
-                        `/listen?title=${encodeURIComponent(event.title || "Meeting")}&kind=meeting`,
-                      )
-                    }
+                    onClick={() => {
+                      const query = new URLSearchParams({
+                        title: event.title || "Meeting",
+                        kind: "meeting",
+                      });
+                      for (const attendee of event.attendees) query.append("guest", attendee);
+                      navigate(`/listen?${query.toString()}`);
+                    }}
                   >
                     <ArrowRight className="h-4 w-4" />
                   </button>
