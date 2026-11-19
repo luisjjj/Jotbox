@@ -267,6 +267,7 @@ export interface MemorySource {
   department: string | null;
   sensitivity: CaptureSensitivity;
   owner: string;
+  document?: boolean;
 }
 
 export interface MemoryCitation {
@@ -278,6 +279,19 @@ export interface MemoryCitation {
   startSec: number;
   excerpt: string;
   href: string;
+  document?: boolean;
+}
+
+export interface OrgDocument {
+  id: string;
+  title: string;
+  filename: string;
+  mimeType: string;
+  bytes: number;
+  chars: number;
+  date: string;
+  owner: string;
+  ownerId: string;
 }
 
 export interface QuotaReservation {
@@ -298,17 +312,30 @@ export interface StoredAudio {
 
 export type TranscribeJobStatus = "queued" | "running" | "done" | "failed";
 
+export type TranscribeJobStage = "transcript" | "notes";
+
+export interface TranscribeJobTimings {
+  downloadMs?: number;
+  transcribeMs?: number;
+  notesMs?: number;
+  totalMs?: number;
+}
+
 export interface TranscribeJobResult {
   title: string;
   lines: TranscriptLine[];
-  notes: NonNullable<Session["notes"]>;
+  notes: NonNullable<Session["notes"]> | null;
   language: string | null;
+  stage: TranscribeJobStage;
+  timings?: TranscribeJobTimings;
 }
 
 export interface TranscribeJob {
   id: string;
   status: TranscribeJobStatus;
   result: TranscribeJobResult | null;
+  stage: TranscribeJobStage | null;
+  timings: TranscribeJobTimings | null;
   error: string | null;
   createdAt: number;
   updatedAt: number;
@@ -365,6 +392,7 @@ export interface SharedCaptureView {
   departmentId: string | null;
   departmentName: string | null;
   ownerName: string;
+  document?: boolean;
 }
 
 export interface ShareLink {
@@ -443,7 +471,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-async function upload<T>(path: string, blob: Blob): Promise<T> {
+async function upload<T>(path: string, blob: Blob, fallback = "The file could not be uploaded."): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, {
@@ -458,7 +486,7 @@ async function upload<T>(path: string, blob: Blob): Promise<T> {
   if (response.status === 401) authExpired(path);
   const data = (await response.json().catch(() => null)) as { error?: string } | null;
   if (!response.ok) {
-    throw new ApiError(data?.error ?? "The audio could not be uploaded.", response.status);
+    throw new ApiError(data?.error ?? fallback, response.status);
   }
   return data as T;
 }
@@ -521,8 +549,32 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ id }),
     }),
-  uploadCaptureAudio: (id: string, blob: Blob) =>
-    upload<StoredAudio>(`/api/captures?action=audio&id=${encodeURIComponent(id)}`, blob),
+  uploadCaptureAudio: async (id: string, blob: Blob): Promise<StoredAudio> => {
+    const contentType = (blob.type || "audio/webm").split(";")[0].trim();
+    // Large recordings cannot pass through a serverless body. Try a signed PUT
+    // straight to storage first, then fall back to the proxy when the bucket
+    // has no upload rule for this origin.
+    try {
+      const signed = await request<{ key: string; url: string; expiresAt: number }>(
+        `/api/captures?action=audio-upload&id=${encodeURIComponent(id)}&contentType=${encodeURIComponent(contentType)}`,
+      );
+      const put = await fetch(signed.url, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: blob,
+      });
+      if (put.ok) {
+        return await request<StoredAudio>("/api/captures?action=audio-register", {
+          method: "POST",
+          body: JSON.stringify({ id, key: signed.key, contentType }),
+        });
+      }
+      console.warn("[jotbox] direct audio upload was refused", put.status);
+    } catch {
+      // The proxy upload below reports the failure in the usual way.
+    }
+    return upload<StoredAudio>(`/api/captures?action=audio&id=${encodeURIComponent(id)}`, blob, "The audio could not be uploaded.");
+  },
   getCaptureAudioUrl: (id: string) =>
     request<{ url: string; expiresAt: number }>(`/api/captures?action=audio&id=${encodeURIComponent(id)}`),
   deleteCaptureAudio: (id: string) =>
@@ -581,6 +633,23 @@ export const api = {
   getSharedCapture: (orgId: string, captureId: string) =>
     request<{ capture: SharedCaptureView }>(
       `/api/orgs/${encodeURIComponent(orgId)}/captures/${encodeURIComponent(captureId)}`,
+    ),
+  listOrgDocuments: (orgId: string) =>
+    request<{ documents: OrgDocument[]; canUpload: boolean }>(
+      `/api/orgs/${encodeURIComponent(orgId)}/documents`,
+    ),
+  uploadOrgDocument: async (orgId: string, file: File) =>
+    (
+      await upload<{ document: OrgDocument }>(
+        `/api/orgs/${encodeURIComponent(orgId)}/documents?filename=${encodeURIComponent(file.name)}`,
+        file,
+        "That document could not be uploaded.",
+      )
+    ).document,
+  deleteOrgDocument: (orgId: string, documentId: string) =>
+    request<void>(
+      `/api/orgs/${encodeURIComponent(orgId)}/documents/${encodeURIComponent(documentId)}`,
+      { method: "DELETE" },
     ),
   getAudit: async (orgId: string) =>
     (await request<{ audit: OrgAuditEvent[] }>(`/api/orgs/${encodeURIComponent(orgId)}/audit`)).audit,

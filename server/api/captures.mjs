@@ -11,7 +11,7 @@ import {
   reserveQuota,
   settleQuota,
 } from "./quota.mjs";
-import { audioKeyFor, deleteAudioObject, presignAudio, putAudio, storageConfigured } from "./storage.mjs";
+import { audioKeyFor, deleteAudioObject, headAudio, presignAudio, putAudio, storageConfigured } from "./storage.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -114,6 +114,12 @@ const reserveInput = z.object({
   seconds: z.number().finite().min(0).max(4 * 3600).optional(),
 });
 
+const audioRegisterInput = z.object({
+  id: z.string().uuid(),
+  key: z.string().max(300),
+  contentType: z.string().max(120),
+});
+
 function fromRow(row) {
   return {
     id: row.id,
@@ -144,6 +150,42 @@ export async function handleCaptures(req, res) {
     if (!capture) throw new HttpError(404, "That session was not found.");
     if (!capture.audio_key) throw new HttpError(404, "That session has no stored audio.");
     sendJson(res, 200, presignAudio(capture.audio_key));
+    return;
+  }
+
+  // A two hour recording is larger than a serverless request body allows, so
+  // the browser uploads straight to storage with a signed PUT.
+  if (req.method === "GET" && action === "audio-upload") {
+    const id = url.searchParams.get("id") || "";
+    if (!z.string().uuid().safeParse(id).success) throw new HttpError(400, "A session id is required.");
+    if (!storageConfigured()) throw new HttpError(503, "Audio storage is not configured on this server.");
+    const capture = await ownedCapture(user.id, id);
+    if (!capture) throw new HttpError(404, "Save the session before sending its audio.");
+    const contentType = (url.searchParams.get("contentType") || "application/octet-stream").split(";")[0].trim();
+    const objectKey = audioKeyFor(user.id, id, contentType);
+    const signed = presignAudio(objectKey, 3600, { method: "PUT", contentType });
+    sendJson(res, 200, { key: objectKey, url: signed.url, expiresAt: signed.expiresAt });
+    return;
+  }
+
+  if (req.method === "POST" && action === "audio-register") {
+    assertSameOrigin(req);
+    const parsed = audioRegisterInput.safeParse(await readJson(req, 8_000));
+    if (!parsed.success) throw new HttpError(400, "That upload could not be registered.");
+    const input = parsed.data;
+    const contentType = input.contentType.split(";")[0].trim();
+    const expected = audioKeyFor(user.id, input.id, contentType);
+    if (input.key !== expected) throw new HttpError(400, "That audio does not belong to this session.");
+    const stored = await headAudio(input.key);
+    if (!stored) throw new HttpError(409, "The recording did not reach storage. Try again.");
+    await query(
+      `update captures
+          set audio_key = $3, audio_content_type = $4, audio_bytes = $5,
+              has_audio = true, audio_deleted_at = null, updated_at = now()
+        where id = $1 and user_id = $2`,
+      [input.id, user.id, input.key, contentType, stored.bytes],
+    );
+    sendJson(res, 200, { stored: true, key: input.key, bytes: stored.bytes });
     return;
   }
 
@@ -231,7 +273,7 @@ export async function handleCaptures(req, res) {
     const result = await query(
       `select id, title, kind, status, duration_sec, scratch, transcript, notes, has_audio, error, participants, live, created_at
          from captures
-        where user_id = $1
+        where user_id = $1 and is_document = false
         order by created_at desc
         limit 500`,
       [user.id],

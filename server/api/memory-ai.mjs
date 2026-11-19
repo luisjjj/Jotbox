@@ -25,6 +25,7 @@ Separate the record from your reading:
 - inferences: a conclusion you draw by connecting records. Mark it as an inference. Never present an inference as something a person said or decided.
 - If the question asks why something changed and no record explicitly states a reason, set reasonMissing to true and say plainly that no reason was recorded. Do not supply a plausible reason.
 - Keep Nigerian Pidgin and other quoted speech exactly as recorded.
+- Some records are uploaded documents, not meetings. Treat their text as recorded material and cite the record id the same way.
 - When a record includes relevant moments, use the speaker and timestamp shown there so the answer can point back to that second.
 - Use plain, direct language. Use commas, colons and full stops, never em dashes. Timeline entries must be in chronological order.
 
@@ -59,16 +60,22 @@ function clock(seconds) {
 }
 
 function formatRecord(record, index) {
+  const isDocument = record.kind === "document";
   const lines = [
     `[record ${index + 1}] id=${record.id} | date=${record.date} | title=${record.title} | kind=${record.kind} | department=${record.department || "none"} | sensitivity=${record.sensitivity}`,
-    "Notes:",
-    clipped(record.notesText, 4_000) || "(none)",
-    "Spoken words:",
-    clipped(record.transcriptText, 2_500) || "(none)",
   ];
+  if (!isDocument) {
+    lines.push("Notes:", clipped(record.notesText, 4_000) || "(none)");
+  }
+  lines.push(isDocument ? "Document text:" : "Spoken words:");
+  lines.push(clipped(record.transcriptText, isDocument ? 6_000 : 2_500) || "(none)");
   if (Array.isArray(record.excerpts) && record.excerpts.length) {
-    lines.push("Relevant moments:");
+    lines.push(isDocument ? "Relevant passages:" : "Relevant moments:");
     for (const moment of record.excerpts.slice(0, 5)) {
+      if (isDocument) {
+        lines.push(`- ${clipped(moment?.text, 700)}`);
+        continue;
+      }
       const speaker = moment?.speaker ? `${moment.speaker}: ` : "";
       lines.push(`- [${clock(moment?.startSec)}] ${speaker}${clipped(moment?.text, 700)}`);
     }

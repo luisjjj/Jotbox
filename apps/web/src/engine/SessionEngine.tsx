@@ -39,10 +39,20 @@ type EngineStatus = "idle" | "recording" | "paused" | "processing";
 type JobOutcome =
   | { state: "done"; title: string; lines: TranscriptLine[]; notes: NonNullable<Session["notes"]> }
   | { state: "failed"; message: string }
+  | { state: "pending" }
   | { state: "unavailable" };
 
-const JOB_POLL_MS = 1500;
-const JOB_POLL_LIMIT = 160;
+interface JobProgress {
+  title: string;
+  lines: TranscriptLine[];
+}
+
+const JOB_POLL_MS = 700;
+const JOB_POLL_SLOW_MS = 2500;
+const JOB_POLL_SLOW_AFTER_MS = 2 * 60_000;
+// Long recordings can take a while to transcribe. Past this point the session
+// page takes over the polling, so the wait never dies with the capture screen.
+const JOB_POLL_MAX_MS = 25 * 60_000;
 
 interface SpeechAlternative {
   transcript: string;
@@ -533,7 +543,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     const mime = pickMime();
     let recorder: MediaRecorder;
     try {
-      recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      recorder = new MediaRecorder(stream, {
+        ...(mime ? { mimeType: mime } : {}),
+        audioBitsPerSecond: 64_000,
+      });
     } catch {
       live.active = false;
       setCaptions(false);
@@ -673,16 +686,20 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   /**
    * Hands the audio to the server job queue. Returns "unavailable" when the
    * server cannot take it, so the caller can fall back to the inline path.
+   * "pending" means the job is still running after a long wait; the session
+   * keeps its job id so the session page can finish the wait on its own.
    */
   const runServerJob = useCallback(
     async ({
       session,
       blob,
       titleIsDefault,
+      onProgress,
     }: {
       session: Session;
       blob: Blob;
       titleIsDefault: boolean;
+      onProgress?: (progress: JobProgress) => void;
     }): Promise<JobOutcome> => {
       try {
         await api.saveCapture(session);
@@ -699,12 +716,29 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             titleIsDefault,
           })
         ).job;
-        for (let attempt = 0; attempt < JOB_POLL_LIMIT; attempt += 1) {
-          if (job.status !== "queued" && job.status !== "running") break;
-          await new Promise<void>((resolve) => window.setTimeout(resolve, JOB_POLL_MS));
+        // Keep the job on the session. A reload, or a wait longer than this
+        // screen, can then pick it up without transcribing the audio twice.
+        useSessions.getState().patch(session.id, { jobId: job.id });
+        const startedAt = Date.now();
+        const deadline = startedAt + JOB_POLL_MAX_MS;
+        let delay = 250;
+        let publishedAt = 0;
+        while (job.status === "queued" || job.status === "running") {
+          if (Date.now() > deadline) return { state: "pending" };
+          await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
           job = await api.getTranscribeJob(job.id);
+          // The server publishes the words before it starts writing notes.
+          // Show them right away instead of waiting for the summary.
+          if (job.result?.lines.length && job.updatedAt !== publishedAt) {
+            publishedAt = job.updatedAt;
+            onProgress?.({
+              title: job.result.title || session.title,
+              lines: job.result.lines,
+            });
+          }
+          delay = Date.now() - startedAt > JOB_POLL_SLOW_AFTER_MS ? JOB_POLL_SLOW_MS : JOB_POLL_MS;
         }
-        if (job.status === "done" && job.result) {
+        if (job.status === "done" && job.result?.notes) {
           return {
             state: "done",
             title: job.result.title || session.title,
@@ -712,13 +746,13 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             notes: job.result.notes,
           };
         }
+        if (job.status === "done") {
+          return { state: "failed", message: "The notes came back empty. Try again from the session page." };
+        }
         if (job.status === "failed") {
           return { state: "failed", message: job.error || "The notes could not be written." };
         }
-        return {
-          state: "failed",
-          message: "The notes are still being written. Open this session again in a moment.",
-        };
+        return { state: "pending" };
       } catch (error) {
         // A plan limit is final: do not spend a provider call on the fallback.
         if (error instanceof ApiError && error.status === 402) {
@@ -753,7 +787,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     let blob: Blob | null = null;
     try {
       blob = await finishRecorder();
-      if (blob.size > 0) await saveAudio(id, blob);
+      // Keep the local copy without holding up the upload and the page turn.
+      if (blob.size > 0) void saveAudio(id, blob).catch(() => undefined);
     } catch {
       blob = null;
     }
@@ -774,7 +809,18 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     useSessions.getState().upsert(base);
     navigate(`/session/${id}`);
     if (blob && blob.size > 0) {
-      const outcome = await runServerJob({ session: base, blob, titleIsDefault });
+      const outcome = await runServerJob({
+        session: base,
+        blob,
+        titleIsDefault,
+        onProgress: (progress) => {
+          useSessions.getState().patch(base.id, { transcript: progress.lines });
+        },
+      });
+      if (outcome.state === "pending") {
+        reset();
+        return;
+      }
       if (outcome.state === "done") {
         useSessions.getState().upsert({
           ...base,
@@ -797,6 +843,9 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         return;
       }
     }
+    // The job may already have published words before it fell back here.
+    const newest = useSessions.getState().sessions.find((item) => item.id === base.id);
+    const fallbackLines = newest?.transcript.length ? newest.transcript : linesNow;
     try {
       const ai = await studioAvailable();
       const result = await withProcessingTimeout(
@@ -805,7 +854,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           title: titleNow,
           titleIsDefault,
           scratch: scratchNow,
-          lines: linesNow,
+          lines: fallbackLines,
           audio: blob,
           ai,
           participants: participantsRef.current,
@@ -869,7 +918,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         const stream = await openStream(options.source);
         streamRef.current = stream;
         const mime = pickMime();
-        const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        const recorder = new MediaRecorder(stream, {
+          ...(mime ? { mimeType: mime } : {}),
+          audioBitsPerSecond: 64_000,
+        });
         chunks.current = [];
         mimeRef.current = recorder.mimeType || mime || "audio/webm";
         recorder.ondataavailable = (event) => {
@@ -1028,8 +1080,16 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       useSessions.getState().upsert(base);
       navigate(`/session/${id}`);
       try {
-        await saveAudio(id, file);
-        const outcome = await runServerJob({ session: base, blob: file, titleIsDefault: true });
+        void saveAudio(id, file).catch(() => undefined);
+        const outcome = await runServerJob({
+          session: base,
+          blob: file,
+          titleIsDefault: true,
+          onProgress: (progress) => {
+            useSessions.getState().patch(base.id, { transcript: progress.lines });
+          },
+        });
+        if (outcome.state === "pending") return;
         if (outcome.state === "done") {
           useSessions.getState().upsert({
             ...base,

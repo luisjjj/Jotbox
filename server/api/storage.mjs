@@ -180,6 +180,16 @@ export async function getAudio(objectKey) {
   };
 }
 
+/** Confirms a browser upload landed, without pulling the bytes back. */
+export async function headAudio(objectKey) {
+  const { response } = await signedRequest("HEAD", objectKey);
+  if (!response.ok) return null;
+  return {
+    bytes: Number(response.headers.get("content-length")) || 0,
+    contentType: response.headers.get("content-type") || "",
+  };
+}
+
 export async function deleteAudioObject(objectKey) {
   const { response } = await signedRequest("DELETE", objectKey);
   // A missing object is already deleted.
@@ -188,27 +198,35 @@ export async function deleteAudioObject(objectKey) {
   }
 }
 
-export function presignAudio(objectKey, expiresSeconds = 600) {
+/**
+ * Short-lived GET for playback, or PUT for a browser upload that skips the
+ * function body limit. A PUT signs the exact content type the browser sends.
+ */
+export function presignAudio(objectKey, expiresSeconds = 600, { method = "GET", contentType = "" } = {}) {
   const config = storageConfig();
   if (!config) throw Object.assign(new Error("Audio storage is not configured."), { status: 503 });
+  const verb = method === "PUT" ? "PUT" : "GET";
   const stamp = amzDate();
   const date = scopeDate(stamp);
   const expires = Math.max(60, Math.min(Math.round(expiresSeconds), 3600));
   const host = new URL(config.endpoint).host;
+  const signedHeaders = verb === "PUT" && contentType ? "host;content-type" : "host";
   const params = {
     "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
     "X-Amz-Credential": `${config.accessKeyId}/${date}/${config.region}/s3/aws4_request`,
     "X-Amz-Date": stamp,
     "X-Amz-Expires": String(expires),
-    "X-Amz-SignedHeaders": "host",
+    "X-Amz-SignedHeaders": signedHeaders,
   };
   const canonicalQuery = encodeQuery(params);
+  const canonicalHeaders =
+    verb === "PUT" && contentType ? `host:${host}\ncontent-type:${contentType}\n` : `host:${host}\n`;
   const canonicalRequest = [
-    "GET",
+    verb,
     canonicalUri(config, objectKey),
     canonicalQuery,
-    `host:${host}\n`,
-    "host",
+    canonicalHeaders,
+    signedHeaders,
     "UNSIGNED-PAYLOAD",
   ].join("\n");
   const stringToSign = ["AWS4-HMAC-SHA256", stamp, `${date}/${config.region}/s3/aws4_request`, sha256Hex(canonicalRequest)].join("\n");

@@ -742,10 +742,14 @@ function scribeClientFor() {
 
 function scribeBody(buffer, contentType, filename, context, options, language, tuned) {
   const body = {
-    file: { data: buffer, filename, contentType },
     modelId: key("ELEVENLABS_STT_MODEL") || DEFAULT_ELEVENLABS_STT,
     timestampsGranularity: "word",
   };
+  // Let Scribe pull the file from storage directly. Skipping the download and
+  // re-upload in our function is what keeps long recordings from waiting on
+  // the same bytes twice.
+  if (options.sourceUrl) body.sourceUrl = options.sourceUrl;
+  else body.file = { data: buffer, filename, contentType };
   if (options.live !== true) {
     // Diarising a two second live chunk produces speaker ids that do not line
     // up with the next chunk, so only the full recording asks for speakers.
@@ -823,14 +827,14 @@ function mockTranscription() {
   };
 }
 
-export async function transcribeAudio({ buffer, contentType, filename, context, live = false }) {
-  const options = { live };
+export async function transcribeAudio({ buffer = null, contentType, filename, context, live = false, sourceUrl = null }) {
+  const options = { live, sourceUrl };
   const language = sttLanguage(context?.language);
   // Scribe covers Igbo, so the worker-only rule applies only when Scribe is absent.
   const workerOnly = STT_WORKER_ONLY.has(language) && !elevenLabsKey();
   const attempts = [];
   const providers = configuredSttProviders({ live }).filter((provider) => {
-    if (provider === "groq") return buffer.length <= GROQ_FREE_MAX && !workerOnly;
+    if (provider === "groq") return (buffer ? buffer.length <= GROQ_FREE_MAX : true) && !workerOnly;
     if (workerOnly) return provider === "worker" || provider === "demo";
     return true;
   });
@@ -844,12 +848,31 @@ export async function transcribeAudio({ buffer, contentType, filename, context, 
     }
   }
 
+  let audio = buffer;
+  const loadAudio = async () => {
+    if (audio) return audio;
+    if (!sourceUrl) throw new HttpError(502, "The recording could not be read.");
+    const response = await fetch(sourceUrl);
+    if (!response.ok) throw new HttpError(502, "The recording could not be read.");
+    audio = Buffer.from(await response.arrayBuffer());
+    return audio;
+  };
+
   for (const provider of providers) {
     try {
-      if (provider === "elevenlabs") return await transcribeWithElevenLabs(buffer, contentType, filename, context, options, language);
-      if (provider === "groq") return await transcribeWithGroq(buffer, contentType, filename, context, options, language);
-      if (provider === "worker") return await transcribeWithWorker(buffer, contentType, filename, context, options, language);
-      if (provider === "xai") return await transcribeWithXai(buffer, contentType, filename, context, options, language);
+      if (provider === "elevenlabs") {
+        return await transcribeWithElevenLabs(
+          sourceUrl ? null : await loadAudio(),
+          contentType,
+          filename,
+          context,
+          options,
+          language,
+        );
+      }
+      if (provider === "groq") return await transcribeWithGroq(await loadAudio(), contentType, filename, context, options, language);
+      if (provider === "worker") return await transcribeWithWorker(await loadAudio(), contentType, filename, context, options, language);
+      if (provider === "xai") return await transcribeWithXai(await loadAudio(), contentType, filename, context, options, language);
       if (provider === "demo") return mockTranscription();
     } catch (error) {
       attempts.push({ provider, message: error instanceof Error ? error.message : "failed" });

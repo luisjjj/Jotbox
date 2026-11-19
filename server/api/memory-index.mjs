@@ -307,7 +307,11 @@ export function citationsFrom(chunks, sourceMap, limit = 8) {
   for (const chunk of chunks) {
     const source = sourceMap.get(chunk.captureId);
     if (!source) continue;
-    const key = `${chunk.captureId}:${Math.floor(chunk.startSec)}`;
+    const isDocument = Boolean(source.document);
+    // Document passages all sit at second zero, so each chunk is its own citation.
+    const key = isDocument
+      ? `${chunk.captureId}:${chunk.id}`
+      : `${chunk.captureId}:${Math.floor(chunk.startSec)}`;
     if (seen.has(key)) continue;
     seen.add(key);
     const start = Math.max(0, Math.floor(chunk.startSec));
@@ -319,7 +323,8 @@ export function citationsFrom(chunks, sourceMap, limit = 8) {
       speaker: chunk.speaker,
       startSec: start,
       excerpt: chunk.text.replace(/\s+/g, " ").slice(0, 260),
-      href: `/session/${chunk.captureId}${start > 0 ? `?t=${start}` : ""}`,
+      document: isDocument,
+      href: isDocument ? `/memory?doc=${chunk.captureId}` : `/session/${chunk.captureId}${start > 0 ? `?t=${start}` : ""}`,
     });
     if (citations.length >= limit) break;
   }

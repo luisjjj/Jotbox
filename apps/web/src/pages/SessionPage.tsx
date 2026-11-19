@@ -50,7 +50,7 @@ import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { linesFromText } from "@/lib/transcript";
 import type { FollowUpDraft, Session, TranscriptLine } from "@/lib/types";
-import { ensurePro, usePlan } from "@/lib/usageStore";
+import { ensurePro, refreshUsage, usePlan } from "@/lib/usageStore";
 import { useEngine } from "@/engine/SessionEngine";
 import { useAudioUrl } from "@/hooks/useAudio";
 
@@ -301,6 +301,67 @@ export default function SessionPage() {
   const openCount = session?.notes?.actions.filter((action) => !action.done).length ?? 0;
   const handoffById = useMemo(() => new Map(handoffs.map((link) => [link.actionId, link])), [handoffs]);
   const preset = session ? OUTPUT_PRESETS[session.kind] : OUTPUT_PRESETS.meeting;
+
+  const resumeJobId = session?.status === "processing" ? session.jobId : undefined;
+  const engineOwnsJob = engine.status === "processing" && engine.sessionId === session?.id;
+
+  // A long recording can outlive the capture screen. Pick the job back up here
+  // so the session finishes even after a reload.
+  useEffect(() => {
+    if (!resumeJobId || !id || engineOwnsJob) return;
+    let alive = true;
+    let timer = 0;
+    let delay = 900;
+    const poll = async () => {
+      try {
+        const job = await api.getTranscribeJob(resumeJobId);
+        if (!alive) return;
+        if (job.result?.lines.length) {
+          patch(id, {
+            transcript: job.result.lines,
+            ...(job.result.title ? { title: job.result.title } : {}),
+          });
+        }
+        if (job.status === "done" && job.result?.notes) {
+          patch(id, {
+            status: "ready",
+            title: job.result.title,
+            transcript: job.result.lines,
+            notes: job.result.notes,
+            error: undefined,
+            jobId: undefined,
+          });
+          void refreshUsage();
+          return;
+        }
+        if (job.status === "done") {
+          patch(id, {
+            status: "failed",
+            error: "The notes came back empty. Try again.",
+            jobId: undefined,
+          });
+          return;
+        }
+        if (job.status === "failed") {
+          patch(id, {
+            status: "failed",
+            error: job.error || "The notes could not be written.",
+            jobId: undefined,
+          });
+          return;
+        }
+      } catch {
+        // A dropped poll is fine. Try again with a longer gap.
+      }
+      delay = Math.min(5000, Math.round(delay * 1.4));
+      if (alive) timer = window.setTimeout(() => void poll(), delay);
+    };
+    timer = window.setTimeout(() => void poll(), delay);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [resumeJobId, id, engineOwnsJob, patch]);
 
   const meta = useMemo(() => {
     if (!session) return null;
@@ -667,16 +728,30 @@ export default function SessionPage() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 </span>
                 <div>
-                  <p className="text-[16px] font-semibold text-ink">Reading the recording</p>
+                  <p className="text-[16px] font-semibold text-ink">
+                    {session.transcript.length ? "Words are ready" : "Reading the recording"}
+                  </p>
                   <p className="mt-1 text-[14.5px] leading-5 text-muted">
-                    Tidying the spoken words and writing the notes. You can leave this page. It keeps working.
+                    {session.transcript.length
+                      ? "The spoken words are here. Writing the notes now. You can leave this page."
+                      : "Tidying the spoken words and writing the notes. You can leave this page. It keeps working."}
                   </p>
                 </div>
               </div>
-              <div className="writing-track mt-5">
-                <div className="writing-bar" />
-              </div>
-              <NoteSkeleton />
+              {session.transcript.length ? (
+                <TranscriptView
+                  lines={session.transcript}
+                  live
+                  className="mt-4 max-h-[min(52vh,30rem)] rounded-lg border border-line px-3.5 py-2"
+                />
+              ) : (
+                <>
+                  <div className="writing-track mt-5">
+                    <div className="writing-bar" />
+                  </div>
+                  <NoteSkeleton />
+                </>
+              )}
             </div>
           )}
 

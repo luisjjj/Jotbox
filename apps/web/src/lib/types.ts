@@ -66,6 +66,7 @@ export interface Session {
   error?: string;
   participants?: Participant[];
   live?: LiveInsights;
+  jobId?: string;
 }
 
 export interface SttWord {

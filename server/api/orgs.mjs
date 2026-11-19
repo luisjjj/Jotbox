@@ -1,9 +1,17 @@
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
 import { isProUser } from "./billing.mjs";
 import { answerOrganisationMemory } from "./memory-ai.mjs";
 import { citationsFrom, indexCapture, retrieveChunks, scheduleChunkEmbedding } from "./memory-index.mjs";
+import {
+  documentMimeType,
+  documentParagraphs,
+  documentTitle,
+  extractDocumentText,
+  safeFilename,
+} from "./documents.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -67,6 +75,37 @@ async function audit({ req, orgId, actorId, action, captureId = null, metadata =
      values ($1, $2, $3, $4, $5::jsonb, $6, $7)`,
     [orgId, actorId, action, captureId, JSON.stringify(metadata).slice(0, 8_000), clientIp(req), userAgent(req)],
   );
+}
+
+const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
+
+async function readFileBody(req, limit) {
+  if (Buffer.isBuffer(req.body)) {
+    if (req.body.length > limit) throw new HttpError(413, "That file is larger than 4 MB.");
+    return req.body;
+  }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limit) throw new HttpError(413, "That file is larger than 4 MB.");
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+function documentView(row) {
+  return {
+    id: row.capture_id,
+    title: row.title,
+    filename: row.filename,
+    mimeType: row.mime_type,
+    bytes: Number(row.bytes) || 0,
+    chars: Number(row.text_chars) || 0,
+    date: new Date(row.created_at).toISOString(),
+    owner: row.owner_name || "",
+    ownerId: row.owner_id,
+  };
 }
 
 async function requireOrgMember(req, orgId) {
@@ -235,7 +274,7 @@ async function listOrgs(req, res) {
     `select o.id, o.name, o.retention_days, o.created_at, m.role, m.department_id, d.name as department_name,
             (select count(*) from org_members om where om.org_id = o.id)::int as member_count,
             (select count(*) from departments dp where dp.org_id = o.id)::int as department_count,
-            (select count(*) from captures c where c.org_id = o.id)::int as capture_count
+            (select count(*) from captures c where c.org_id = o.id and c.is_document = false)::int as capture_count
        from organisations o
        join org_members m on m.org_id = o.id
        left join departments d on d.id = m.department_id
@@ -325,12 +364,12 @@ async function getOrg(req, res) {
               coalesce((select json_agg(g.user_id) from capture_grants g where g.capture_id = c.id), '[]'::json) as grant_user_ids
          from captures c
          left join departments d on d.id = c.department_id
-        where c.org_id = $1 and c.user_id = $2
+        where c.org_id = $1 and c.user_id = $2 and c.is_document = false
         order by c.created_at desc
         limit 100`,
       [member.orgId, member.user.id],
     ),
-    query("select count(*)::int as count from captures where org_id = $1", [member.orgId]),
+    query("select count(*)::int as count from captures where org_id = $1 and is_document = false", [member.orgId]),
     admin
       ? query(
           `select a.id, a.action, a.metadata, a.capture_id, a.created_at, u.name as actor_name, u.email as actor_email
@@ -612,7 +651,7 @@ async function getShares(req, res) {
             coalesce((select json_agg(g.user_id) from capture_grants g where g.capture_id = c.id), '[]'::json) as grant_user_ids
        from captures c
        left join departments d on d.id = c.department_id
-      where c.org_id = $1 and c.user_id = $2
+      where c.org_id = $1 and c.user_id = $2 and c.is_document = false
       order by c.created_at desc
       limit 100`,
     [member.orgId, member.user.id],
@@ -752,7 +791,7 @@ async function viewCapture(req, res) {
   const captureId = parse(uuid, parts[4]);
 
   const result = await query(
-    `select c.id, c.title, c.kind, c.status, c.created_at, c.duration_sec, c.notes, c.transcript,
+    `select c.id, c.title, c.kind, c.status, c.created_at, c.duration_sec, c.notes, c.transcript, c.is_document,
             c.visibility, c.sensitivity, c.department_id, d.name as department_name, u.name as owner_name
        from captures c
        join org_members viewer on viewer.org_id = c.org_id and viewer.user_id = $2
@@ -805,6 +844,7 @@ async function viewCapture(req, res) {
       departmentId: row.department_id,
       departmentName: row.department_name ?? null,
       ownerName: row.owner_name || "",
+      document: Boolean(row.is_document),
     },
   });
 }
@@ -874,6 +914,131 @@ async function getAudit(req, res) {
   sendJson(res, 200, { audit: result.rows.map(auditView) });
 }
 
+async function listDocuments(req, res) {
+  requireMethod(req, ["GET"]);
+  const member = await requireOrgMember(req, orgIdFrom(req));
+  const result = await query(
+    `select d.capture_id, d.filename, d.mime_type, d.bytes, d.text_chars, d.created_at, d.owner_id,
+            c.title, u.name as owner_name
+       from org_documents d
+       join captures c on c.id = d.capture_id
+       join users u on u.id = d.owner_id
+      where d.org_id = $1
+        and c.created_at > now() - ($2::int * interval '1 day')
+      order by d.created_at desc
+      limit 100`,
+    [member.orgId, member.retentionDays],
+  );
+  sendJson(res, 200, {
+    documents: result.rows.map(documentView),
+    canUpload: await isProUser(member.user.id),
+  });
+}
+
+async function uploadDocument(req, res) {
+  requireMethod(req, ["POST"]);
+  assertSameOrigin(req);
+  const member = await requireOrgMember(req, orgIdFrom(req));
+  if (!(await isProUser(member.user.id))) {
+    throw new HttpError(402, "Uploading documents into organisation memory is part of Pro.");
+  }
+
+  const url = new URL(req.url || "/", "http://localhost");
+  const filename = safeFilename(url.searchParams.get("filename") || req.headers["x-file-name"] || "Document");
+  const buffer = await readFileBody(req, MAX_DOCUMENT_BYTES);
+  const mimeType = documentMimeType(filename, req.headers["content-type"] || "");
+  const extracted = await extractDocumentText({ buffer, filename, mimeType });
+  const lines = documentParagraphs(extracted.text);
+  if (!lines.length) throw new HttpError(422, "No readable text was found in that document.");
+
+  const id = randomUUID();
+  const title = documentTitle(filename);
+  const departmentId = member.departmentId ?? null;
+
+  let stored;
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      `insert into captures
+         (id, user_id, org_id, department_id, visibility, sensitivity, title, kind, status,
+          duration_sec, scratch, transcript, notes, has_audio, is_document, created_at)
+       values ($1, $2, $3, $4, 'organisation', 'standard', $5, 'lecture', 'ready',
+               0, '', $6::jsonb, null, false, true, now())`,
+      [id, member.user.id, member.orgId, departmentId, title, JSON.stringify(lines)],
+    );
+    stored = await client.query(
+      `insert into org_documents (capture_id, org_id, owner_id, filename, mime_type, bytes, text_chars)
+       values ($1, $2, $3, $4, $5, $6, $7)
+       returning capture_id, filename, mime_type, bytes, text_chars, created_at, owner_id`,
+      [id, member.orgId, member.user.id, filename, extracted.mimeType, buffer.length, extracted.text.length],
+    );
+    await indexCapture(client, {
+      id,
+      org_id: member.orgId,
+      department_id: departmentId,
+      user_id: member.user.id,
+      transcript: lines,
+      notes: null,
+    });
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await audit({
+    req,
+    orgId: member.orgId,
+    actorId: member.user.id,
+    action: "document.upload",
+    captureId: id,
+    metadata: { title, filename, bytes: buffer.length, chars: extracted.text.length },
+  });
+  void scheduleChunkEmbedding(id);
+
+  sendJson(res, 201, {
+    document: documentView({ ...stored.rows[0], title, owner_name: member.user.name || "" }),
+  });
+}
+
+async function deleteDocument(req, res) {
+  requireMethod(req, ["DELETE"]);
+  assertSameOrigin(req);
+  const member = await requireOrgMember(req, orgIdFrom(req));
+  const parts = partsOf(req);
+  const documentId = parse(uuid, parts[4]);
+
+  const found = await query(
+    `select c.id, c.user_id, c.title
+       from captures c
+       join org_documents d on d.capture_id = c.id
+      where c.id = $1 and d.org_id = $2
+      limit 1`,
+    [documentId, member.orgId],
+  );
+  const row = found.rows[0];
+  if (!row) throw new HttpError(404, "That document was not found.");
+  if (row.user_id !== member.user.id && !adminRole(member.role)) {
+    throw new HttpError(403, "Only the person who uploaded it or an admin can remove it.");
+  }
+
+  // The capture cascade removes the org_documents row and its memory chunks.
+  await query("delete from captures where id = $1 and org_id = $2", [documentId, member.orgId]);
+  await audit({
+    req,
+    orgId: member.orgId,
+    actorId: member.user.id,
+    action: "document.delete",
+    captureId: documentId,
+    metadata: { title: row.title },
+  });
+  res.statusCode = 204;
+  res.end();
+}
+
 function parseHistory(value) {
   if (!Array.isArray(value)) return [];
   const turns = [];
@@ -911,7 +1076,7 @@ async function queryMemory(req, res) {
   rateLimitMemory(member.user.id, member.orgId);
 
   const accessible = await query(
-    `select c.id, c.title, c.kind, c.created_at, c.notes, c.transcript,
+    `select c.id, c.title, c.kind, c.created_at, c.notes, c.transcript, c.is_document,
             c.visibility, c.sensitivity, c.department_id, d.name as department_name, u.name as owner_name
        from captures c
        join org_members viewer on viewer.org_id = c.org_id and viewer.user_id = $2
@@ -949,7 +1114,7 @@ async function queryMemory(req, res) {
       metadata: { question, considered: 0, used: 0, cited: [] },
     });
     sendJson(res, 200, {
-      answer: "No meetings that you can access were found inside this organisation's retention window.",
+      answer: "No meetings or documents that you can access were found inside this organisation's retention window.",
       timeline: [],
       recorded: [],
       inferences: [],
@@ -996,24 +1161,32 @@ async function queryMemory(req, res) {
   const selected = (matched.length ? matched : scored).slice(0, 14);
   selected.sort((a, b) => new Date(a.row.created_at).getTime() - new Date(b.row.created_at).getTime());
 
-  const records = selected.map(({ row, notesText, transcriptText }) => ({
-    id: row.id,
-    title: row.title,
-    kind: row.kind,
-    date: new Date(row.created_at).toISOString().slice(0, 10),
-    department: row.department_name,
-    visibility: row.visibility,
-    sensitivity: row.sensitivity,
-    owner: row.owner_name,
-    notes: row.notes,
-    notesText: notesText.slice(0, 8_000),
-    transcriptText: transcriptText.slice(0, 5_000),
-    excerpts: (momentsByCapture.get(row.id) ?? []).slice(0, 5).map((chunk) => ({
-      speaker: chunk.speaker,
-      startSec: chunk.startSec,
-      text: chunk.text.slice(0, 900),
-    })),
-  }));
+  const records = selected.map(({ row, notesText, transcriptText }) => {
+    const isDocument = Boolean(row.is_document);
+    const paragraphs = isDocument
+      ? (Array.isArray(row.transcript) ? row.transcript : [])
+          .flatMap((line) => (typeof line?.text === "string" && line.text.trim() ? [line.text.trim()] : []))
+          .join("\n")
+      : transcriptText;
+    return {
+      id: row.id,
+      title: row.title,
+      kind: isDocument ? "document" : row.kind,
+      date: new Date(row.created_at).toISOString().slice(0, 10),
+      department: row.department_name,
+      visibility: row.visibility,
+      sensitivity: row.sensitivity,
+      owner: row.owner_name,
+      notes: row.notes,
+      notesText: isDocument ? "" : notesText.slice(0, 8_000),
+      transcriptText: paragraphs.slice(0, isDocument ? 12_000 : 5_000),
+      excerpts: (momentsByCapture.get(row.id) ?? []).slice(0, 5).map((chunk) => ({
+        speaker: chunk.speaker,
+        startSec: chunk.startSec,
+        text: chunk.text.slice(0, 900),
+      })),
+    };
+  });
 
   try {
     const answer = await answerOrganisationMemory({ question, records, history });
@@ -1023,7 +1196,8 @@ async function queryMemory(req, res) {
         {
           id: row.id,
           title: row.title,
-          kind: row.kind,
+          kind: row.is_document ? "document" : row.kind,
+          document: Boolean(row.is_document),
           date: new Date(row.created_at).toISOString(),
           department: row.department_name ?? null,
           sensitivity: row.sensitivity,
@@ -1037,7 +1211,14 @@ async function queryMemory(req, res) {
     ]);
     const sources = [...cited].flatMap((id) => (sourceMap.has(id) ? [sourceMap.get(id)] : []));
     const citationSource = new Map(
-      selected.map(({ row }) => [row.id, { title: row.title, date: new Date(row.created_at).toISOString() }]),
+      selected.map(({ row }) => [
+        row.id,
+        {
+          title: row.title,
+          date: new Date(row.created_at).toISOString(),
+          document: Boolean(row.is_document),
+        },
+      ]),
     );
     const citations = citationsFrom(
       chunks.filter((chunk) => citationSource.has(chunk.captureId)),
@@ -1126,6 +1307,11 @@ export async function handleOrgs(req, res) {
     if (tail[0] === "captures") return shareCapture(req, res);
     if (tail[0] === "audit") return getAudit(req, res);
     if (tail[0] === "memory") return queryMemory(req, res);
+    if (tail[0] === "documents") {
+      if (req.method === "GET") return listDocuments(req, res);
+      if (req.method === "POST") return uploadDocument(req, res);
+      requireMethod(req, ["GET", "POST"]);
+    }
   }
 
   if (tail.length === 2) {
@@ -1138,6 +1324,10 @@ export async function handleOrgs(req, res) {
       if (req.method === "GET") return viewCapture(req, res);
       if (req.method === "DELETE") return unshareCapture(req, res);
       requireMethod(req, ["GET", "DELETE"]);
+    }
+    if (tail[0] === "documents") {
+      if (req.method === "DELETE") return deleteDocument(req, res);
+      requireMethod(req, ["DELETE"]);
     }
   }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router-dom";
 import clsx from "clsx";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import {
@@ -11,6 +12,7 @@ import {
   ChevronDown,
   Clock,
   Eye,
+  FileText,
   History,
   Loader2,
   Lock,
@@ -21,6 +23,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  Upload,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -40,6 +43,7 @@ import {
   type MemorySource,
   type OrgAuditEvent,
   type OrgDetail,
+  type OrgDocument,
   type OrgMember,
   type OrgRole,
   type Organisation,
@@ -49,7 +53,7 @@ import { formatClock } from "@/lib/format";
 import { useSessions } from "@/lib/store";
 import { usePlan } from "@/lib/usageStore";
 
-type Tab = "ask" | "workspace" | "audit";
+type Tab = "ask" | "documents" | "workspace" | "audit";
 
 const ROLE_LABEL: Record<OrgRole, string> = {
   owner: "Owner",
@@ -80,7 +84,9 @@ const AUDIT_LABEL: Record<string, string> = {
   "capture.unshare": "Stopped sharing a meeting",
   "memory.query": "Asked the memory",
   "memory.query_failed": "A memory question failed",
-  "memory.source_view": "Opened a source meeting",
+  "memory.source_view": "Opened a source",
+  "document.upload": "Added a document",
+  "document.delete": "Removed a document",
 };
 
 const SUGGESTIONS = [
@@ -103,6 +109,13 @@ function formatDateLabel(value: string) {
   return Number.isNaN(date.getTime()) ? value : format(date, "d MMM yyyy");
 }
 
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function auditDetail(event: { action: string; metadata: Record<string, unknown> }) {
   const meta = event.metadata;
   const pick = (name: string) => (typeof meta[name] === "string" ? (meta[name] as string) : "");
@@ -112,6 +125,7 @@ function auditDetail(event: { action: string; metadata: Record<string, unknown> 
   if (event.action === "memory.query" || event.action === "memory.query_failed") return pick("question");
   if (event.action === "capture.share" || event.action === "capture.unshare") return pick("title");
   if (event.action === "memory.source_view") return pick("title");
+  if (event.action === "document.upload" || event.action === "document.delete") return pick("title");
   if (event.action === "org.update") {
     const days = typeof meta.retentionDays === "number" ? `${meta.retentionDays} days` : "";
     return [pick("name"), days].filter(Boolean).join(" · ");
@@ -155,6 +169,83 @@ function Chip({ children, tone = "default" }: { children: ReactNode; tone?: "def
     >
       {children}
     </span>
+  );
+}
+
+function MemoryOrb({ className }: { className?: string }) {
+  return (
+    <span className={clsx("memory-orb flex-none", className)}>
+      <span className="memory-orb-core h-full w-full">
+        <Sparkles className="h-1/3 w-1/3" />
+      </span>
+    </span>
+  );
+}
+
+const THINKING_PHRASES = [
+  "Reading the record",
+  "Tracing the decisions",
+  "Checking what was recorded",
+  "Connecting the meetings",
+];
+
+function ThinkingLine() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setStep((value) => (value + 1) % THINKING_PHRASES.length),
+      2200,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-2.5 pl-1 text-[13.5px]" aria-live="polite">
+      <MemoryOrb className="h-6 w-6" />
+      <span className="memory-thinking font-medium">{THINKING_PHRASES[step]}…</span>
+    </div>
+  );
+}
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(query.matches);
+    const onChange = () => setReduced(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
+  return reduced;
+}
+
+function TypewriterText({ text }: { text: string }) {
+  const reduced = usePrefersReducedMotion();
+  const [shown, setShown] = useState(0);
+
+  useEffect(() => {
+    if (reduced) {
+      setShown(text.length);
+      return;
+    }
+    setShown(0);
+    let index = 0;
+    const step = Math.max(1, Math.ceil(text.length / 90));
+    const timer = window.setInterval(() => {
+      index = Math.min(text.length, index + step);
+      setShown(index);
+      if (index >= text.length) window.clearInterval(timer);
+    }, 18);
+    return () => window.clearInterval(timer);
+  }, [text, reduced]);
+
+  return (
+    <p className={clsx("mt-2 text-[15px] leading-6 text-soft", shown < text.length && "typing-caret")}>
+      {text.slice(0, shown)}
+    </p>
   );
 }
 
@@ -209,20 +300,26 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={view?.title ?? "Source meeting"}
+        aria-label={view?.title ?? (view?.document ? "Source document" : "Source meeting")}
         className="fade-up flex max-h-[86dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-line bg-raised shadow-float"
       >
         <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
-            <p className="kicker">Source meeting</p>
+            <p className="kicker">{view?.document ? "Source document" : "Source meeting"}</p>
             <h2 className="mt-1 truncate text-[18px] font-semibold tracking-[-0.02em] text-ink">
               {view?.title ?? "Loading…"}
             </h2>
             {view && (
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <Chip>{format(view.createdAt, "d MMM yyyy")}</Chip>
-                <Chip>{formatClock(view.durationSec)}</Chip>
-                <Chip>{view.ownerName ? `From ${view.ownerName}` : "Recorded meeting"}</Chip>
+                {!view.document && <Chip>{formatClock(view.durationSec)}</Chip>}
+                <Chip>
+                  {view.ownerName
+                    ? `${view.document ? "Added by" : "From"} ${view.ownerName}`
+                    : view.document
+                      ? "Uploaded document"
+                      : "Recorded meeting"}
+                </Chip>
                 {view.departmentName && <Chip>{view.departmentName}</Chip>}
                 {view.sensitivity === "confidential" && (
                   <Chip tone="warn">
@@ -299,21 +396,27 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
                     </div>
                   ))}
                 </>
-              ) : (
+              ) : view.document ? null : (
                 <p className="text-[14.5px] text-muted">This meeting has no written notes yet.</p>
               )}
 
               {view.transcript.length > 0 && (
                 <div>
-                  <h3 className="kicker">Spoken words</h3>
+                  <h3 className="kicker">{view.document ? "Document text" : "Spoken words"}</h3>
                   <div className="mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-line bg-raised-2 p-3 scroll-quiet">
-                    {view.transcript.map((line) => (
-                      <p key={line.id} className="py-1 text-[14.5px] leading-5 text-soft">
-                        <span className="mr-2 text-[12.5px] tabular-nums text-faint">{formatClock(line.at)}</span>
-                        {line.speaker && <span className="mr-1 font-medium text-brass">{line.speaker}:</span>}
-                        {line.text}
-                      </p>
-                    ))}
+                    {view.document
+                      ? view.transcript.map((line) => (
+                          <p key={line.id} className="py-1.5 text-[14.5px] leading-6 text-soft">
+                            {line.text}
+                          </p>
+                        ))
+                      : view.transcript.map((line) => (
+                          <p key={line.id} className="py-1 text-[14.5px] leading-5 text-soft">
+                            <span className="mr-2 text-[12.5px] tabular-nums text-faint">{formatClock(line.at)}</span>
+                            {line.speaker && <span className="mr-1 font-medium text-brass">{line.speaker}:</span>}
+                            {line.text}
+                          </p>
+                        ))}
                   </div>
                 </div>
               )}
@@ -546,13 +649,11 @@ function AskPanel({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5" aria-live="polite">
           {turns.length === 0 ? (
             <div className="flex h-full min-h-[22rem] flex-col items-center justify-center px-2 text-center">
-              <span className="grid h-11 w-11 place-items-center rounded-full border border-line bg-raised-2 text-accent">
-                <BookOpen className="h-5 w-5" />
-              </span>
-              <p className="mt-3 text-[16px] font-semibold tracking-[-0.02em] text-ink">Ask the record a question</p>
+              <MemoryOrb className="memory-orb-idle h-14 w-14" />
+              <p className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-ink">Ask the record a question</p>
               <p className="mt-1 max-w-[34ch] text-[14px] leading-5 text-muted">
-                What was planned, what changed, and why. Every answer points back to the meeting it came from, and
-                says when no reason was recorded.
+                What was planned, what changed, and why. Every answer points back to the meeting or document it came
+                from, and says when no reason was recorded.
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                 {SUGGESTIONS.map((suggestion) => (
@@ -570,24 +671,29 @@ function AskPanel({
             </div>
           ) : (
             turns.map((turn) => (
-              <div key={turn.id} className="space-y-3">
+              <div key={turn.id} className="fade-up space-y-3">
                 <div className="flex justify-end">
-                  <p className="max-w-[88%] rounded-2xl rounded-br-sm bg-accent-soft px-3.5 py-2.5 text-[14.5px] leading-5 text-ink">
+                  <p className="bubble-user max-w-[88%] rounded-2xl rounded-br-sm border border-line px-3.5 py-2.5 text-[14.5px] leading-5 text-ink">
                     {turn.question}
                   </p>
                 </div>
                 {turn.answer ? (
-                  <AnswerCard answer={turn.answer} onSource={onSource} defaultOpen={turn.id === lastTurnId} />
+                  <div className="flex items-start gap-2.5">
+                    <MemoryOrb className="mt-1 h-7 w-7" />
+                    <div className="min-w-0 flex-1">
+                      <AnswerCard answer={turn.answer} onSource={onSource} defaultOpen={turn.id === lastTurnId} />
+                    </div>
+                  </div>
                 ) : turn.error ? (
-                  <div className="flex max-w-[92%] items-start gap-2 rounded-2xl rounded-bl-sm border border-rec-line bg-rec-soft px-3.5 py-2.5">
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
-                    <p className="text-[14px] leading-5 text-soft">{turn.error}</p>
+                  <div className="flex items-start gap-2.5">
+                    <MemoryOrb className="mt-1 h-7 w-7 opacity-60" />
+                    <div className="flex max-w-[92%] items-start gap-2 rounded-2xl rounded-bl-sm border border-rec-line bg-rec-soft px-3.5 py-2.5">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
+                      <p className="text-[14px] leading-5 text-soft">{turn.error}</p>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 pl-1 text-[13.5px] text-muted">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
-                    Reading the record…
-                  </div>
+                  <ThinkingLine />
                 )}
               </div>
             ))
@@ -608,7 +714,7 @@ function AskPanel({
               <p className="text-[13.5px] leading-4 text-soft">{error}</p>
             </div>
           )}
-          <div className="flex items-end gap-2">
+          <div className="memory-dock flex items-end gap-2">
             <label className="sr-only" htmlFor="memory-question">
               Ask a question about the meetings
             </label>
@@ -715,7 +821,7 @@ function AnswerCard({
   const sourceMap = useMemo(() => new Map(answer.sources.map((item) => [item.id, item])), [answer]);
 
   return (
-    <article className="max-w-[95%] overflow-hidden rounded-2xl rounded-bl-sm border border-line bg-raised">
+    <article className="fade-up max-w-[95%] overflow-hidden rounded-2xl rounded-bl-sm border border-line bg-raised">
       <div className="px-3.5 py-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-accent">JotBox</span>
@@ -730,7 +836,7 @@ function AnswerCard({
           {answer.scope.provider === "demo" && <Chip tone="warn">Demo answer</Chip>}
         </div>
 
-        <p className="mt-2 text-[15px] leading-6 text-soft">{answer.answer}</p>
+        <TypewriterText text={answer.answer} />
 
         {answer.reasonMissing && (
           <div className="mt-3 flex items-start gap-2 rounded-xl border border-line bg-highlight px-3 py-2.5">
@@ -772,7 +878,9 @@ function AnswerCard({
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="text-[13px] font-semibold text-ink">{citation.title}</span>
                         <span className="text-[11.5px] text-faint">
-                          {citation.speaker || "Speaker"} at {formatClock(citation.startSec)}
+                          {citation.document
+                            ? "Document passage"
+                            : `${citation.speaker || "Speaker"} at ${formatClock(citation.startSec)}`}
                         </span>
                       </div>
                       <p className="mt-1 line-clamp-3 text-[13px] leading-5 text-soft">{citation.excerpt}</p>
@@ -848,7 +956,7 @@ function AnswerCard({
 
           {answer.sources.length > 0 && (
             <div className="mt-4 border-t border-line pt-3">
-              <h3 className="kicker">Meetings used</h3>
+              <h3 className="kicker">Sources used</h3>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {answer.sources.map((source) => (
                   <SourceButton key={source.id} source={source} onOpen={onSource} />
@@ -1119,6 +1227,209 @@ function SharePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promi
         )}
       </Section>
     </div>
+  );
+}
+
+function DocumentsPanel({ org, onChanged }: { org: OrgDetail; onChanged: () => Promise<void> }) {
+  const { user } = useAuth();
+  const { pro, loaded: planLoaded } = usePlan();
+  const [documents, setDocuments] = useState<OrgDocument[] | null>(null);
+  const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [removing, setRemoving] = useState<OrgDocument | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const admin = isAdminRole(org.org.role);
+
+  const load = useCallback(async () => {
+    try {
+      const result = await api.listOrgDocuments(org.org.id);
+      setDocuments(result.documents);
+    } catch (err) {
+      setError(messageFor(err));
+    }
+  }, [org.org.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const upload = async (file: File) => {
+    if (uploading) return;
+    if (file.size > 4 * 1024 * 1024) {
+      setError("Keep documents under 4 MB.");
+      return;
+    }
+    setUploading(true);
+    setError("");
+    try {
+      await api.uploadOrgDocument(org.org.id, file);
+      await load();
+      void onChanged();
+      toast.success("Added to organisation memory");
+    } catch (err) {
+      setError(messageFor(err));
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const remove = async () => {
+    if (!removing) return;
+    const target = removing;
+    setRemoving(null);
+    try {
+      await api.deleteOrgDocument(org.org.id, target.id);
+      await load();
+      void onChanged();
+      toast.success("Document removed");
+    } catch (err) {
+      toast.error(messageFor(err));
+    }
+  };
+
+  if (!planLoaded) {
+    return (
+      <div className="card grid min-h-[22rem] place-items-center" aria-busy="true">
+        <Loader2 className="h-5 w-5 animate-spin text-faint" />
+        <span className="sr-only">Checking your plan</span>
+      </div>
+    );
+  }
+
+  if (!pro) {
+    return (
+      <PaywallPanel
+        className="min-h-[22rem]"
+        title="Documents in organisation memory are part of Pro"
+        description="Upload plans, policies and contracts so the memory can connect them to the meetings that followed."
+      />
+    );
+  }
+
+  return (
+    <Section
+      title="Documents"
+      description="Upload the plans, policies and contracts behind the decisions. JotBox reads the text and folds it into the same memory as your meetings."
+      aside={
+        <Chip>
+          <FileText className="h-3 w-3" />
+          {documents?.length ?? 0}
+        </Chip>
+      }
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.docx,.txt,.md,.markdown,.csv,.tsv,.json"
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void upload(file);
+        }}
+      />
+
+      <div
+        className={clsx(
+          "rounded-xl border border-dashed p-4 text-center transition-colors",
+          dragging ? "border-accent bg-accent-soft" : "border-line-strong bg-raised-2",
+        )}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          const file = event.dataTransfer.files?.[0];
+          if (file) void upload(file);
+        }}
+      >
+        <span className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-accent">
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        </span>
+        <p className="mt-2 text-[14.5px] font-medium text-ink">
+          {uploading ? "Reading the document…" : "Drop a document, or choose a file"}
+        </p>
+        <p className="mt-0.5 text-[12.5px] text-faint">PDF, Word, text, Markdown or CSV, up to 4 MB</p>
+        <button
+          type="button"
+          className="btn btn-line btn-sm mt-3"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Choose a file
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-rec-line bg-rec-soft px-3 py-2.5">
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none text-rec" />
+          <p className="text-[14px] leading-5 text-soft">{error}</p>
+        </div>
+      )}
+
+      {documents === null ? (
+        <div className="flex items-center gap-2 py-6 text-[14px] text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Reading the document list…
+        </div>
+      ) : documents.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-dashed border-line-strong bg-raised-2 px-3.5 py-3 text-[14px] text-muted">
+          No documents yet. Everything you add becomes searchable alongside your meetings.
+        </p>
+      ) : (
+        <ul className="mt-4 divide-y divide-line">
+          {documents.map((doc) => {
+            const canRemove = doc.ownerId === user?.id || admin;
+            return (
+              <li key={doc.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-accent-soft text-accent">
+                  <FileText className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-medium text-ink">{doc.title}</p>
+                  <p className="mt-0.5 truncate text-[12.5px] text-faint">
+                    {doc.filename} · {formatBytes(doc.bytes)} ·{" "}
+                    {doc.owner ? `Added by ${doc.owner}` : "Uploaded"} · {formatDateLabel(doc.date)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Chip>{Math.max(1, Math.round(doc.chars / 1000))}k chars</Chip>
+                  {canRemove && (
+                    <button
+                      type="button"
+                      className="icon-btn h-8 w-8 text-muted hover:text-rec"
+                      onClick={() => setRemoving(doc)}
+                      aria-label={`Remove ${doc.title}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <ConfirmDialog
+        open={Boolean(removing)}
+        title="Remove this document?"
+        description={
+          removing
+            ? `${removing.title} will leave organisation memory. Answers will stop citing it.`
+            : ""
+        }
+        confirmLabel="Remove"
+        tone="danger"
+        onConfirm={() => void remove()}
+        onCancel={() => setRemoving(null)}
+      />
+    </Section>
   );
 }
 
@@ -1670,6 +1981,7 @@ function CreateOrg({ onCreated }: { onCreated: (org: Organisation) => void }) {
 }
 
 export default function MemoryPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orgs, setOrgs] = useState<Organisation[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrgDetail | null>(null);
@@ -1678,6 +1990,20 @@ export default function MemoryPage() {
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState("");
   const [sourceId, setSourceId] = useState<string | null>(null);
+  const docParam = searchParams.get("doc");
+
+  useEffect(() => {
+    if (docParam) setSourceId(docParam);
+  }, [docParam]);
+
+  const closeSource = useCallback(() => {
+    setSourceId(null);
+    if (searchParams.get("doc")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("doc");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     let alive = true;
@@ -1788,6 +2114,7 @@ export default function MemoryPage() {
               {(
                 [
                   { value: "ask", label: "Ask", Icon: Sparkles },
+                  { value: "documents", label: "Documents", Icon: FileText },
                   { value: "workspace", label: "Workspace", Icon: Users },
                   { value: "audit", label: "Audit", Icon: History },
                 ] as const
@@ -1821,13 +2148,14 @@ export default function MemoryPage() {
 
           <div className="mt-4">
             {tab === "ask" && <AskPanel key={detail.org.id} org={detail} onSource={setSourceId} />}
+            {tab === "documents" && <DocumentsPanel org={detail} onChanged={refresh} />}
             {tab === "workspace" && <WorkspacePanel org={detail} onChanged={refresh} />}
             {tab === "audit" && <AuditPanel org={detail} />}
           </div>
         </>
       )}
 
-      {sourceId && detail && <SourceDialog orgId={detail.org.id} sourceId={sourceId} onClose={() => setSourceId(null)} />}
+      {sourceId && detail && <SourceDialog orgId={detail.org.id} sourceId={sourceId} onClose={closeSource} />}
     </div>
   );
 }

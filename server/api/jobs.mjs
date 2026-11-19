@@ -3,7 +3,7 @@ import { z } from "zod";
 import { enhanceSession, sanitizeSttContext, transcribeAudio } from "./ai.mjs";
 import { requireSession } from "./auth.mjs";
 import { query } from "./pg.mjs";
-import { audioKeyFor, getAudio } from "./storage.mjs";
+import { audioKeyFor, getAudio, presignAudio } from "./storage.mjs";
 import { HttpError, assertSameOrigin, readJson, requireMethod, sendJson } from "./http.mjs";
 
 /**
@@ -64,6 +64,8 @@ export function jobView(row) {
     id: row.id,
     status: row.status,
     result: row.result ?? null,
+    stage: row.result?.stage ?? null,
+    timings: row.result?.timings ?? null,
     error: row.error ?? null,
     createdAt: new Date(row.created_at).getTime(),
     updatedAt: new Date(row.updated_at).getTime(),
@@ -87,7 +89,9 @@ export async function createJob({ userId, captureId, payload }) {
     [userId, captureId, JSON.stringify(payload)],
   );
   const job = result.rows[0];
-  void dispatch(job.id);
+  // Register the background slot before the response goes out, so the work
+  // keeps running after this request returns.
+  await dispatch(job.id);
   return jobView(job);
 }
 
@@ -131,21 +135,59 @@ export async function runJob(jobId) {
     const row = await current(jobId);
     return row ? jobView(row) : null;
   }
+  const startedAt = Date.now();
+  const timings = {};
   try {
     const payload = job.payload || {};
     if (!payload.audioKey) throw new Error("The audio for this job is not stored.");
     const expected = audioKeyFor(job.user_id, job.capture_id, payload.contentType);
     if (payload.audioKey !== expected) throw new Error("The audio key does not match this capture.");
-    const audio = await getAudio(payload.audioKey);
-    const filename = `session.${payload.audioKey.split(".").pop() || "webm"}`;
+
+    // Scribe can pull the file from storage itself. Only download it when the
+    // provider needs the bytes (or when Scribe has to be skipped).
+    let sourceUrl = null;
+    try {
+      sourceUrl = presignAudio(payload.audioKey, 3600).url;
+    } catch {
+      sourceUrl = null;
+    }
+    let audio = null;
+    if (!sourceUrl) {
+      audio = await getAudio(payload.audioKey);
+      timings.downloadMs = Date.now() - startedAt;
+    }
+
+    const transcribeStarted = Date.now();
     const transcription = await transcribeAudio({
-      buffer: audio.body,
-      contentType: audio.contentType || payload.contentType,
-      filename,
+      buffer: audio?.body ?? null,
+      contentType: audio?.contentType || payload.contentType,
+      filename: `session.${payload.audioKey.split(".").pop() || "webm"}`,
       context: payload.context ?? null,
+      sourceUrl,
     });
+    timings.transcribeMs = Date.now() - transcribeStarted;
+
     const lines = linesFromWords(transcription.words, transcription.text);
     if (!lines.length) throw new Error("JotBox could not hear enough words in that recording.");
+
+    // Publish the words before the notes pass starts. The session page can
+    // show them while the summary is still being written.
+    await query(
+      `update ai_jobs set result = $2::jsonb, updated_at = now() where id = $1`,
+      [
+        job.id,
+        JSON.stringify({
+          title: payload.title,
+          lines,
+          notes: null,
+          language: transcription.language ?? null,
+          stage: "transcript",
+          timings: { ...timings, totalMs: Date.now() - startedAt },
+        }),
+      ],
+    );
+
+    const notesStarted = Date.now();
     const notes = await enhanceSession({
       kind: payload.kind,
       title: payload.title,
@@ -154,11 +196,14 @@ export async function runJob(jobId) {
       tone: payload.tone || "warm-direct",
       participants: Array.isArray(payload.participants) ? payload.participants : [],
     });
+    timings.notesMs = Date.now() - notesStarted;
     const result = {
       title: payload.titleIsDefault && notes?.title ? notes.title : payload.title,
       lines,
       notes,
       language: transcription.language ?? null,
+      stage: "notes",
+      timings: { ...timings, totalMs: Date.now() - startedAt },
     };
     const saved = await query(
       `update ai_jobs
@@ -184,9 +229,17 @@ export async function runJob(jobId) {
 export async function getJob({ userId, id }) {
   const row = await current(id);
   if (!row || row.user_id !== userId) return null;
-  if (row.status === "queued" || row.status === "running") {
-    const finished = await runJob(id);
-    if (finished) return finished;
+  // Polls are cheap reads. If a dispatch was lost, hand the job to a
+  // background slot again instead of blocking this request on a provider call.
+  const queuedTooLong = row.status === "queued" && Date.now() - new Date(row.created_at).getTime() > 3_000;
+  const stale =
+    row.status === "running" &&
+    row.started_at &&
+    Date.now() - new Date(row.started_at).getTime() > STALE_RUNNING_MINUTES * 60_000;
+  if (queuedTooLong || stale) {
+    await dispatch(id);
+    const fresh = await current(id);
+    return jobView(fresh ?? row);
   }
   return jobView(row);
 }

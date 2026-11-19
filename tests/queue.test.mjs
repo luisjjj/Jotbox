@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { OVERAGE_GRACE_SECONDS, decideQuota, overLimitMessage } from "../server/api/quota.mjs";
 import { chunkCapture, citationsFrom, fuseRanks } from "../server/api/memory-index.mjs";
 import { audioKeyFor, presignAudio, retentionDays, storageConfigured } from "../server/api/storage.mjs";
-import { linesFromWords } from "../server/api/jobs.mjs";
+import { jobView, linesFromWords } from "../server/api/jobs.mjs";
 
 test("quota decisions count reserved time and keep the grace window", () => {
   const allowed = decideQuota({ usedSeconds: 1000, reservedSeconds: 500, limitSeconds: 3600, seconds: 2000 });
@@ -136,8 +136,53 @@ test("presigning needs storage configuration and signs the object path", () => {
   }
 });
 
-test("job lines group words by speaker and pause", () => {
-  const lines = linesFromWords(
+test("presigned uploads sign the PUT verb and its content type", () => {
+  const saved = {};
+  const names = ["R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_ENDPOINT"];
+  for (const name of names) saved[name] = process.env[name];
+  try {
+    process.env.R2_ACCOUNT_ID = "acc123";
+    process.env.R2_BUCKET = "jotbox-audio";
+    process.env.R2_ACCESS_KEY_ID = "AKIATEST";
+    process.env.R2_SECRET_ACCESS_KEY = "secret-test";
+    const get = presignAudio("audio/u/c.webm", 900);
+    const put = presignAudio("audio/u/c.webm", 900, { method: "PUT", contentType: "audio/webm" });
+    assert.match(get.url, /X-Amz-SignedHeaders=host&/);
+    assert.match(put.url, /X-Amz-SignedHeaders=host%3Bcontent-type&/);
+    assert.match(put.url, /X-Amz-Expires=900/);
+    assert.notEqual(put.url, get.url);
+  } finally {
+    for (const name of names) {
+      if (saved[name] === undefined) delete process.env[name];
+      else process.env[name] = saved[name];
+    }
+  }
+});
+
+test("job view exposes the staged words before the notes land", () => {
+  const row = {
+    id: "job-1",
+    status: "running",
+    result: {
+      title: "Rollout",
+      lines: [],
+      notes: null,
+      stage: "transcript",
+      timings: { transcribeMs: 1200, totalMs: 1500 },
+    },
+    error: null,
+    created_at: new Date(1_760_000_000_000),
+    updated_at: new Date(1_760_000_001_500),
+  };
+  const view = jobView(row);
+  assert.equal(view.stage, "transcript");
+  assert.equal(view.timings.transcribeMs, 1200);
+  assert.equal(view.result.notes, null);
+  assert.equal(view.createdAt, 1_760_000_000_000);
+  assert.equal(jobView({ ...row, result: null }).stage, null);
+});
+
+test("job lines group words by speaker and pause", () => {  const lines = linesFromWords(
     [
       { text: "We", start: 0, end: 0.2, speaker: 0 },
       { text: "ship", start: 0.3, end: 0.5, speaker: 0 },

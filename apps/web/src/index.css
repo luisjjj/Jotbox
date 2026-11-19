@@ -873,6 +873,117 @@
     outline-offset: 3px;
   }
 
+  /* ---------- memory chat ---------- */
+
+  .memory-orb {
+    position: relative;
+    display: grid;
+    place-items: center;
+    isolation: isolate;
+  }
+
+  .memory-orb::before {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    z-index: -1;
+    border-radius: 999px;
+    background: conic-gradient(
+      from 0deg,
+      color-mix(in srgb, var(--accent) 72%, transparent),
+      color-mix(in srgb, var(--brass) 62%, transparent),
+      color-mix(in srgb, var(--accent) 18%, transparent),
+      color-mix(in srgb, var(--accent) 72%, transparent)
+    );
+    filter: blur(9px);
+    opacity: 0.6;
+    animation: orb-spin 14s linear infinite;
+  }
+
+  .memory-orb::after {
+    content: "";
+    position: absolute;
+    inset: 6%;
+    z-index: -1;
+    border-radius: 999px;
+    background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.6), transparent 60%);
+    opacity: 0.45;
+    animation: orb-breathe 5s ease-in-out infinite;
+  }
+
+  .memory-orb-core {
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 32% 26%, color-mix(in srgb, var(--accent) 26%, white), transparent 56%),
+      linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--brass) 68%, var(--accent)));
+    color: var(--accent-ink);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+      0 10px 30px -14px color-mix(in srgb, var(--accent) 80%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+
+  .memory-orb-idle {
+    animation: float-soft 6s ease-in-out infinite;
+  }
+
+  .memory-dock {
+    position: relative;
+  }
+
+  .memory-dock::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: 1.1rem;
+    padding: 1px;
+    background: linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--accent) 58%, transparent),
+      color-mix(in srgb, var(--brass) 48%, transparent),
+      color-mix(in srgb, var(--accent) 58%, transparent)
+    );
+    background-size: 220% 100%;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.3;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+  }
+
+  .memory-dock:focus-within::before {
+    opacity: 1;
+    animation: jot-shimmer 2.4s linear infinite;
+  }
+
+  .memory-thinking {
+    background: linear-gradient(90deg, var(--faint) 0%, var(--ink) 45%, var(--faint) 80%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: jot-shimmer 2.2s ease-in-out infinite;
+  }
+
+  .typing-caret::after {
+    content: "";
+    display: inline-block;
+    width: 0.4em;
+    height: 1.02em;
+    margin-left: 0.12em;
+    vertical-align: -0.14em;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--accent) 72%, transparent);
+    animation: jot-blink 1s steps(2, start) infinite;
+  }
+
+  .bubble-user {
+    background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 17%, var(--raised)), var(--raised));
+  }
+
   /* ---------- misc ---------- */
 
   .scroll-quiet {
@@ -908,6 +1019,34 @@
 
   .safe-top {
     padding-top: env(safe-area-inset-top);
+  }
+}
+
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orb-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.68;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes jot-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
   }
 }
 

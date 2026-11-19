@@ -566,6 +566,22 @@ alter table captures add column if not exists audio_content_type text;
 alter table captures add column if not exists audio_bytes bigint
   check (audio_bytes is null or audio_bytes >= 0);
 alter table captures add column if not exists audio_deleted_at timestamptz;
+-- A document is stored as a hidden capture so the same chunking, retrieval and
+-- citation code can serve it. The library and shared-meeting views skip these.
+alter table captures add column if not exists is_document boolean not null default false;
+
+create table if not exists org_documents (
+  capture_id uuid primary key references captures(id) on delete cascade,
+  org_id uuid not null references organisations(id) on delete cascade,
+  owner_id uuid not null references users(id) on delete cascade,
+  filename text not null,
+  mime_type text not null,
+  bytes integer not null default 0 check (bytes >= 0),
+  text_chars integer not null default 0 check (text_chars >= 0),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists org_documents_org_idx on org_documents (org_id, created_at desc);
 
 create table if not exists memory_chunks (
   id uuid primary key default gen_random_uuid(),
@@ -608,4 +624,8 @@ $$;
 
 insert into schema_migrations (version)
 values ('013_async_rag_storage')
+on conflict (version) do nothing;
+
+insert into schema_migrations (version)
+values ('014_org_documents')
 on conflict (version) do nothing;
