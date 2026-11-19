@@ -62,6 +62,31 @@ prompt scored 18.3% WER with 94.4% keyword recall, and the shipped Pidgin prompt
 no glossary, scored 43.8% against 43.5% for the previous Pidgin prompt, so the public floor
 held.
 
+## Names-only biasing check
+
+The runner gained a `--no-names` switch on 19 November 2026. It leaves the clip names out of
+the reader prompt while the title, focus line and provider stay the same, so name biasing can
+be measured in isolation. Two complete runs per variant, shipped English prompt, no notes:
+
+| Set | Names off | Names on |
+| --- | --- | --- |
+| Adichie lecture, 954 words | 7.2% WER, 84.6% recall (both runs) | 7.3% WER, 84.6% recall (both runs) |
+| Brekete mixed, 1,156 words | 26.6% and 35.3% WER, 94.4% and 72.2% recall | 21.5% and 20.2% WER, 100% and 94.4% recall |
+
+On Adichie the top line does not move. The prompt fixed `Chika Okeke-Agulu`, but it turned
+`Africa World Initiative` and `Africa World Lectures` into `Africa Wold ...`, so the name gain
+and the phrase loss cancel. On Brekete the mean improves by about 10 points, but one names-off
+run returned an empty wordgame transcript, and that clip has no names, so that run is a filter
+failure rather than a biasing effect. Per clip, names helped the mixed panel (54.8% to 11.8%),
+the caller (18.5% to 12.3%-14.2%) and the teaching clip (5.0% to 3.7%), and hurt the pension
+clip (19.7% to 25.4%-36.0%).
+
+The honest read is that names are not a reliable English lever. Keep them, because the roster
+is already part of a session and the Brekete average improves, but do not widen the hint to
+keywords or phrases. The glossary run above already showed that turns a 7.0% prompt into
+34.4%. A third pass was stopped by Groq's hourly audio cap of 7,200 seconds, so the means use
+two complete runs per variant.
+
 Raw runs are in `eval/results/brekete-*/` on the machine that produced this report and
 are gitignored.
 

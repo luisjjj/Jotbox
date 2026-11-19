@@ -152,6 +152,7 @@ Useful flags:
 - `--pause=3200` waits between reader calls. Groq's free whisper tier allows 20 requests per minute.
 - `--retries=3` retries rate limits and 5xx responses with backoff. The default is 3.
 - `--no-notes` skips the note writer and only tests reading.
+- `--no-names` leaves the clip's names out of the reader prompt, so name biasing can be compared against the same audio and prompt.
 - `--mock` uses the local demo reader, so it works with no API key and no audio.
 - `--prompt=path` loads the reader prompt from a file, so a winning prompt is reproducible. `eval/prompts/pidgin.txt` is the current Pidgin-first prompt.
 - `--language=en|pcm|yo|ha|ig` sends the session language the way the app does. `pcm` keeps the Pidgin register while Whisper reads the audio as English; `ig` only runs on a self-hosted reader with an Igbo model.
@@ -297,6 +298,7 @@ A change is only useful if it moves a gate without breaking another. Keep the ru
 | Question | Baseline | Variant |
 | --- | --- | --- |
 | Did the glossary help names and acronyms? | `eval:run` | `eval:glossary` |
+| Did names in the prompt help? | `eval:run --no-names` | `eval:run` |
 | Did loudness normalization help far-field? | `eval:run` | `eval:normalize` |
 | Did the new notes prompt keep facts? | `eval:run` then judge | same run, new prompt |
 | Did VAD stop noise hallucinations? | `eval:run` | VAD variant |

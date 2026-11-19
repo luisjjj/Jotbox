@@ -39,6 +39,7 @@ const limit = Number(arg("limit", "0")) || 0;
 const pauseMs = Math.max(0, Number(arg("pause", "0")) || 0);
 const retries = Math.max(0, Number(arg("retries", "3")) || 0);
 const notesEnabled = !has("no-notes");
+const noNames = has("no-names");
 const wantGlossary = has("glossary");
 const wantNormalize = has("normalize");
 const mock = has("mock");
@@ -274,7 +275,7 @@ const run = {
   run: outDir.split(/[\\/]/).pop(),
   startedAt: new Date().toISOString(),
   manifest: manifestPath,
-  variant: { glossary: wantGlossary, normalize: wantNormalize, mock, language: language || "default" },
+  variant: { glossary: wantGlossary, normalize: wantNormalize, noNames, mock, language: language || "default" },
   providers: { reading: status.transcribe, writing: status.notes },
   clips: [],
 };
@@ -287,7 +288,7 @@ console.log(`Manifest     ${manifestPath}`);
 console.log(`Clips        ${clips.length}`);
 console.log(`Reading      ${status.transcribe ?? "none"}`);
 console.log(`Writing      ${status.notes ?? "none"}`);
-console.log(`Variant      glossary=${wantGlossary} normalize=${wantNormalize} mock=${mock}`);
+console.log(`Variant      glossary=${wantGlossary} normalize=${wantNormalize} names=${!noNames} mock=${mock}`);
 console.log(`Output       ${outDir}`);
 console.log("");
 
@@ -363,7 +364,7 @@ for (const clip of clips) {
     const context = {
       title: clip.title || "",
       kind: "meeting",
-      names: clip.names || [],
+      names: noNames ? [] : clip.names || [],
       focus: "balanced",
       ...(language ? { language } : {}),
     };
