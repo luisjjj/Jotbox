@@ -10,6 +10,7 @@ dist
 
 .vercel
 .env*
+.vscode/
 
 release
 apps/desktop/signing/
