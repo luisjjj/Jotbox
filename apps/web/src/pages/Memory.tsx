@@ -172,11 +172,17 @@ function Chip({ children, tone = "default" }: { children: ReactNode; tone?: "def
   );
 }
 
-function MemoryOrb({ className }: { className?: string }) {
+function MemoryOrb({
+  className,
+  iconClassName = "h-3.5 w-3.5",
+}: {
+  className?: string;
+  iconClassName?: string;
+}) {
   return (
     <span className={clsx("memory-orb flex-none", className)}>
       <span className="memory-orb-core h-full w-full">
-        <Sparkles className="h-1/3 w-1/3" />
+        <Sparkles className={iconClassName} />
       </span>
     </span>
   );
@@ -202,7 +208,7 @@ function ThinkingLine() {
 
   return (
     <div className="flex items-center gap-2.5 pl-1 text-[13.5px]" aria-live="polite">
-      <MemoryOrb className="h-6 w-6" />
+      <MemoryOrb className="h-6 w-6" iconClassName="h-3 w-3" />
       <span className="memory-thinking font-medium">{THINKING_PHRASES[step]}…</span>
     </div>
   );
@@ -649,7 +655,7 @@ function AskPanel({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5" aria-live="polite">
           {turns.length === 0 ? (
             <div className="flex h-full min-h-[22rem] flex-col items-center justify-center px-2 text-center">
-              <MemoryOrb className="memory-orb-idle h-14 w-14" />
+              <MemoryOrb className="memory-orb-idle h-14 w-14" iconClassName="h-5 w-5" />
               <p className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-ink">Ask the record a question</p>
               <p className="mt-1 max-w-[34ch] text-[14px] leading-5 text-muted">
                 What was planned, what changed, and why. Every answer points back to the meeting or document it came
