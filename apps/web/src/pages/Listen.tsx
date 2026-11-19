@@ -585,7 +585,7 @@ function Studio() {
     clearError,
   } = useEngine();
   const studio = useStudio();
-  const [pane, setPane] = useState<"notes" | "transcript">("notes");
+  const [pane, setPane] = useState<"notes" | "transcript">("transcript");
   const paused = status === "paused";
   const words = useMemo(() => (scratch.trim() ? scratch.trim().split(/\s+/).length : 0), [scratch]);
   const [onDesktop] = useState(() => isDesktop());
@@ -743,30 +743,8 @@ ${line}` : line;
 
       <LiveBoard insights={live} onKeep={keepInsight} />
 
-      <div className="card-quiet mt-3 px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5 text-muted" />
-            <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-muted">People</h2>
-          </div>
-          <span className="text-[12px] text-faint">{participants.length || "No names yet"}</span>
-        </div>
-        <div className="mt-2">
-          <Roster people={participants} onChange={setParticipants} compact />
-        </div>
-      </div>
-
       <div className="mt-4 flex items-center justify-between gap-3 lg:hidden">
         <div className="seg w-full">
-          <button
-            type="button"
-            className="seg-item flex-1"
-            data-active={pane === "notes"}
-            onClick={() => setPane("notes")}
-          >
-            Your notes
-            <span className="text-[12px] text-faint">{words}</span>
-          </button>
           <button
             type="button"
             className="seg-item flex-1"
@@ -776,42 +754,23 @@ ${line}` : line;
             Spoken words
             <span className="text-[12px] text-faint">{lines.length}</span>
           </button>
+          <button
+            type="button"
+            className="seg-item flex-1"
+            data-active={pane === "notes"}
+            onClick={() => setPane("notes")}
+          >
+            Your notes
+            <span className="text-[12px] text-faint">{words}</span>
+          </button>
         </div>
       </div>
 
       <div className="card mt-3 overflow-hidden lg:mt-4">
-        <div className="grid lg:grid-cols-2">
+        <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
           <section
             className={clsx(
               "min-h-[54vh] flex-col border-line lg:flex lg:min-h-[calc(100dvh-19rem)] lg:border-r",
-              pane === "notes" ? "flex" : "hidden",
-            )}
-            aria-label="Your notes"
-          >
-            <div className="hidden items-center justify-between border-b border-line px-4 py-3 sm:px-5 lg:flex">
-              <div className="flex items-center gap-2">
-                <Pencil className="h-3.5 w-3.5 text-muted" />
-                <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-muted">Your notes</h2>
-              </div>
-              <span className="text-[12.5px] tabular-nums text-faint">{words} words · saved</span>
-            </div>
-            <textarea
-              className="min-h-[42vh] w-full flex-1 resize-none border-0 bg-transparent p-4 text-[17.5px] leading-7 text-ink outline-none placeholder:text-faint sm:p-5 lg:min-h-0"
-              placeholder={
-                "Write what you want to keep.\n\n• Decisions\n• Names, numbers, dates\n• What you owe someone"
-              }
-              value={scratch}
-              onChange={(event) => setScratch(event.target.value)}
-              spellCheck
-            />
-            <p className="border-t border-line px-4 py-2.5 text-[12.5px] leading-4 text-faint sm:px-5">
-              Short lines work best. These become the spine of the written notes.
-            </p>
-          </section>
-
-          <section
-            className={clsx(
-              "min-h-[54vh] flex-col lg:flex lg:min-h-[calc(100dvh-19rem)]",
               pane === "transcript" ? "flex" : "hidden",
             )}
             aria-label="Live words"
@@ -853,6 +812,47 @@ ${line}` : line;
               Live words are a first pass. They are tidied up when the session ends.
             </p>
           </section>
+
+          <section
+            className={clsx(
+              "min-h-[54vh] flex-col lg:flex lg:min-h-[calc(100dvh-19rem)]",
+              pane === "notes" ? "flex" : "hidden",
+            )}
+            aria-label="Your notes"
+          >
+            <div className="hidden items-center justify-between border-b border-line px-4 py-3 sm:px-5 lg:flex">
+              <div className="flex items-center gap-2">
+                <Pencil className="h-3.5 w-3.5 text-muted" />
+                <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-muted">Your notes</h2>
+              </div>
+              <span className="text-[12.5px] tabular-nums text-faint">{words} words · saved</span>
+            </div>
+            <textarea
+              className="min-h-[42vh] w-full flex-1 resize-none border-0 bg-transparent p-4 text-[17.5px] leading-7 text-ink outline-none placeholder:text-faint sm:p-5 lg:min-h-0"
+              placeholder={
+                "Write what you want to keep.\n\n• Decisions\n• Names, numbers, dates\n• What you owe someone"
+              }
+              value={scratch}
+              onChange={(event) => setScratch(event.target.value)}
+              spellCheck
+            />
+            <p className="border-t border-line px-4 py-2.5 text-[12.5px] leading-4 text-faint sm:px-5">
+              Short lines work best. These become the spine of the written notes.
+            </p>
+          </section>
+        </div>
+      </div>
+
+      <div className="card-quiet mt-3 px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5 text-muted" />
+            <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-muted">People</h2>
+          </div>
+          <span className="text-[12px] text-faint">{participants.length || "No names yet"}</span>
+        </div>
+        <div className="mt-2">
+          <Roster people={participants} onChange={setParticipants} compact />
         </div>
       </div>
 
