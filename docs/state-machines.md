@@ -407,7 +407,7 @@ with an `ignored_reason` (`:287`).
 limit, pro exhausted, enterprise (`usageStore.ts:41`). **Server:** monthly sum
 over the `usage_ledger` table (`usage.mjs:47`), written in the same transaction
 as a saved capture (`captures.mjs:112`), with a 10 second overage grace. Limits
-come from `planMonthlySeconds`: 60 minutes free, 30 hours Pro, 1,000 hours
+come from `planMonthlySeconds`: 100 minutes free, 30 hours Pro, 1,000 hours
 enterprise, and enterprise is shown as unlimited.
 
 | From | Event | To | Effects |

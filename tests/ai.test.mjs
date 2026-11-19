@@ -5,6 +5,10 @@ const MANAGED = [
   "GROQ_API_KEY",
   "OPENROUTER_API_KEY",
   "XAI_API_KEY",
+  "ELEVENLABS_API_KEY",
+  "ELEVENLABS_STT_MODEL",
+  "JOTBOX_STT_KEYTERMS",
+  "JOTBOX_STT_PROVIDER",
   "WHISPER_BASE_URL",
   "WHISPER_API_KEY",
   "WHISPER_MODEL",
@@ -136,6 +140,158 @@ test("status reports English, warm tone and Pidgin on by default", () => {
 
   process.env.JOTBOX_STT_LANGUAGE = "auto";
   assert.equal(ai.aiStatus().sttLanguage, "auto");
+});
+
+test("Scribe reads the full recording with speaker ids and keyterms", async () => {
+  process.env.ELEVENLABS_API_KEY = "test-scribe";
+  process.env.JOTBOX_STT_VOCAB = "NIPOST, KYC";
+  process.env.JOTBOX_STT_KEYTERMS = "JotBox, Q4";
+  let form;
+  let headers;
+
+  globalThis.fetch = async (url, init = {}) => {
+    assert.match(String(url), /api\.elevenlabs\.io\/v1\/speech-to-text/);
+    form = init.body;
+    headers = init.headers;
+    return Response.json({
+      text: "Ah wetin happen ?",
+      language_code: "en",
+      words: [
+        { text: "Ah", type: "word", start: 0.1, end: 0.3, speaker_id: "speaker_0" },
+        { text: " ", type: "spacing", start: 0.3, end: 0.35, speaker_id: "speaker_0" },
+        { text: "wetin", type: "word", start: 0.35, end: 0.6, speaker_id: "speaker_0" },
+        { text: "(laughter)", type: "audio_event", start: 0.6, end: 0.9, speaker_id: "speaker_1" },
+        { text: "happen", type: "word", start: 0.9, end: 1.2, speaker_id: "speaker_1" },
+      ],
+    });
+  };
+
+  const result = await ai.transcribeAudio({
+    buffer: Buffer.from("audio"),
+    contentType: "audio/webm",
+    filename: "sample.webm",
+    context: { title: "Friday payout review", kind: "meeting", names: ["Ada", "Chinedu"], focus: "balanced", language: "pcm" },
+  });
+
+  assert.equal(result.provider, "elevenlabs");
+  assert.equal(result.language, "en");
+  assert.equal(result.text, "Ah wetin happen?");
+  assert.deepEqual(
+    result.words.map((word) => [word.text, word.speaker]),
+    [
+      ["Ah", 0],
+      ["wetin", 0],
+      ["happen", 1],
+    ],
+  );
+  assert.equal(headers["xi-api-key"], "test-scribe");
+  assert.equal(form.get("model_id"), "scribe_v3");
+  assert.equal(form.get("diarize"), "true");
+  assert.equal(form.get("timestamps_granularity"), "word");
+  // Pidgin has no Scribe language code, so it auto-detects instead of being forced to English.
+  assert.equal(form.get("language_code"), null);
+  assert.deepEqual(form.getAll("keyterms"), ["Ada", "Chinedu", "NIPOST", "KYC", "JotBox", "Q4"]);
+});
+
+test("Scribe sends a supported language code for Yoruba", async () => {
+  process.env.ELEVENLABS_API_KEY = "test-scribe";
+  let form;
+
+  globalThis.fetch = async (_url, init = {}) => {
+    form = init.body;
+    return Response.json({ text: "Sannu", language_code: "yo", words: [] });
+  };
+
+  await ai.transcribeAudio({
+    buffer: Buffer.from("audio"),
+    contentType: "audio/webm",
+    filename: "sample.webm",
+    context: { language: "yo" },
+  });
+
+  assert.equal(form.get("language_code"), "yo");
+});
+
+test("Scribe retries without options the account rejects", async () => {
+  process.env.ELEVENLABS_API_KEY = "test-scribe";
+  const forms = [];
+
+  globalThis.fetch = async (_url, init = {}) => {
+    forms.push({
+      language: init.body.get("language_code"),
+      keyterms: init.body.getAll("keyterms"),
+    });
+    if (forms.length === 1) return Response.json({ detail: "unsupported language" }, { status: 422 });
+    return Response.json({ text: "Hello there.", language_code: "en", words: [] });
+  };
+
+  const result = await ai.transcribeAudio({
+    buffer: Buffer.from("audio"),
+    contentType: "audio/webm",
+    filename: "sample.webm",
+    context: { language: "ig", names: ["Ada"] },
+  });
+
+  assert.equal(result.provider, "elevenlabs");
+  assert.equal(forms.length, 2);
+  assert.equal(forms[0].language, "ig");
+  assert.equal(forms[1].language, null);
+  assert.deepEqual(forms[1].keyterms, []);
+});
+
+test("live captions stay on Groq turbo when Scribe is configured", async () => {
+  process.env.ELEVENLABS_API_KEY = "test-scribe";
+  process.env.GROQ_API_KEY = "test-groq";
+  const calls = [];
+
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), model: init.body.get("model") });
+    return Response.json({ text: "make we pause", words: [], segments: [] });
+  };
+
+  await ai.transcribeAudio({
+    buffer: Buffer.from("audio"),
+    contentType: "audio/webm",
+    filename: "live.webm",
+    live: true,
+  });
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /api\.groq\.com/);
+  assert.equal(calls[0].model, "whisper-large-v3-turbo");
+});
+
+test("JOTBOX_STT_PROVIDER pins the order for a provider benchmark", async () => {
+  process.env.ELEVENLABS_API_KEY = "test-scribe";
+  process.env.GROQ_API_KEY = "test-groq";
+  process.env.JOTBOX_STT_PROVIDER = "groq,elevenlabs";
+  const calls = [];
+
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    return Response.json({ text: "bench", words: [], segments: [] });
+  };
+
+  const result = await ai.transcribeAudio({
+    buffer: Buffer.from("audio"),
+    contentType: "audio/webm",
+    filename: "sample.webm",
+  });
+
+  assert.equal(result.provider, "groq");
+  assert.match(calls[0], /api\.groq\.com/);
+});
+
+test("status reports Scribe and diarization when its key is set", () => {
+  process.env.ELEVENLABS_API_KEY = "test-scribe";
+  process.env.GROQ_API_KEY = "test-groq";
+  const status = ai.aiStatus();
+
+  assert.equal(status.transcribe, "elevenlabs");
+  assert.equal(status.diarization, true);
+  assert.equal(status.sttModel, "scribe_v3");
+  // Live previews still report the Groq turbo model.
+  assert.equal(status.sttLiveModel, "whisper-large-v3-turbo");
 });
 
 test("demo transcription keeps Pidgin words and speaker turns", async () => {

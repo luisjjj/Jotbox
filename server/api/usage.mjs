@@ -1,6 +1,6 @@
 import { query } from "./pg.mjs";
 
-const DEFAULT_FREE_MINUTES = 60;
+const DEFAULT_FREE_MINUTES = 100;
 const DEFAULT_PRO_HOURS = 30;
 const DEFAULT_ENTERPRISE_HOURS = 1000;
 const MAX_MONTH_MINUTES = 24 * 60 * 31;

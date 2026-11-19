@@ -545,7 +545,7 @@ const termsSections: Section[] = [
     title: "Free plan and fair use",
     body: (
       <p className="text-[15px] leading-7 text-soft">
-        The free plan includes 60 minutes of listening per calendar month by default, one live share link per session
+        The free plan includes 100 minutes of listening per calendar month by default, one live share link per session
         for seven days, and the features shown on the pricing page. Limits are enforced on the server and reset at the
         start of each calendar month. Do not create extra accounts or manipulate recordings to get around a limit. We
         may adjust free plan limits with notice.

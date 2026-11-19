@@ -237,7 +237,7 @@ function PlanCard() {
         ? status
           ? planNote(status)
           : "Pro is active."
-        : `Free covers ${limitMinutes ?? 60} minutes a month, and every note stays yours.`;
+        : `Free covers ${limitMinutes ?? 100} minutes a month, and every note stays yours.`;
 
   return (
     <>

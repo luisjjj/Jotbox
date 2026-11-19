@@ -1,28 +1,67 @@
-# AI providers: Groq and a self-hosted Whisper worker
+# AI providers: Scribe, Groq and a self-hosted Whisper worker
 
 This guide covers the provider chain already wired into `/api/transcribe` and
 `/api/enhance`:
 
 | Path | Use it for | Cost | Limits |
 | --- | --- | --- | --- |
+| ElevenLabs Scribe v3 | Full recordings, speaker-separated notes | Paid by audio hour | No Pidgin language code, so Pidgin runs on auto-detect |
 | Browser Web Speech + on-device notes | Live words and notes with no provider | Free | Mic only, no upload transcription, no speaker separation |
-| Groq Whisper | Short recordings and calls | Free tier, then paid | 25 MB per file on the free tier |
+| Groq Whisper | Live captions and short recordings | Free tier, then paid | 25 MB per file on the free tier |
 | Speaches + faster-whisper | Long lectures, offline/low-bandwidth setups | Your compute | Model size and CPU/GPU decide speed |
 | OpenRouter free model | Notes when Groq is unavailable | Free tier, rate-limited | Shared capacity and model availability |
 | xAI | One-key premium speech and notes | Paid | Provider pricing and rate limits |
 
-Routing is free first: Groq for speech and notes, the self-hosted worker for long
-audio, an OpenRouter free model for notes fallback, then xAI. With no keys the app
-still records, keeps live browser words, and writes notes on the device.
+When `ELEVENLABS_API_KEY` is set, Scribe reads the full recording first and
+returns a diarised transcript. Live captions stay on Groq turbo because a
+two second chunk cannot be diarised reliably and Scribe bills by audio hour.
+Without Scribe, routing is Groq for speech and notes, the self-hosted worker for
+long audio, an OpenRouter free model for notes fallback, then xAI. With no keys
+the app still records, keeps live browser words, and writes notes on the device.
 
 The prompts preserve Nigerian Pidgin and tone: Pidgin lines stay as they were said
 and are quoted inside otherwise clear English notes; names, amounts, dates, and
-decisions stay exact. Whisper has no Nigerian Pidgin language token, so the request
-uses `language=en` with a Pidgin-aware prompt for context.
+decisions stay exact. Scribe does not list Nigerian Pidgin as a language, so
+Pidgin requests are sent without a language code and the model auto-detects the
+English/Pidgin mix. Name and acronym accuracy comes from Scribe keyterms instead
+of Whisper's context prompt.
+
+Set `JOTBOX_STT_PROVIDER` to pin the order, for example `elevenlabs` or
+`groq,elevenlabs`, when comparing providers on the same recording.
 
 ---
 
-## 1. Get a Groq API key
+## 1. Get an ElevenLabs Scribe key
+
+1. Sign in at **[elevenlabs.io](https://elevenlabs.io)**.
+2. Open **Settings**, then **API Keys**, and create a key for JotBox.
+3. Add it to your local `.env`:
+
+   ```env
+   ELEVENLABS_API_KEY=...
+   ELEVENLABS_STT_MODEL=scribe_v3
+   ```
+
+4. Add it to Vercel:
+
+   ```bash
+   vercel env add ELEVENLABS_API_KEY production --sensitive
+   vercel env add ELEVENLABS_API_KEY preview --sensitive
+   ```
+
+Notes:
+
+- `model_id=scribe_v3` is requested with `diarize=true` and word timestamps.
+  The app maps Scribe speaker ids to `Speaker 1`, `Speaker 2`, then the existing
+  naming pass assigns real names.
+- `keyterms` are built from the participant roster, `JOTBOX_STT_VOCAB` and
+  `JOTBOX_STT_KEYTERMS`, capped at 100 terms.
+- If the account rejects a language code or the keyterm list, the adapter retries
+  once with auto-detect and no keyterms so the recording is not lost.
+
+---
+
+## 2. Get a Groq API key
 
 1. Sign in at **[console.groq.com](https://console.groq.com)** (Google, GitHub, or email).
 2. Open **[API Keys](https://console.groq.com/keys)**.
@@ -69,7 +108,7 @@ Models:
 
 ---
 
-## 2. Run the Whisper worker locally
+## 3. Run the Whisper worker locally
 
 The worker is [Speaches](https://speaches.ai/), an OpenAI-compatible server powered
 by `faster-whisper`. The repo includes [`worker/docker-compose.yml`](../worker/docker-compose.yml).
@@ -118,7 +157,7 @@ For GPU deployment, use `ghcr.io/speaches-ai/speaches:latest-cuda`, pass
 
 ---
 
-## 3. Deploy the worker
+## 4. Deploy the worker
 
 Do not expose an unauthenticated worker. Always set `API_KEY` and use HTTPS.
 
@@ -160,7 +199,7 @@ is on the same host.
 
 ---
 
-## 4. Environment and routing
+## 5. Environment and routing
 
 The gateway reads this environment shape:
 
@@ -185,13 +224,16 @@ XAI_NOTES_MODEL=grok-4.7
 
 Routing:
 
-1. Speech → Groq (`/openai/v1/audio/transcriptions`) for clips within the free
-   limit; larger files go to the Speaches worker first. If a provider is not
+1. Speech → ElevenLabs Scribe v3 for the full recording when its key is set.
+   Otherwise Groq (`/openai/v1/audio/transcriptions`) for clips within the free
+   limit, with the Speaches worker for larger files. If a provider is not
    configured or fails, the gateway tries the next one, then xAI.
-2. Notes → Groq chat completions, then an OpenRouter free model, then xAI. If none
+2. Live captions → Groq turbo. Scribe is used for live chunks only when it is the
+   only speech provider configured.
+3. Notes → Groq chat completions, then an OpenRouter free model, then xAI. If none
    are configured, the app writes notes on the device from the spoken words and
    jottings.
-3. `JOTBOX_AI_MOCK=1` runs the deterministic demo provider locally. It is ignored
+4. `JOTBOX_AI_MOCK=1` runs the deterministic demo provider locally. It is ignored
    on Vercel so demo content cannot reach production.
 
 Check the active chain at any time:
@@ -218,7 +260,7 @@ hosts both the JotBox API and the Whisper worker, with Vercel serving the PWA.
 
 ---
 
-## 5. Tuning speech for English and Pidgin
+## 6. Tuning speech for English and Pidgin
 
 There are two different jobs here, and only one of them is fine-tuning.
 
@@ -353,7 +395,7 @@ stays the same: model, language, prompt, temperature `0`.
 
 ---
 
-## 6. Security checklist
+## 7. Security checklist
 
 - `API_KEY` is set on the worker; never ship it in the browser bundle.
 - Worker is HTTPS-only; port 8000 is not publicly exposed when a reverse proxy is

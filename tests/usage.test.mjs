@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { enterpriseMonthlySeconds, freeMonthlySeconds, planMonthlySeconds, proMonthlySeconds, usageSnapshot } from "../server/api/usage.mjs";
 
-test("free listening defaults to 60 minutes and can be changed", () => {
-  assert.equal(freeMonthlySeconds({}), 3600);
+test("free listening defaults to 100 minutes and can be changed", () => {
+  assert.equal(freeMonthlySeconds({}), 6000);
   assert.equal(freeMonthlySeconds({ JOTBOX_FREE_MONTH_MINUTES: "45" }), 2700);
-  assert.equal(freeMonthlySeconds({ JOTBOX_FREE_MONTH_MINUTES: "0" }), 3600);
-  assert.equal(freeMonthlySeconds({ JOTBOX_FREE_MONTH_MINUTES: "" }), 3600);
-  assert.equal(freeMonthlySeconds({ JOTBOX_FREE_MONTH_MINUTES: "not-a-number" }), 3600);
+  assert.equal(freeMonthlySeconds({ JOTBOX_FREE_MONTH_MINUTES: "0" }), 6000);
+  assert.equal(freeMonthlySeconds({ JOTBOX_FREE_MONTH_MINUTES: "" }), 6000);
+  assert.equal(freeMonthlySeconds({ JOTBOX_FREE_MONTH_MINUTES: "not-a-number" }), 6000);
 });
 
 test("usage reports the remainder and never goes below zero", () => {
@@ -33,7 +33,7 @@ test("Pro defaults to 30 hours and enterprise to a hidden 1000 hours", () => {
   assert.equal(proMonthlySeconds({ JOTBOX_PRO_MONTH_HOURS: "not-a-number" }), 30 * 3600);
   assert.equal(enterpriseMonthlySeconds({}), 1000 * 3600);
   assert.equal(enterpriseMonthlySeconds({ JOTBOX_ENTERPRISE_MONTH_HOURS: "2000" }), 1000 * 3600);
-  assert.equal(planMonthlySeconds("free", {}), 3600);
+  assert.equal(planMonthlySeconds("free", {}), 6000);
   assert.equal(planMonthlySeconds("pro", {}), 30 * 3600);
   assert.equal(planMonthlySeconds("enterprise", {}), 1000 * 3600);
 });

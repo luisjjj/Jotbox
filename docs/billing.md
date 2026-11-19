@@ -103,7 +103,7 @@ Every feature is visible on the free plan. The paid ones show a paywall with a w
 
 | Feature | Free | Pro | Enterprise |
 | --- | --- | --- | --- |
-| Listening | 60 minutes a calendar month | 30 hours a calendar month | 1,000 hours a calendar month, shown as unlimited |
+| Listening | 100 minutes a calendar month | 30 hours a calendar month | 1,000 hours a calendar month, shown as unlimited |
 | Notes, jottings, transcript, copy, Markdown, print | Yes | Yes | Yes |
 | Share links | 1 live link per session, 7 days | 5 live links, up to 30 days | 5 live links, up to 30 days |
 | Branded PDF | Paywall | Yes | Yes |
@@ -140,6 +140,8 @@ Activation writes a manual subscription row with `plan_key = enterprise` and `pr
 
 Groq bills speech by audio duration, not by request. `whisper-large-v3` costs $0.111 per audio hour and `whisper-large-v3-turbo` costs $0.04. Live captions and the final transcript both send the same audio, so a recorded session normally costs two passes. The kept transcript is always rebuilt from the full-audio pass, so live previews now use turbo through `GROQ_LIVE_STT_MODEL` while the final pass stays on `GROQ_STT_MODEL` (`whisper-large-v3`).
 
+When `ELEVENLABS_API_KEY` is set, Scribe v3 replaces the final Groq pass and adds diarisation. Scribe is billed at about $0.20 per audio hour, so a recorded hour costs about $0.24 with Groq turbo previews, against $0.151 on Groq alone. That difference matters before raising a plan's monthly hours: at 30 hours of full use, Scribe plus live previews costs about $7.20, which is more than the $5 Pro plan earns. The tables below assume Groq is the final pass; swap the large-v3 column for $0.20 an hour when Scribe is on.
+
 Prices and limits below are as published at the time of writing; confirm them in the Groq console before relying on them.
 
 | Session | Both passes on large-v3 | Now: live turbo, final large-v3 |
@@ -162,7 +164,7 @@ On a $5 Pro plan, the break-even point on speech alone moves from 22.5 hours to 
 | 30 h | $6.66 | $4.53 |
 | 40 h | $8.88 | $6.04 |
 
-At 30 hours a month, Pro now leaves $0.47 before payment fees instead of losing $1.66. A user who talks for 40 hours still costs more than the plan earns.
+At 30 hours a month with Groq as the final pass, Pro now leaves $0.47 before payment fees instead of losing $1.66. With Scribe as the final pass, 30 hours costs about $7.20, so Pro either needs a higher price or a lower cap. A user who talks for 40 hours still costs more than the plan earns on either provider.
 
 ### Free tier limits
 

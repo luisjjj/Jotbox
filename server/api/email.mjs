@@ -189,12 +189,12 @@ export async function sendWelcomeEmail(user) {
   return sendEmail({
     to: user.email,
     subject: `${name}, your JotBox account is ready`,
-    text: `Hi ${name},\n\nYour JotBox account is ready. Sign in and your notes will follow you across devices.\n\n${url}\n\nStart with a lecture, a meeting, or any room where the words matter. You get 60 minutes of listening each month for free.\n\nJotBox`,
+    text: `Hi ${name},\n\nYour JotBox account is ready. Sign in and your notes will follow you across devices.\n\n${url}\n\nStart with a lecture, a meeting, or any room where the words matter. You get 100 minutes of listening each month for free.\n\nJotBox`,
     html: layout({
       heading: `Welcome, ${name}.`,
       body:
         paragraph("Your JotBox account is ready. Sign in and your notes will follow you across devices.") +
-        paragraph("Start with a lecture, a meeting, or any room where the words matter. You get 60 minutes of listening each month for free."),
+        paragraph("Start with a lecture, a meeting, or any room where the words matter. You get 100 minutes of listening each month for free."),
       action: "Open JotBox",
       actionUrl: url,
       footnote: "Recordings stay on your device. Notes follow you only when you sign in.",
@@ -278,13 +278,13 @@ export async function sendRenewalReminderEmail(user, { amount, currency, nextPay
   return sendEmail({
     to: user.email,
     subject: `${name}, JotBox Pro renews on ${when}`,
-    text: `Hi ${name},\n\nYour JotBox Pro plan renews on ${when}. We will charge ${paid} then.\n\nNothing to do if you want to keep Pro: your 30 hours of listening and every Pro feature stay on.\n\nIf you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 60 minutes of listening each month.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
+    text: `Hi ${name},\n\nYour JotBox Pro plan renews on ${when}. We will charge ${paid} then.\n\nNothing to do if you want to keep Pro: your 30 hours of listening and every Pro feature stay on.\n\nIf you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 100 minutes of listening each month.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
     html: layout({
       heading: `Pro renews on ${when}`,
       body:
         paragraph(`Your JotBox Pro plan renews on ${when}. We will charge ${paid} then.`) +
         paragraph("Nothing to do if you want to keep Pro: your 30 hours of listening and every Pro feature stay on.") +
-        paragraph(`If you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 60 minutes of listening each month.`),
+        paragraph(`If you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 100 minutes of listening each month.`),
       action: "Manage your plan",
       actionUrl: `${publicAppUrl()}/account`,
       footnote: "You are receiving this because Pro is active on your account.",
@@ -373,12 +373,12 @@ export async function sendCancellationEmail(user, { periodEnd } = {}) {
   return sendEmail({
     to: user.email,
     subject: "JotBox Pro will not renew",
-    text: `Hi ${personName(user.name, user.email)},\n\nYour JotBox Pro subscription is cancelled and will not renew. ${endText}\n\nYour notes are still yours, and the free plan keeps 60 minutes of listening each month. You can come back any time.\n\nJotBox`,
+    text: `Hi ${personName(user.name, user.email)},\n\nYour JotBox Pro subscription is cancelled and will not renew. ${endText}\n\nYour notes are still yours, and the free plan keeps 100 minutes of listening each month. You can come back any time.\n\nJotBox`,
     html: layout({
       heading: "Your Pro plan will not renew",
       body:
         paragraph(`Your JotBox Pro subscription is cancelled and will not renew. ${endText}`) +
-        paragraph("Your notes are still yours, and the free plan keeps 60 minutes of listening each month. You can come back any time."),
+        paragraph("Your notes are still yours, and the free plan keeps 100 minutes of listening each month. You can come back any time."),
       action: "Manage your plan",
       actionUrl: `${publicAppUrl()}/account`,
     }),

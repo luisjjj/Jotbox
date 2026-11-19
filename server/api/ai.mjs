@@ -7,7 +7,7 @@ import { HttpError, assertSameOrigin, clientIp, readJson, requireMethod, sendJso
  * JotBox AI gateway.
  *
  * Free-first provider chain:
- *   speech: Groq Whisper (free tier) -> self-hosted Speaches/faster-whisper -> xAI
+ *   speech: ElevenLabs Scribe v3 (diarised) -> Groq Whisper -> self-hosted -> xAI
  *   notes:  Groq GPT-OSS (free tier) -> OpenRouter free model       -> xAI
  *
  * `JOTBOX_AI_MOCK=1` adds a deterministic demo provider for local UI tests.
@@ -23,6 +23,7 @@ const GROQ_BASE = "https://api.groq.com/openai/v1";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const XAI_STT_URL = "https://api.x.ai/v1/stt";
 const XAI_CHAT_URL = "https://api.x.ai/v1/chat/completions";
+const ELEVENLABS_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 
 const MAX_AUDIO = 80 * 1024 * 1024;
 const MAX_LIVE_AUDIO = 2 * 1024 * 1024;
@@ -86,7 +87,14 @@ const DEFAULT_GROQ_STT = "whisper-large-v3";
 // Live captions are a disposable preview: the kept transcript always comes from
 // the full-audio pass, so turbo can halve the audio-seconds live previews burn.
 const DEFAULT_GROQ_LIVE_STT = "whisper-large-v3-turbo";
+const DEFAULT_ELEVENLABS_STT = "scribe_v3";
 const WORKER_STT_DEFAULT = "Systran/faster-whisper-small";
+
+// Scribe supports Igbo, Yoruba, Hausa and English, but Nigerian Pidgin is not
+// on its language list. Pidgin is sent without a language code so the model
+// detects the English/Pidgin mix itself instead of being forced to translate.
+const ELEVENLABS_CODES = { en: "en", pcm: null, yo: "yo", ha: "ha", ig: "ig" };
+const ELEVENLABS_KEYTERM_LIMIT = 100;
 
 const NOTES_SYSTEM = `You are JotBox, a note writer for meetings, seminars, lectures and voice notes recorded in Nigeria and across West Africa.
 The transcript is what was said. The scratch notes are what the listener marked. When scratch notes exist, treat them as the spine and expand them from the transcript.
@@ -152,6 +160,10 @@ function xaiKey() {
   return key("XAI_API_KEY");
 }
 
+function elevenLabsKey() {
+  return key("ELEVENLABS_API_KEY");
+}
+
 function whisperBase() {
   return key("WHISPER_BASE_URL").replace(/\/+$/, "");
 }
@@ -171,8 +183,8 @@ function sttCode(language) {
 
 function sttHostedLanguages() {
   const languages = ["en", "pcm"];
-  if (groqKey()) languages.push("yo", "ha");
-  if (whisperBase()) languages.push("ig");
+  if (elevenLabsKey() || groqKey()) languages.push("yo", "ha");
+  if (elevenLabsKey() || whisperBase()) languages.push("ig");
   return languages;
 }
 
@@ -184,6 +196,59 @@ function sttVocabulary() {
     .slice(0, 60)
     .join(", ")
     .slice(0, STT_VOCAB_LIMIT);
+}
+
+function elevenLabsCode(language) {
+  if (!language) return null;
+  // Pidgin is deliberately mapped to no code, so hasOwn is used instead of ??
+  // to stop the Whisper mapping (pcm -> en) from filling the gap.
+  if (Object.hasOwn(ELEVENLABS_CODES, language)) return ELEVENLABS_CODES[language];
+  return STT_CODES[language] ?? language;
+}
+
+// Scribe takes discrete keyterms instead of a Whisper-style prompt. Names,
+// acronyms and room vocabulary are the terms it can actually use, so they are
+// sent as separate fields and the tuning prompt is left out of this provider.
+function sttKeyterms(context) {
+  const room = sanitizeSttContext(context);
+  const configured = key("JOTBOX_STT_KEYTERMS")
+    .split(/[\n;]+|,(?!\d)/)
+    .map((term) => term.trim());
+  const vocab = sttVocabulary().split(", ").filter(Boolean);
+  const terms = [...new Set([...(room?.names ?? []), ...vocab, ...configured])]
+    .map((term) => plainText(term, 50))
+    .filter((term) => term.length >= 2);
+  return terms.slice(0, ELEVENLABS_KEYTERM_LIMIT);
+}
+
+function sttPreference() {
+  return key("JOTBOX_STT_PROVIDER")
+    .split(",")
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function orderSttProviders(providers) {
+  const preference = sttPreference();
+  if (!preference.length) return providers;
+  return [...providers].sort((a, b) => {
+    const left = preference.indexOf(a);
+    const right = preference.indexOf(b);
+    return (left === -1 ? preference.length : left) - (right === -1 ? preference.length : right);
+  });
+}
+
+function configuredSttProviders({ live = false } = {}) {
+  const providers = [];
+  if (!live && elevenLabsKey()) providers.push("elevenlabs");
+  if (groqKey()) providers.push("groq");
+  if (whisperBase()) providers.push("worker");
+  if (xaiKey()) providers.push("xai");
+  // Live captions stay on Groq turbo by default. The only time Scribe previews
+  // live audio is when it is the only provider configured.
+  if (live && elevenLabsKey()) providers.push("elevenlabs");
+  if (mockEnabled()) providers.push("demo");
+  return orderSttProviders(providers);
 }
 
 function plainText(value, max) {
@@ -253,16 +318,22 @@ function mockEnabled() {
   return true;
 }
 
+function sttModelFor(provider, { live = false } = {}) {
+  if (provider === "elevenlabs") return key("ELEVENLABS_STT_MODEL") || DEFAULT_ELEVENLABS_STT;
+  if (provider === "worker" || provider === "self-hosted") {
+    return key("WHISPER_MODEL") || WORKER_STT_DEFAULT;
+  }
+  if (provider === "xai") return key("XAI_STT_MODEL") || "grok-voice-transcribe-2.0";
+  if (provider === "demo") return "demo";
+  return live
+    ? key("GROQ_LIVE_STT_MODEL") || DEFAULT_GROQ_LIVE_STT
+    : key("GROQ_STT_MODEL") || DEFAULT_GROQ_STT;
+}
+
 export function aiStatus() {
-  const transcribe = mockEnabled()
-    ? "demo"
-    : whisperBase()
-      ? "self-hosted"
-      : groqKey()
-        ? "groq"
-        : xaiKey()
-          ? "xai"
-          : null;
+  const finalProvider = configuredSttProviders()[0] ?? null;
+  const liveProvider = configuredSttProviders({ live: true })[0] ?? null;
+  const transcribe = finalProvider === "worker" ? "self-hosted" : finalProvider;
   const notes = mockEnabled()
     ? "demo"
     : groqKey()
@@ -278,16 +349,13 @@ export function aiStatus() {
     transcribe,
     notes,
     pidgin: true,
+    diarization: ["elevenlabs", "xai", "demo"].includes(finalProvider),
     tone: key("JOTBOX_AI_TONE") || DEFAULT_TONE,
     sttLanguage: sttLanguage() || "auto",
     sttLanguages: sttHostedLanguages(),
     sttVocabulary: vocabulary ? vocabulary.split(", ").length : 0,
-    sttModel: whisperBase()
-      ? key("WHISPER_MODEL") || WORKER_STT_DEFAULT
-      : key("GROQ_STT_MODEL") || DEFAULT_GROQ_STT,
-    sttLiveModel: whisperBase()
-      ? key("WHISPER_MODEL") || WORKER_STT_DEFAULT
-      : key("GROQ_LIVE_STT_MODEL") || DEFAULT_GROQ_LIVE_STT,
+    sttModel: sttModelFor(finalProvider),
+    sttLiveModel: sttModelFor(liveProvider, { live: true }),
   };
 }
 
@@ -466,11 +534,14 @@ export function normalizeTranscription(data, provider, options = {}) {
   const live = options?.live === true;
   let words = Array.isArray(data?.words)
     ? data.words
+        // Scribe returns spacing and audio_event entries beside real words.
+        // Only words and their speaker ids belong in the transcript.
+        .filter((word) => !word?.type || word.type === "word")
         .map((word) => {
           const text = cleanWord(word?.word ?? word?.text);
           const start = Number(word?.start);
           const end = Number(word?.end);
-          const speaker = speakerIndex(word?.speaker);
+          const speaker = speakerIndex(word?.speaker ?? word?.speaker_id);
           return {
             text,
             start: Number.isFinite(start) ? start : 0,
@@ -552,7 +623,12 @@ export function normalizeTranscription(data, provider, options = {}) {
   return {
     text,
     words,
-    language: typeof data?.language === "string" ? data.language : null,
+    language:
+      typeof data?.language === "string"
+        ? data.language
+        : typeof data?.language_code === "string"
+          ? data.language_code
+          : null,
     provider,
     filtered,
   };
@@ -641,6 +717,44 @@ async function transcribeWithXai(buffer, contentType, filename, context, options
   return normalizeTranscription(await response.json(), "xai", { ...options, prompt });
 }
 
+async function transcribeWithElevenLabs(buffer, contentType, filename, context, options = {}, language = null) {
+  const form = new FormData();
+  form.append("file", new Blob([buffer], { type: contentType }), filename);
+  form.append("model_id", key("ELEVENLABS_STT_MODEL") || DEFAULT_ELEVENLABS_STT);
+  form.append("timestamps_granularity", "word");
+  if (options.live !== true) {
+    // Diarising a two second live chunk produces speaker ids that do not line
+    // up with the next chunk, so only the full recording asks for speakers.
+    form.append("diarize", "true");
+    form.append("tag_audio_events", "false");
+  }
+  const code = elevenLabsCode(language);
+  if (code) form.append("language_code", code);
+  for (const term of sttKeyterms(context)) form.append("keyterms", term);
+
+  const send = () =>
+    fetchWithRetry(ELEVENLABS_STT_URL, {
+      method: "POST",
+      headers: { "xi-api-key": elevenLabsKey() },
+      body: form,
+      signal: AbortSignal.timeout(240_000),
+    });
+
+  let response = await send();
+  let detail = "";
+  if (response.status === 400 || response.status === 422) {
+    detail = await response.text();
+    console.error("[jotbox-ai] elevenlabs rejected options", response.status, detail.slice(0, 500));
+    // A language code or keyterm list the account does not support should not
+    // lose the recording. Retry once with auto-detect and no keyterms.
+    form.delete("language_code");
+    form.delete("keyterms");
+    response = await send();
+  }
+  if (!response.ok) throw providerError("elevenlabs-stt", response, detail || (await response.text()));
+  return normalizeTranscription(await response.json(), "elevenlabs", { ...options, prompt: "" });
+}
+
 const MOCK_LINES = [
   "Ah, wetin happen to the Friday payout?",
   "E be like the bank dey slow us down, the file reach them late.",
@@ -671,14 +785,14 @@ function mockTranscription() {
 export async function transcribeAudio({ buffer, contentType, filename, context, live = false }) {
   const options = { live };
   const language = sttLanguage(context?.language);
-  const workerOnly = STT_WORKER_ONLY.has(language);
+  // Scribe covers Igbo, so the worker-only rule applies only when Scribe is absent.
+  const workerOnly = STT_WORKER_ONLY.has(language) && !elevenLabsKey();
   const attempts = [];
-  const providers = [];
-  if (buffer.length > GROQ_FREE_MAX && whisperBase()) providers.push("worker");
-  if (groqKey() && buffer.length <= GROQ_FREE_MAX && !workerOnly) providers.push("groq");
-  if (whisperBase()) providers.push("worker");
-  if (xaiKey() && !workerOnly) providers.push("xai");
-  if (mockEnabled()) providers.push("demo");
+  const providers = configuredSttProviders({ live }).filter((provider) => {
+    if (provider === "groq") return buffer.length <= GROQ_FREE_MAX && !workerOnly;
+    if (workerOnly) return provider === "worker" || provider === "demo";
+    return true;
+  });
 
   if (!providers.some((provider) => provider !== "demo")) {
     if (workerOnly) {
@@ -691,6 +805,7 @@ export async function transcribeAudio({ buffer, contentType, filename, context, 
 
   for (const provider of providers) {
     try {
+      if (provider === "elevenlabs") return await transcribeWithElevenLabs(buffer, contentType, filename, context, options, language);
       if (provider === "groq") return await transcribeWithGroq(buffer, contentType, filename, context, options, language);
       if (provider === "worker") return await transcribeWithWorker(buffer, contentType, filename, context, options, language);
       if (provider === "xai") return await transcribeWithXai(buffer, contentType, filename, context, options, language);

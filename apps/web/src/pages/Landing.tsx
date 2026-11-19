@@ -110,7 +110,7 @@ const FEATURES = [
 ];
 
 const FREE_FEATURES = [
-  "60 minutes of listening a month",
+  "100 minutes of listening a month",
   "Written notes for every session",
   "Jottings and spoken words side by side",
   "Markdown, copy and print",
