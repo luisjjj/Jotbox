@@ -39,6 +39,7 @@ import {
   LANGUAGE_OPTIONS,
   PICKUP_OPTIONS,
   getFocusMode,
+  guestParticipants,
   getPickupMode,
   getSessionLanguage,
   setFocusMode,
@@ -233,20 +234,7 @@ function Setup() {
   const timeLeft = usage.loaded && !usage.unlimited ? usage.remainingSeconds : null;
   const outOfTime = timeLeft !== null && timeLeft <= 0;
   const [title, setTitle] = useState(prefillTitle);
-  const [people, setPeople] = useState<Participant[]>(() => {
-    const seen = new Set<string>();
-    return params
-      .getAll("guest")
-      .map((name) => name.trim())
-      .filter((name) => {
-        const key = name.toLowerCase();
-        if (!name || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, 20)
-      .map((name) => ({ id: crypto.randomUUID(), name, external: true }));
-  });
+  const [people, setPeople] = useState<Participant[]>(() => guestParticipants(params.getAll("guest")));
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
   const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
   const [language, setLanguage] = useState<SessionLanguage>(() => getSessionLanguage());

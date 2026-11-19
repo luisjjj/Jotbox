@@ -599,7 +599,13 @@ test("notes parse fenced JSON, drop empty items and fail over between models", a
     title: "Bank window slipped",
     summary: "The bank received the file late, so the promise moved.",
     highlights: ["One", "   ", 7, "Two"],
-    actions: [{ text: "Send the merchant note", owner: "" }, { text: "   " }, null],
+    blockers: ["The bank window slipped", "", 5],
+    actions: [{ text: "Send the merchant note", owner: "", due: "2026-11-20" }, { text: "   " }, null],
+    followUps: [
+      { to: "Ada", subject: "Merchant note", body: "Send it before four." },
+      { to: "", subject: "", body: "No subject" },
+      null,
+    ],
     sections: [
       { heading: "Decisions", bullets: ["Pause the promise", ""] },
       { heading: "  " },
@@ -633,13 +639,22 @@ test("notes parse fenced JSON, drop empty items and fail over between models", a
   assert.match(calls[1].body.messages[0].content, /sarcasm and understatement/);
   assert.match(calls[1].body.messages[0].content, /write the blocker/);
   assert.match(calls[1].body.messages[0].content, /Use the spellings of the people listed/);
+  assert.match(calls[1].body.messages[0].content, /Blockers: what is stopping progress/);
+  assert.match(calls[1].body.messages[0].content, /FollowUps: messages the listener still needs to send/);
   assert.match(calls[1].body.messages[1].content, /People in the room: Ada, Chinedu/);
+  assert.match(calls[1].body.messages[1].content, /Today: \d{4}-\d{2}-\d{2}/);
   assert.match(calls[1].body.messages[1].content, /Transcript:\nSpeaker 1: The bank acknowledged/);
 
   assert.equal(result.provider, "groq");
   assert.equal(result.title, "Bank window slipped");
   assert.deepEqual(result.highlights, ["One", "Two"]);
-  assert.deepEqual(result.actions, [{ text: "Send the merchant note", owner: "Unassigned" }]);
+  assert.deepEqual(result.blockers, ["The bank window slipped"]);
+  assert.deepEqual(result.actions, [
+    { text: "Send the merchant note", owner: "Unassigned", due: "2026-11-20" },
+  ]);
+  assert.deepEqual(result.followUps, [
+    { to: "Ada", subject: "Merchant note", body: "Send it before four." },
+  ]);
   assert.deepEqual(result.sections, [{ heading: "Decisions", bullets: ["Pause the promise"] }]);
 });
 

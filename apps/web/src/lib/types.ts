@@ -13,7 +13,14 @@ export interface ActionItem {
   id: string;
   text: string;
   owner: string;
+  due?: string;
   done: boolean;
+}
+
+export interface FollowUpDraft {
+  to: string;
+  subject: string;
+  body: string;
 }
 
 export interface NoteSection {
@@ -25,6 +32,8 @@ export interface SessionNotes {
   summary: string;
   highlights: string[];
   decisions?: string[];
+  blockers?: string[];
+  followUps?: FollowUpDraft[];
   actions: ActionItem[];
   sections: NoteSection[];
   source: "studio" | "browser";

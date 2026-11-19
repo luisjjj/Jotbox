@@ -227,3 +227,17 @@ export function filterLines(
 export function knownNames(participants: Participant[]) {
   return participants.map((person) => person.name.trim()).filter(Boolean).slice(0, 20);
 }
+
+export function guestParticipants(names: string[]): Participant[] {
+  const seen = new Set<string>();
+  return names
+    .map((name) => name.trim())
+    .filter((name) => {
+      const key = name.toLowerCase();
+      if (!name || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 20)
+    .map((name) => ({ id: crypto.randomUUID(), name, external: true }));
+}

@@ -4,7 +4,9 @@ export interface OutputPreset {
   summaryLabel: string;
   highlightsLabel: string;
   decisionsLabel: string;
+  blockersLabel: string;
   actionsLabel: string;
+  followUpsLabel: string;
   emptyHint: string;
   followUpSubject: string;
   suggestions: string[];
@@ -15,7 +17,9 @@ export const OUTPUT_PRESETS: Record<SessionKind, OutputPreset> = {
     summaryLabel: "Summary",
     highlightsLabel: "Key points",
     decisionsLabel: "Decisions",
+    blockersLabel: "Blockers",
     actionsLabel: "Action items",
+    followUpsLabel: "Drafts to send",
     emptyHint: "Record a meeting and JotBox will write the decisions, owners, and open actions.",
     followUpSubject: "Recap and next steps",
     suggestions: [
@@ -28,7 +32,9 @@ export const OUTPUT_PRESETS: Record<SessionKind, OutputPreset> = {
     summaryLabel: "Summary",
     highlightsLabel: "Ideas worth keeping",
     decisionsLabel: "Agreements",
+    blockersLabel: "Open questions",
     actionsLabel: "Follow-ups",
+    followUpsLabel: "Drafts to send",
     emptyHint: "Record a seminar and JotBox will keep the arguments, questions, and follow-ups.",
     followUpSubject: "Seminar recap",
     suggestions: [
@@ -41,7 +47,9 @@ export const OUTPUT_PRESETS: Record<SessionKind, OutputPreset> = {
     summaryLabel: "In short",
     highlightsLabel: "What was taught",
     decisionsLabel: "Key definitions",
+    blockersLabel: "Still unclear",
     actionsLabel: "Study tasks",
+    followUpsLabel: "Drafts to send",
     emptyHint: "Record a lecture and JotBox will keep the concepts, definitions, and study pointers.",
     followUpSubject: "Lecture recap",
     suggestions: [
@@ -54,7 +62,9 @@ export const OUTPUT_PRESETS: Record<SessionKind, OutputPreset> = {
     summaryLabel: "The point",
     highlightsLabel: "What to remember",
     decisionsLabel: "Calls I made",
+    blockersLabel: "What is in the way",
     actionsLabel: "Next moves",
+    followUpsLabel: "Drafts to send",
     emptyHint: "Record a voice note and JotBox will keep the thought and the next move.",
     followUpSubject: "Voice note recap",
     suggestions: [

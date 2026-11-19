@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { ArrowLeft, Check, FileText, Loader2, Lock } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, FileText, Loader2, Lock } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Brand } from "@/components/Brand";
 import { KindBadge } from "@/components/KindBadge";
 import { api, ApiError, type PublicShare } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { OUTPUT_PRESETS } from "@/lib/presets";
+
+function dueLabel(due: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return due;
+  return format(new Date(`${due}T00:00:00`), "d MMM");
+}
 
 export default function SharedPage() {
   const { token = "" } = useParams();
@@ -117,7 +122,12 @@ export default function SharedPage() {
           </div>
         )}
 
-        {notes && (notes.summary.trim() || notes.highlights.length || notes.decisions?.length) ? (
+        {notes &&
+        (notes.summary.trim() ||
+          notes.highlights.length ||
+          notes.decisions?.length ||
+          notes.blockers?.length ||
+          notes.followUps?.length) ? (
           <article className="mt-8">
             <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
               {preset.summaryLabel}
@@ -158,6 +168,25 @@ export default function SharedPage() {
               </section>
             )}
 
+            {notes.blockers && notes.blockers.length > 0 && (
+              <section className="mt-8">
+                <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
+                  {preset.blockersLabel}
+                </h2>
+                <ul className="mt-3 space-y-2">
+                  {notes.blockers.map((blocker) => (
+                    <li
+                      key={blocker}
+                      className="flex gap-2.5 rounded-xl border border-rec-line bg-rec-soft px-3.5 py-3"
+                    >
+                      <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
+                      <p className="text-[15.5px] leading-6 text-soft">{blocker}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {notes.actions.length > 0 && (
               <section className="mt-8">
                 <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
@@ -176,10 +205,33 @@ export default function SharedPage() {
                         <p className={action.done ? "text-[15.5px] leading-5 text-faint line-through" : "text-[15.5px] leading-5 text-soft"}>
                           {action.text}
                         </p>
-                        <p className="mt-1 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-faint">
-                          {action.owner}
+                        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-faint">
+                          <span>{action.owner}</span>
+                          {action.due && <span className="text-rec">Due {dueLabel(action.due)}</span>}
                         </p>
                       </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {notes.followUps && notes.followUps.length > 0 && (
+              <section className="mt-8">
+                <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
+                  {preset.followUpsLabel}
+                </h2>
+                <ul className="mt-3 space-y-2.5">
+                  {notes.followUps.map((draft, index) => (
+                    <li
+                      key={`${draft.subject}-${index}`}
+                      className="rounded-xl border border-line bg-raised px-3.5 py-3"
+                    >
+                      <p className="text-[14.5px] font-medium text-ink">{draft.subject}</p>
+                      <p className="mt-0.5 text-[12px] text-faint">
+                        {draft.to ? `To ${draft.to}` : "No one named yet"}
+                      </p>
+                      <p className="mt-2 whitespace-pre-line text-[14.5px] leading-6 text-soft">{draft.body}</p>
                     </li>
                   ))}
                 </ul>

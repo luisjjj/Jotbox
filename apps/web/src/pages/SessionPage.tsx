@@ -49,13 +49,18 @@ import { OUTPUT_PRESETS } from "@/lib/presets";
 import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { linesFromText } from "@/lib/transcript";
-import type { Session, TranscriptLine } from "@/lib/types";
+import type { FollowUpDraft, Session, TranscriptLine } from "@/lib/types";
 import { ensurePro, usePlan } from "@/lib/usageStore";
 import { useEngine } from "@/engine/SessionEngine";
 import { useAudioUrl } from "@/hooks/useAudio";
 
 interface AudioHandle {
   seek: (seconds: number) => void;
+}
+
+function dueLabel(due: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return due;
+  return format(new Date(`${due}T00:00:00`), "d MMM");
 }
 
 const AudioPlayer = forwardRef<AudioHandle, { src: string; fallbackDuration: number }>(function AudioPlayer(
@@ -443,6 +448,16 @@ export default function SessionPage() {
     }
   };
 
+  const copyDraft = async (draft: FollowUpDraft) => {
+    try {
+      const header = [draft.to ? `To: ${draft.to}` : "", `Subject: ${draft.subject}`].filter(Boolean).join("\n");
+      await navigator.clipboard.writeText(`${header}\n\n${draft.body}`);
+      toast.success("Draft copied");
+    } catch {
+      toast.error("Copy failed.");
+    }
+  };
+
   const savePdf = async () => {
     const isPro = await ensurePro();
     if (isPro === false) {
@@ -752,6 +767,25 @@ export default function SessionPage() {
                 </section>
               )}
 
+              {session.notes.blockers && session.notes.blockers.length > 0 && (
+                <section className="mt-8">
+                  <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
+                    {preset.blockersLabel}
+                  </h2>
+                  <ul className="mt-3 space-y-2">
+                    {session.notes.blockers.map((blocker) => (
+                      <li
+                        key={blocker}
+                        className="flex gap-2.5 rounded-xl border border-rec-line bg-rec-soft px-3.5 py-3"
+                      >
+                        <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
+                        <p className="text-[15.5px] leading-6 text-soft">{blocker}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {session.notes.actions.length > 0 && (
                 <section className="mt-8">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -796,8 +830,9 @@ export default function SessionPage() {
                           >
                             {action.text}
                           </p>
-                          <p className="mt-1 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-faint">
-                            {action.owner}
+                          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-faint">
+                            <span>{action.owner}</span>
+                            {action.due && <span className="text-rec">Due {dueLabel(action.due)}</span>}
                           </p>
                           {jiraLink ? (
                             <a
@@ -814,6 +849,41 @@ export default function SessionPage() {
                       </li>
                       );
                     })}
+                  </ul>
+                </section>
+              )}
+
+              {session.notes.followUps && session.notes.followUps.length > 0 && (
+                <section className="mt-8">
+                  <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
+                    {preset.followUpsLabel}
+                  </h2>
+                  <ul className="mt-3 space-y-2.5">
+                    {session.notes.followUps.map((draft, index) => (
+                      <li
+                        key={`${draft.subject}-${index}`}
+                        className="rounded-xl border border-line bg-raised px-3.5 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[14.5px] font-medium text-ink">{draft.subject}</p>
+                            <p className="mt-0.5 text-[12px] text-faint">
+                              {draft.to ? `To ${draft.to}` : "No one named yet"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="icon-btn h-7 w-7 flex-none"
+                            aria-label={`Copy ${draft.subject}`}
+                            title="Copy draft"
+                            onClick={() => void copyDraft(draft)}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <p className="mt-2 whitespace-pre-line text-[14.5px] leading-6 text-soft">{draft.body}</p>
+                      </li>
+                    ))}
                   </ul>
                 </section>
               )}

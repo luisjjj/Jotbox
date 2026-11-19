@@ -72,13 +72,24 @@ export function notesToMarkdown(session: Session) {
     if (notes.decisions?.length) {
       lines.push(`## ${preset.decisionsLabel}`, "", ...notes.decisions.map((item) => `- ${item}`), "");
     }
+    if (notes.blockers?.length) {
+      lines.push(`## ${preset.blockersLabel}`, "", ...notes.blockers.map((item) => `- ${item}`), "");
+    }
     if (notes.actions.length) {
       lines.push(
         `## ${preset.actionsLabel}`,
         "",
-        ...notes.actions.map((item) => `- [${item.done ? "x" : " "}] ${item.owner}: ${item.text}`),
+        ...notes.actions.map(
+          (item) => `- [${item.done ? "x" : " "}] ${item.owner}${item.due ? ` (due ${item.due})` : ""}: ${item.text}`,
+        ),
         "",
       );
+    }
+    if (notes.followUps?.length) {
+      lines.push(`## ${preset.followUpsLabel}`, "");
+      for (const draft of notes.followUps) {
+        lines.push(`**${draft.subject}**`, "", draft.to ? `To: ${draft.to}` : "To: no one named yet", "", draft.body, "");
+      }
     }
     for (const section of notes.sections) {
       lines.push(`## ${section.heading}`, "", ...section.bullets.map((item) => `- ${item}`), "");
@@ -99,5 +110,11 @@ export function notesToMarkdown(session: Session) {
 
 export function notesLookEmpty(notes: SessionNotes | null) {
   if (!notes) return true;
-  return !notes.summary && notes.highlights.length === 0 && notes.sections.length === 0;
+  return (
+    !notes.summary &&
+    notes.highlights.length === 0 &&
+    notes.sections.length === 0 &&
+    (notes.blockers?.length ?? 0) === 0 &&
+    (notes.followUps?.length ?? 0) === 0
+  );
 }

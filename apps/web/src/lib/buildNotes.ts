@@ -30,8 +30,14 @@ interface StudioPayload {
   summary: string;
   highlights: string[];
   decisions: string[];
-  actions: { text: string; owner: string }[];
+  blockers: string[];
+  actions: { text: string; owner: string; due: string }[];
+  followUps: { to: string; subject: string; body: string }[];
   sections: { heading: string; bullets: string[] }[];
+}
+
+function asStrings(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function asNotes(value: unknown): StudioPayload | null {
@@ -40,15 +46,35 @@ function asNotes(value: unknown): StudioPayload | null {
   if (typeof record.summary !== "string" || typeof record.title !== "string") return null;
   if (!Array.isArray(record.highlights) || !Array.isArray(record.actions) || !Array.isArray(record.sections)) return null;
   const highlights = record.highlights.filter((item): item is string => typeof item === "string");
-  const decisions = Array.isArray(record.decisions)
-    ? record.decisions.filter((item): item is string => typeof item === "string")
-    : [];
+  const decisions = asStrings(record.decisions);
+  const blockers = asStrings(record.blockers);
   const actions = record.actions.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const action = item as Record<string, unknown>;
     if (typeof action.text !== "string") return [];
-    return [{ text: action.text, owner: typeof action.owner === "string" && action.owner ? action.owner : "Unassigned" }];
+    return [
+      {
+        text: action.text,
+        owner: typeof action.owner === "string" && action.owner ? action.owner : "Unassigned",
+        due: typeof action.due === "string" ? action.due : "",
+      },
+    ];
   });
+  const followUps = Array.isArray(record.followUps)
+    ? record.followUps.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const draft = item as Record<string, unknown>;
+        if (typeof draft.subject !== "string" || typeof draft.body !== "string") return [];
+        if (!draft.subject.trim() || !draft.body.trim()) return [];
+        return [
+          {
+            to: typeof draft.to === "string" ? draft.to : "",
+            subject: draft.subject,
+            body: draft.body,
+          },
+        ];
+      })
+    : [];
   const sections = record.sections.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const section = item as Record<string, unknown>;
@@ -60,7 +86,7 @@ function asNotes(value: unknown): StudioPayload | null {
       },
     ];
   });
-  return { title: record.title, summary: record.summary, highlights, decisions, actions, sections };
+  return { title: record.title, summary: record.summary, highlights, decisions, blockers, actions, followUps, sections };
 }
 
 function encodeContext(value: unknown) {
@@ -132,12 +158,15 @@ async function studioNotes(input: {
     summary: parsed.summary,
     highlights: parsed.highlights,
     decisions: parsed.decisions,
+    blockers: parsed.blockers,
+    followUps: parsed.followUps,
     sections: parsed.sections,
     source: "studio",
     actions: parsed.actions.map((action) => ({
       id: crypto.randomUUID(),
       text: action.text,
       owner: action.owner,
+      due: action.due || undefined,
       done: false,
     })),
   };

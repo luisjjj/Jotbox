@@ -5,6 +5,7 @@ import {
   focusTerms,
   getFocusMode,
   getPickupMode,
+  guestParticipants,
   isNoiseLine,
   isOffTopic,
   knownNames,
@@ -170,5 +171,18 @@ describe("knownNames", () => {
     expect(names[0]).toBe("Ada");
     expect(names).not.toContain("");
     expect(names).toHaveLength(20);
+  });
+});
+describe("guestParticipants", () => {
+  it("prefills calendar guests once each, trimmed and marked external", () => {
+    const people = guestParticipants(["Ada", " ada ", "", "Chinedu", "CHINEDU"]);
+    expect(people.map((person) => person.name)).toEqual(["Ada", "Chinedu"]);
+    expect(people.every((person) => person.external)).toBe(true);
+    expect(new Set(people.map((person) => person.id)).size).toBe(2);
+  });
+
+  it("caps the guest list", () => {
+    const people = guestParticipants(Array.from({ length: 30 }, (_, index) => `Guest ${index}`));
+    expect(people).toHaveLength(20);
   });
 });

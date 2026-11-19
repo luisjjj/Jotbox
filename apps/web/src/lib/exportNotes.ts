@@ -68,11 +68,29 @@ export function printSession(session: Session) {
         `<h2>${escapeHtml(preset.decisionsLabel)}</h2><ul>${notes.decisions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`,
       );
     }
+    if (notes.blockers?.length) {
+      parts.push(
+        `<h2>${escapeHtml(preset.blockersLabel)}</h2><ul>${notes.blockers.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`,
+      );
+    }
     if (notes.actions.length) {
       parts.push(
         `<h2>${escapeHtml(preset.actionsLabel)}</h2><ul class="actions">${notes.actions
-          .map((item) => `<li><span class="owner">${escapeHtml(item.owner)}</span> ${escapeHtml(item.text)}</li>`)
+          .map(
+            (item) =>
+              `<li><span class="owner">${escapeHtml(item.owner)}</span>${item.due ? `<span class="due">due ${escapeHtml(item.due)}</span>` : ""} ${escapeHtml(item.text)}</li>`,
+          )
           .join("")}</ul>`,
+      );
+    }
+    if (notes.followUps?.length) {
+      parts.push(
+        `<h2>${escapeHtml(preset.followUpsLabel)}</h2>${notes.followUps
+          .map(
+            (draft) =>
+              `<div class="draft"><strong>${escapeHtml(draft.subject)}</strong><p class="meta">${escapeHtml(draft.to ? `To: ${draft.to}` : "To: no one named yet")}</p><p>${escapeHtml(draft.body)}</p></div>`,
+          )
+          .join("")}`,
       );
     }
     for (const section of notes.sections) {
@@ -118,6 +136,9 @@ export function printSession(session: Session) {
     .actions { list-style: none; padding: 0; }
     .actions li { border-bottom: 1px solid #e6e4dc; padding: 7px 0; }
     .owner { display: inline-block; font-size: 8pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8b6b38; margin-right: 6px; }
+    .due { display: inline-block; font-size: 8pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #a33a2a; margin-right: 8px; }
+    .draft { border: 1px solid #e6e4dc; border-radius: 8px; padding: 10px 14px; margin: 0 0 10px; }
+    .draft p { margin: 4px 0 0; white-space: pre-wrap; }
     .scratch { font-family: Georgia, serif; font-size: 11.5pt; white-space: pre-wrap; background: #faf8f2; border: 1px solid #e6e4dc; border-radius: 6px; padding: 12px 14px; }
     .transcript p { margin: 0 0 8px; }
     .time { color: #91978f; font-size: 8.5pt; margin-right: 8px; font-variant-numeric: tabular-nums; }

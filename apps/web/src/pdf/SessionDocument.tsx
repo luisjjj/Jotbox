@@ -99,6 +99,16 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
   },
   sectionHeading: { fontFamily: "Helvetica-Bold", fontSize: 11.5, color: color.ink, marginTop: 16, marginBottom: 5 },
+  draft: {
+    borderWidth: 0.75,
+    borderColor: color.line,
+    borderRadius: 3,
+    padding: 10,
+    marginBottom: 7,
+  },
+  draftSubject: { fontFamily: "Helvetica-Bold", fontSize: 10, color: color.ink },
+  draftMeta: { fontSize: 7.5, letterSpacing: 0.6, textTransform: "uppercase", color: color.faint, marginTop: 2 },
+  draftBody: { fontSize: 10, lineHeight: 1.5, color: color.soft, marginTop: 5 },
   note: {
     marginTop: 20,
     padding: 12,
@@ -148,7 +158,16 @@ export function SessionDocument({ session }: { session: Session }) {
   const preset = OUTPUT_PRESETS[session.kind];
   const date = format(session.createdAt, "EEEE, d MMMM yyyy · HH:mm");
   const kind = KIND_LABEL[session.kind] ?? "Meeting";
-  const hasNotes = Boolean(notes && (notes.summary.trim() || notes.highlights.length || notes.decisions?.length || notes.actions.length || notes.sections.length));
+  const hasNotes = Boolean(
+    notes &&
+      (notes.summary.trim() ||
+        notes.highlights.length ||
+        notes.decisions?.length ||
+        notes.blockers?.length ||
+        notes.actions.length ||
+        notes.followUps?.length ||
+        notes.sections.length),
+  );
   let firstBlock = true;
   const takeFirst = () => {
     const value = firstBlock;
@@ -250,6 +269,31 @@ export function SessionDocument({ session }: { session: Session }) {
                 </>
               )}
 
+              {notes.blockers && notes.blockers.length > 0 && (
+                <>
+                  <Label first={takeFirst()}>{preset.blockersLabel}</Label>
+                  {notes.blockers.map((blocker) => (
+                    <View key={blocker} style={styles.bulletRow} wrap={false}>
+                      <View style={styles.bullet} />
+                      <Text style={styles.bulletText}>{blocker}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {notes.followUps && notes.followUps.length > 0 && (
+                <>
+                  <Label first={takeFirst()}>{preset.followUpsLabel}</Label>
+                  {notes.followUps.map((draft, index) => (
+                    <View key={`${draft.subject}-${index}`} style={styles.draft} wrap={false}>
+                      <Text style={styles.draftSubject}>{draft.subject}</Text>
+                      <Text style={styles.draftMeta}>{draft.to ? `To ${draft.to}` : "No one named yet"}</Text>
+                      <Text style={styles.draftBody}>{draft.body}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
+
               {notes.actions.length > 0 && (
                 <>
                   <Label first={takeFirst()}>{preset.actionsLabel}</Label>
@@ -264,7 +308,10 @@ export function SessionDocument({ session }: { session: Session }) {
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={action.done ? [styles.actionText, styles.actionDone] : styles.actionText}>{action.text}</Text>
-                        <Text style={styles.owner}>{action.owner || "Unassigned"}</Text>
+                        <Text style={styles.owner}>
+                          {action.owner || "Unassigned"}
+                          {action.due ? `  ·  DUE ${action.due}` : ""}
+                        </Text>
                       </View>
                     </View>
                   ))}

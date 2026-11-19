@@ -116,12 +116,14 @@ Shape:
 - Summary: one short paragraph a person could send to someone who missed the session.
 - Highlights: the points worth keeping. Each one is a full sentence.
 - Decisions: choices the room actually settled, in the words that carry the decision. Use an empty list when no decision was made.
-- Actions: only real commitments and next steps. Owner is the person named, "You" when the listener took it, or "Unassigned". Use an empty list when there is nothing to do.
+- Blockers: what is stopping progress or still unresolved, in the words that carry it. Use an empty list when nothing is blocked.
+- Actions: only real commitments and next steps. Owner is the person named, "You" when the listener took it, or "Unassigned". Due is YYYY-MM-DD when the room gave a deadline, resolved against the date in the request, otherwise an empty string. Never guess a deadline. Use an empty list when there is nothing to do.
+- FollowUps: messages the listener still needs to send, at most three. To is a person named in the transcript or room list, or an empty string when no one was named. Subject is under 8 words. Body is 2 to 4 short sentences in clear English, keeping any Pidgin quote that carries the point. Use an empty list when nothing needs sending.
 - Sections follow the shape of the session.
 - If the transcript is thin, write only from what is there.
 
 Return only a JSON object with this exact shape:
-{"title":"string","summary":"string","highlights":["string"],"decisions":["string"],"actions":[{"text":"string","owner":"string"}],"sections":[{"heading":"string","bullets":["string"]}]}`;
+{"title":"string","summary":"string","highlights":["string"],"decisions":["string"],"blockers":["string"],"actions":[{"text":"string","owner":"string","due":"string"}],"followUps":[{"to":"string","subject":"string","body":"string"}],"sections":[{"heading":"string","bullets":["string"]}]}`;
 
 const TONE_HINT = {
   "warm-direct": "Write like a trusted colleague briefing you: clear, warm and direct. Keep the energy of the room.",
@@ -822,7 +824,7 @@ export async function transcribeAudio({ buffer, contentType, filename, context, 
   );
 }
 
-function notesMessages({ kind, title, scratch, transcript, tone, participants = [] }) {
+function notesMessages({ kind, title, scratch, transcript, tone, participants = [], today }) {
   const toneName = TONE_HINT[tone] ? tone : DEFAULT_TONE;
   const people = participants
     .map((person) => (typeof person === "string" ? person : person?.name))
@@ -838,6 +840,7 @@ function notesMessages({ kind, title, scratch, transcript, tone, participants = 
         `Shape: ${KIND_SHAPE[kind] || KIND_SHAPE.meeting}`,
         `Tone: ${toneName}. ${TONE_HINT[toneName]}`,
         `Working title: ${title || "(none)"}`,
+        `Today: ${today || "(unknown)"}`,
         `People in the room: ${people.length ? people.join(", ") : "(not listed)"}`,
         "",
         "Scratch notes from the listener:",
@@ -870,10 +873,34 @@ function parseNotes(content) {
     decisions: Array.isArray(value.decisions)
       ? value.decisions.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim())
       : [],
+    blockers: Array.isArray(value.blockers)
+      ? value.blockers
+          .filter((item) => typeof item === "string" && item.trim())
+          .map((item) => item.trim())
+          .slice(0, 12)
+      : [],
     actions: value.actions.flatMap((item) => {
       if (!item || typeof item !== "object" || typeof item.text !== "string" || !item.text.trim()) return [];
-      return [{ text: item.text.trim(), owner: typeof item.owner === "string" && item.owner.trim() ? item.owner.trim() : "Unassigned" }];
+      return [
+        {
+          text: item.text.trim(),
+          owner: typeof item.owner === "string" && item.owner.trim() ? item.owner.trim() : "Unassigned",
+          due: typeof item.due === "string" ? item.due.trim().slice(0, 40) : "",
+        },
+      ];
     }),
+    followUps: Array.isArray(value.followUps)
+      ? value.followUps
+          .flatMap((item) => {
+            if (!item || typeof item !== "object") return [];
+            const subject = typeof item.subject === "string" ? item.subject.trim().slice(0, 140) : "";
+            const body = typeof item.body === "string" ? item.body.trim().slice(0, 2_000) : "";
+            if (!subject || !body) return [];
+            const to = typeof item.to === "string" ? item.to.trim().slice(0, 120) : "";
+            return [{ to, subject, body }];
+          })
+          .slice(0, 3)
+      : [],
     sections: value.sections.flatMap((item) => {
       if (!item || typeof item !== "object" || typeof item.heading !== "string") return [];
       const bullets = Array.isArray(item.bullets)
@@ -976,10 +1003,21 @@ function mockNotes({ kind, title, scratch, transcript }) {
       'Pause the same-day promise until the cutoff holds ("make we pause the same-day promise").',
       "Tell merchants plainly what is happening today.",
     ],
+    blockers: [
+      'The bank acknowledged the file late, so part of Friday\'s volume is still unsettled ("the file reach them late").',
+      "The bank window keeps landing nearer 4pm, so the same-day promise cannot hold.",
+    ],
     actions: [
-      { text: "Send the merchant note before 4pm in plain language", owner: "Ada" },
-      { text: "Re-pull the two failed batches and confirm there are no duplicates", owner: "Chinedu" },
-      { text: "Pause same-day payout promises until the cutoff holds", owner: "Team" },
+      { text: "Send the merchant note before 4pm in plain language", owner: "Ada", due: new Date().toISOString().slice(0, 10) },
+      { text: "Re-pull the two failed batches and confirm there are no duplicates", owner: "Chinedu", due: "" },
+      { text: "Pause same-day payout promises until the cutoff holds", owner: "Team", due: "" },
+    ],
+    followUps: [
+      {
+        to: "Ada",
+        subject: "Merchant note on Friday payouts",
+        body: "Please send the merchant note before 4pm. Keep it plain: part of Friday's volume is still unsettled because the bank acknowledged the file late, and same-day promises are paused until the cutoff holds. Do not promise a time we cannot keep.",
+      },
     ],
     sections: [
       {
@@ -1089,6 +1127,7 @@ export async function enhanceSession({ kind, title, scratch, transcript, tone, p
     }),
     tone: TONE_HINT[tone] ? tone : key("JOTBOX_AI_TONE") || DEFAULT_TONE,
     participants: Array.isArray(participants) ? participants.slice(0, 20) : [],
+    today: new Date().toISOString().slice(0, 10),
   };
 
   const providers = [];
@@ -1190,9 +1229,15 @@ function noteLines(notes) {
   for (const item of Array.isArray(notes.decisions) ? notes.decisions : []) {
     if (typeof item === "string" && item.trim()) parts.push(`Decision: ${item.trim()}`);
   }
+  for (const item of Array.isArray(notes.blockers) ? notes.blockers : []) {
+    if (typeof item === "string" && item.trim()) parts.push(`Blocker: ${item.trim()}`);
+  }
   for (const action of Array.isArray(notes.actions) ? notes.actions : []) {
     if (!action || typeof action.text !== "string") continue;
-    parts.push(`Action: ${action.text}${action.owner ? ` (${action.owner})` : ""}`);
+    const owner = typeof action.owner === "string" ? action.owner.trim() : "";
+    const due = typeof action.due === "string" && action.due.trim() ? `due ${action.due.trim()}` : "";
+    const suffix = [owner, due].filter(Boolean).join(", ");
+    parts.push(`Action: ${action.text}${suffix ? ` (${suffix})` : ""}`);
   }
   for (const section of Array.isArray(notes.sections) ? notes.sections : []) {
     if (!section || typeof section.heading !== "string") continue;
