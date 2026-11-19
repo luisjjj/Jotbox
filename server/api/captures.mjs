@@ -1,8 +1,17 @@
 import { z } from "zod";
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
-import { planForUser } from "./billing.mjs";
-import { planMonthlySeconds, usageSeconds } from "./usage.mjs";
+import { indexCapture, scheduleChunkEmbedding } from "./memory-index.mjs";
+import {
+  overLimitMessage,
+  OVERAGE_GRACE_SECONDS,
+  quotaScope,
+  quotaState,
+  releaseQuota,
+  reserveQuota,
+  settleQuota,
+} from "./quota.mjs";
+import { audioKeyFor, deleteAudioObject, presignAudio, putAudio, storageConfigured } from "./storage.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -22,6 +31,7 @@ const actionItem = z.object({
   id: z.string().max(120),
   text: z.string().max(4_000),
   owner: z.string().max(160),
+  due: z.string().max(40).optional(),
   done: z.boolean(),
 });
 
@@ -30,10 +40,18 @@ const noteSection = z.object({
   bullets: z.array(z.string().max(8_000)).max(200),
 });
 
+const followUp = z.object({
+  to: z.string().max(320),
+  subject: z.string().max(400),
+  body: z.string().max(20_000),
+});
+
 const notes = z.object({
   summary: z.string().max(40_000),
   highlights: z.array(z.string().max(8_000)).max(200),
   decisions: z.array(z.string().max(8_000)).max(100).optional(),
+  blockers: z.array(z.string().max(8_000)).max(100).optional(),
+  followUps: z.array(followUp).max(20).optional(),
   actions: z.array(actionItem).max(200),
   sections: z.array(noteSection).max(100),
   source: z.enum(["studio", "browser"]),
@@ -69,24 +87,32 @@ const session = z.object({
 const EXPIRED_LIVE_ERROR =
   "This capture stayed open for more than 4 hours, so JotBox ended it. The words that were saved are here. Write the notes from them.";
 
-// The recorder stops itself at the limit. A few seconds of grace covers the
-// final tick, so an honest capture is never refused for stopping on time.
-const OVERAGE_GRACE_SECONDS = 10;
+const MAX_AUDIO_BYTES = 80 * 1024 * 1024;
 
-function overLimitMessage(plan, limitSeconds, exhausted) {
-  if (plan === "enterprise") {
-    return "This workspace has used its listening time for this month. Your notes are still saved on this device.";
+async function readBuffer(req, limit) {
+  if (Buffer.isBuffer(req.body)) {
+    if (req.body.length > limit) throw new HttpError(413, "That recording is too large.");
+    return req.body;
   }
-  if (plan === "pro") {
-    const hours = Math.max(1, Math.round(limitSeconds / 3600));
-    return exhausted
-      ? `You have used the ${hours} hours included with Pro this month. It resets at the start of next month. Your notes are still saved on this device.`
-      : `This capture is longer than the Pro listening time you have left this month. Your notes are still saved on this device.`;
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limit) throw new HttpError(413, "That recording is too large.");
+    chunks.push(chunk);
   }
-  return exhausted
-    ? "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening. Your notes are still saved on this device."
-    : "This capture is longer than the free listening time you have left this month. Upgrade to Pro to keep listening. Your notes are still saved on this device.";
+  return Buffer.concat(chunks);
 }
+
+async function ownedCapture(userId, captureId) {
+  const result = await query("select id, audio_key from captures where id = $1 and user_id = $2", [captureId, userId]);
+  return result.rows[0] ?? null;
+}
+
+const reserveInput = z.object({
+  id: z.string().uuid(),
+  seconds: z.number().finite().min(0).max(4 * 3600).optional(),
+});
 
 function fromRow(row) {
   return {
@@ -108,6 +134,92 @@ function fromRow(row) {
 
 export async function handleCaptures(req, res) {
   const { user } = await requireSession(req);
+  const url = new URL(req.url || "/", "http://localhost");
+  const action = url.searchParams.get("action") || "";
+
+  if (req.method === "GET" && action === "audio") {
+    const id = url.searchParams.get("id") || "";
+    if (!z.string().uuid().safeParse(id).success) throw new HttpError(400, "A session id is required.");
+    const capture = await ownedCapture(user.id, id);
+    if (!capture) throw new HttpError(404, "That session was not found.");
+    if (!capture.audio_key) throw new HttpError(404, "That session has no stored audio.");
+    sendJson(res, 200, presignAudio(capture.audio_key));
+    return;
+  }
+
+  if (req.method === "POST" && action === "reserve") {
+    assertSameOrigin(req);
+    const input = reserveInput.safeParse(await readJson(req, 8_000));
+    if (!input.success) throw new HttpError(400, "A session id is required.");
+    const result = await reserveQuota({
+      userId: user.id,
+      captureId: input.data.id,
+      seconds: input.data.seconds ?? 0,
+    });
+    if (!result.ok) {
+      const exhausted = result.state.usedSeconds + result.state.reservedSeconds >= result.state.limitSeconds;
+      throw new HttpError(402, overLimitMessage(result.plan, result.state.limitSeconds, exhausted));
+    }
+    sendJson(res, 200, {
+      plan: result.plan,
+      reservedSeconds: result.reservation?.seconds ?? 0,
+      usedSeconds: result.state.usedSeconds + result.state.reservedSeconds,
+      limitSeconds: result.state.limitSeconds,
+      remainingSeconds: Math.max(0, result.state.remainingSeconds - result.state.requestedSeconds),
+      unlimited: result.state.unlimited,
+      pooled: result.state.pooled,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && action === "release") {
+    assertSameOrigin(req);
+    const input = reserveInput.safeParse({ ...(await readJson(req, 8_000)), seconds: 0 });
+    if (!input.success) throw new HttpError(400, "A session id is required.");
+    await releaseQuota(user.id, input.data.id);
+    sendJson(res, 200, { released: true });
+    return;
+  }
+
+  if (req.method === "POST" && action === "audio") {
+    assertSameOrigin(req);
+    const id = url.searchParams.get("id") || "";
+    if (!z.string().uuid().safeParse(id).success) throw new HttpError(400, "A session id is required.");
+    if (!storageConfigured()) throw new HttpError(503, "Audio storage is not configured on this server.");
+    const capture = await ownedCapture(user.id, id);
+    if (!capture) throw new HttpError(404, "Save the session before sending its audio.");
+    const body = await readBuffer(req, MAX_AUDIO_BYTES);
+    if (!body.length) throw new HttpError(400, "No audio was sent.");
+    const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
+    const key = audioKeyFor(user.id, id, contentType);
+    await putAudio(key, body, contentType);
+    await query(
+      `update captures
+          set audio_key = $3, audio_content_type = $4, audio_bytes = $5,
+              has_audio = true, audio_deleted_at = null, updated_at = now()
+        where id = $1 and user_id = $2`,
+      [id, user.id, key, contentType, body.length],
+    );
+    sendJson(res, 200, { stored: true, key, bytes: body.length });
+    return;
+  }
+
+  if (req.method === "DELETE" && action === "audio") {
+    assertSameOrigin(req);
+    const id = url.searchParams.get("id") || "";
+    if (!z.string().uuid().safeParse(id).success) throw new HttpError(400, "A session id is required.");
+    const capture = await ownedCapture(user.id, id);
+    if (!capture) throw new HttpError(404, "That session was not found.");
+    if (capture.audio_key) await deleteAudioObject(capture.audio_key).catch(() => {});
+    await query(
+      `update captures
+          set audio_key = null, has_audio = false, audio_deleted_at = now(), updated_at = now()
+        where id = $1 and user_id = $2`,
+      [id, user.id],
+    );
+    sendJson(res, 200, { deleted: true });
+    return;
+  }
 
   if (req.method === "GET") {
     await query(
@@ -135,17 +247,21 @@ export async function handleCaptures(req, res) {
       throw new HttpError(400, parsed.error.issues[0]?.message || "That session could not be saved.");
     }
     const item = parsed.data;
-    const plan = await planForUser(user.id);
-    const limit = planMonthlySeconds(plan);
+    let saved = null;
     const client = await getPool().connect();
     try {
       await client.query("begin");
       // One lock per person keeps the plan check and the ledger write atomic, so
       // two tabs saving at once cannot both pass the last minute.
       await client.query("select pg_advisory_xact_lock(hashtext($1))", [`usage:${user.id}`]);
-      const used = await usageSeconds(client, user.id, item.id);
-      if (used + item.durationSec > limit + OVERAGE_GRACE_SECONDS) {
-        throw new HttpError(402, overLimitMessage(plan, limit, used >= limit));
+      const scope = await quotaScope(client, user.id);
+      await client.query("select pg_advisory_xact_lock(hashtext($1))", [`quota:${scope.scopeId}`]);
+      const state = await quotaState(client, user.id, { excludeCaptureId: item.id });
+      if (state.usedSeconds + state.reservedSeconds + item.durationSec > state.limitSeconds + OVERAGE_GRACE_SECONDS) {
+        throw new HttpError(
+          402,
+          overLimitMessage(state.plan, state.limitSeconds, state.usedSeconds >= state.limitSeconds),
+        );
       }
 
       const result = await client.query(
@@ -198,6 +314,11 @@ export async function handleCaptures(req, res) {
           [user.id, item.id, Math.ceil(item.durationSec)],
         );
       }
+      await settleQuota(client, user.id, item.id);
+      saved = await client.query(
+        "select id, user_id, org_id, department_id, transcript, notes from captures where id = $1 and user_id = $2",
+        [item.id, user.id],
+      );
       await client.query("commit");
     } catch (error) {
       await client.query("rollback").catch(() => {});
@@ -205,17 +326,28 @@ export async function handleCaptures(req, res) {
     } finally {
       client.release();
     }
+    if (saved?.rows[0]?.org_id) {
+      try {
+        await indexCapture({ query }, saved.rows[0]);
+        void scheduleChunkEmbedding(item.id);
+      } catch (error) {
+        console.warn("[jotbox-captures] memory index skipped", error instanceof Error ? error.message : error);
+      }
+    }
     sendJson(res, 200, { id: item.id });
     return;
   }
 
   if (req.method === "DELETE") {
     assertSameOrigin(req);
-    const url = new URL(req.url || "/", "http://localhost");
     const id = url.searchParams.get("id") || "";
     if (!z.string().uuid().safeParse(id).success) {
       throw new HttpError(400, "A session id is required.");
     }
+    const existing = await query(
+      "select audio_key from captures where id = $1 and user_id = $2 and status <> 'live'",
+      [id, user.id],
+    );
     const result = await query(
       "delete from captures where id = $1 and user_id = $2 and status <> 'live' returning id",
       [id, user.id],
@@ -228,6 +360,10 @@ export async function handleCaptures(req, res) {
       if (live.rowCount) {
         throw new HttpError(409, "Stop the capture before deleting it.");
       }
+    } else {
+      const audioKey = existing.rows[0]?.audio_key;
+      if (audioKey) await deleteAudioObject(audioKey).catch(() => {});
+      await releaseQuota(user.id, id).catch(() => {});
     }
     res.statusCode = 204;
     res.end();

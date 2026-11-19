@@ -269,6 +269,64 @@ export interface MemorySource {
   owner: string;
 }
 
+export interface MemoryCitation {
+  id: string;
+  captureId: string;
+  title: string;
+  date: string;
+  speaker: string;
+  startSec: number;
+  excerpt: string;
+  href: string;
+}
+
+export interface QuotaReservation {
+  plan: Plan;
+  reservedSeconds: number;
+  usedSeconds: number;
+  limitSeconds: number;
+  remainingSeconds: number;
+  unlimited: boolean;
+  pooled: boolean;
+}
+
+export interface StoredAudio {
+  stored: boolean;
+  key: string;
+  bytes: number;
+}
+
+export type TranscribeJobStatus = "queued" | "running" | "done" | "failed";
+
+export interface TranscribeJobResult {
+  title: string;
+  lines: TranscriptLine[];
+  notes: NonNullable<Session["notes"]>;
+  language: string | null;
+}
+
+export interface TranscribeJob {
+  id: string;
+  status: TranscribeJobStatus;
+  result: TranscribeJobResult | null;
+  error: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface TranscribeJobInput {
+  id: string;
+  title: string;
+  kind: Session["kind"];
+  scratch: string;
+  participants: string[];
+  context?: unknown;
+  contentType: string;
+  audioKey: string;
+  titleIsDefault: boolean;
+  tone?: string;
+}
+
 export interface MemoryAnswer {
   answer: string;
   timeline: { date: string; title: string; text: string; sourceIds: string[] }[];
@@ -277,6 +335,7 @@ export interface MemoryAnswer {
   reasonMissing: boolean;
   reasonNote: string;
   sources: MemorySource[];
+  citations?: MemoryCitation[];
   scope: {
     role: OrgRole;
     retentionDays: number;
@@ -384,6 +443,26 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+async function upload<T>(path: string, blob: Blob): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": blob.type || "application/octet-stream" },
+      body: blob,
+    });
+  } catch {
+    throw new ApiError("Could not reach JotBox. Check your connection.", 0);
+  }
+  if (response.status === 401) authExpired(path);
+  const data = (await response.json().catch(() => null)) as { error?: string } | null;
+  if (!response.ok) {
+    throw new ApiError(data?.error ?? "The audio could not be uploaded.", response.status);
+  }
+  return data as T;
+}
+
 export const api = {
   me: () => request<{ user: CloudUser | null }>("/api/auth/me"),
   login: (input: { email: string; password: string }) =>
@@ -432,6 +511,35 @@ export const api = {
     }),
   deleteCapture: (id: string) =>
     request<void>(`/api/captures?id=${encodeURIComponent(id)}`, { method: "DELETE" }),
+  reserveQuota: (id: string, seconds: number) =>
+    request<QuotaReservation>("/api/captures?action=reserve", {
+      method: "POST",
+      body: JSON.stringify({ id, seconds }),
+    }),
+  releaseQuota: (id: string) =>
+    request<{ released: boolean }>("/api/captures?action=release", {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    }),
+  uploadCaptureAudio: (id: string, blob: Blob) =>
+    upload<StoredAudio>(`/api/captures?action=audio&id=${encodeURIComponent(id)}`, blob),
+  getCaptureAudioUrl: (id: string) =>
+    request<{ url: string; expiresAt: number }>(`/api/captures?action=audio&id=${encodeURIComponent(id)}`),
+  deleteCaptureAudio: (id: string) =>
+    request<{ deleted: boolean }>(`/api/captures?action=audio&id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  startTranscribeJob: (input: TranscribeJobInput) =>
+    request<{ job: TranscribeJob }>("/api/transcribe?action=job", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  getTranscribeJob: async (id: string) =>
+    (
+      await request<{ job: TranscribeJob }>(
+        `/api/transcribe?action=job&id=${encodeURIComponent(id)}`,
+      )
+    ).job,
   listOrgs: async () => (await request<{ orgs: Organisation[] }>("/api/orgs")).orgs,
   createOrg: async (name: string) =>
     (await request<{ org: Organisation }>("/api/orgs", { method: "POST", body: JSON.stringify({ name }) })).org,

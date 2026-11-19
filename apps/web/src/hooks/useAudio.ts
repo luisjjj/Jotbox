@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadAudio } from "@/lib/audioStore";
+import { api } from "@/lib/api";
 
 export function useAudioUrl(sessionId: string | null, hasAudio: boolean) {
   const [url, setUrl] = useState<string | null>(null);
@@ -12,13 +13,28 @@ export function useAudioUrl(sessionId: string | null, hasAudio: boolean) {
     let cancelled = false;
     let objectUrl: string | null = null;
 
+    const useStored = async () => {
+      try {
+        const { url: signed } = await api.getCaptureAudioUrl(sessionId);
+        if (!cancelled) setUrl(signed);
+      } catch {
+        if (!cancelled) setUrl(null);
+      }
+    };
+
     void loadAudio(sessionId)
       .then((blob) => {
-        if (cancelled || !blob) return;
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
+        if (cancelled) return;
+        if (blob) {
+          objectUrl = URL.createObjectURL(blob);
+          setUrl(objectUrl);
+          return;
+        }
+        return useStored();
       })
-      .catch(() => setUrl(null));
+      .catch(() => {
+        if (!cancelled) void useStored();
+      });
 
     return () => {
       cancelled = true;

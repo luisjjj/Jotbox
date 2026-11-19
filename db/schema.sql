@@ -514,3 +514,98 @@ create table if not exists founder_outreach (
 insert into schema_migrations (version)
 values ('012_lifecycle_email')
 on conflict (version) do nothing;
+
+-- Async note jobs, reserved listening time, server-side audio and retrieval
+-- chunks. A reservation is claimed before a recording starts, so a person who
+-- is already out of minutes is refused before a provider is paid to listen.
+alter table organisations add column if not exists plan text not null default 'free'
+  check (plan in ('free', 'pro', 'enterprise'));
+alter table organisations add column if not exists pool_seconds integer
+  check (pool_seconds is null or pool_seconds >= 0);
+
+create table if not exists usage_reservations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  capture_id uuid not null,
+  org_id uuid references organisations(id) on delete cascade,
+  seconds integer not null check (seconds >= 0),
+  status text not null default 'active' check (status in ('active', 'settled', 'released', 'expired')),
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '6 hours',
+  settled_at timestamptz
+);
+
+create unique index if not exists usage_reservations_active_capture_idx
+  on usage_reservations (user_id, capture_id) where status = 'active';
+create index if not exists usage_reservations_scope_idx
+  on usage_reservations (user_id, status, expires_at);
+create index if not exists usage_reservations_org_idx
+  on usage_reservations (org_id, status, expires_at) where org_id is not null;
+
+create table if not exists ai_jobs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  capture_id uuid not null,
+  kind text not null default 'notes' check (kind in ('notes')),
+  status text not null default 'queued' check (status in ('queued', 'running', 'done', 'failed')),
+  attempt integer not null default 0,
+  payload jsonb not null default '{}'::jsonb,
+  result jsonb,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  started_at timestamptz,
+  finished_at timestamptz
+);
+
+create index if not exists ai_jobs_queue_idx on ai_jobs (status, created_at);
+create index if not exists ai_jobs_user_created_idx on ai_jobs (user_id, created_at desc);
+
+alter table captures add column if not exists audio_key text;
+alter table captures add column if not exists audio_content_type text;
+alter table captures add column if not exists audio_bytes bigint
+  check (audio_bytes is null or audio_bytes >= 0);
+alter table captures add column if not exists audio_deleted_at timestamptz;
+
+create table if not exists memory_chunks (
+  id uuid primary key default gen_random_uuid(),
+  capture_id uuid not null references captures(id) on delete cascade,
+  org_id uuid not null references organisations(id) on delete cascade,
+  department_id uuid references departments(id) on delete set null,
+  owner_id uuid not null references users(id) on delete cascade,
+  chunk_index integer not null check (chunk_index >= 0),
+  speaker text not null default '',
+  start_sec double precision not null default 0 check (start_sec >= 0),
+  end_sec double precision not null default 0 check (end_sec >= 0),
+  text text not null check (length(text) > 0),
+  tsv tsvector generated always as (to_tsvector('simple', text)) stored,
+  embedding jsonb,
+  embedding_model text,
+  created_at timestamptz not null default now(),
+  unique (capture_id, chunk_index)
+);
+
+create index if not exists memory_chunks_capture_idx on memory_chunks (capture_id);
+create index if not exists memory_chunks_org_idx on memory_chunks (org_id, created_at desc);
+create index if not exists memory_chunks_tsv_idx on memory_chunks using gin (tsv);
+
+-- pgvector is optional. A managed Postgres role may not be allowed to install
+-- extensions, so the block is best effort and retrieval falls back to tsvector
+-- and in-process cosine similarity when it is absent.
+do $$
+begin
+  begin
+    create extension if not exists vector;
+  exception when others then
+    null;
+  end;
+  if exists (select 1 from pg_extension where extname = 'vector') then
+    execute 'alter table memory_chunks add column if not exists embedding_vector vector(1536)';
+    execute 'create index if not exists memory_chunks_embedding_idx on memory_chunks using hnsw (embedding_vector vector_cosine_ops)';
+  end if;
+end
+$$;
+
+insert into schema_migrations (version)
+values ('013_async_rag_storage')
+on conflict (version) do nothing;

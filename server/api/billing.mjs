@@ -1,7 +1,9 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
-import { planMonthlySeconds, usageView } from "./usage.mjs";
+import { quotaUsage, sweepReservations } from "./quota.mjs";
+import { sweepExpiredAudio } from "./storage.mjs";
+import { sweepJobs } from "./jobs.mjs";
 import { sendCancellationEmail, sendReceiptEmail, sendRenewalReminderEmail } from "./email.mjs";
 import {
   HttpError,
@@ -745,15 +747,20 @@ async function statusFor(userId, { reconcile = false } = {}) {
     row = await getSubscription(userId);
   }
   const plan = planOf(row);
+  const quota = await quotaUsage(userId);
   return {
     configured: config.configured,
     plan,
     subscription: subscriptionView(row),
     pricing: publicPricing(config),
-    usage: await usageView(userId, {
-      unlimited: plan === "enterprise",
-      limitSeconds: planMonthlySeconds(plan),
-    }),
+    usage: quota.usage,
+    quota: {
+      pooled: quota.pooled,
+      orgId: quota.orgId,
+      limitSeconds: quota.limitSeconds,
+      reservedSeconds: quota.reservedSeconds,
+      availableSeconds: quota.availableSeconds,
+    },
   };
 }
 
@@ -1193,7 +1200,21 @@ async function reconcile(req, res) {
     );
     reminders = { checked: 0, sent: 0, skipped: 0, failed: true };
   }
-  sendJson(res, 200, { received: true, reconciled: done, failed, reminders });
+  const [reservations, jobs, audio] = await Promise.all([
+    sweepReservations().catch((error) => {
+      console.warn("[jotbox-billing] reservation sweep failed", error instanceof Error ? error.message : error);
+      return 0;
+    }),
+    sweepJobs().catch((error) => {
+      console.warn("[jotbox-billing] job sweep failed", error instanceof Error ? error.message : error);
+      return 0;
+    }),
+    sweepExpiredAudio().catch((error) => {
+      console.warn("[jotbox-billing] audio sweep failed", error instanceof Error ? error.message : error);
+      return { deleted: 0, checked: 0 };
+    }),
+  ]);
+  sendJson(res, 200, { received: true, reconciled: done, failed, reminders, reservations, jobs, audio });
 }
 
 async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {

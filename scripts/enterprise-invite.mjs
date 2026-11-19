@@ -15,6 +15,8 @@ import { appUrlFor, emailConfigured, sendEnterpriseInviteEmail } from "../server
  *   npm run enterprise:invite -- --revoke <invite-id>
  *   npm run enterprise:invite -- --activate cto@acme.com
  *   npm run enterprise:invite -- --deactivate cto@acme.com
+ *   npm run enterprise:invite -- --pool "Acme" --pool-hours 400
+ *   npm run enterprise:invite -- --clear-pool "Acme"
  */
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -67,6 +69,8 @@ function usage() {
   --revoke <invite-id>   Turn an invite link off
   --activate <email>     Put an existing account on the enterprise plan
   --deactivate <email>   Take an account off enterprise and back to free
+  --pool "<org>" --pool-hours <n>  Give an organisation a shared monthly pool
+  --clear-pool "<org>"   Remove an organisation's shared pool
   --no-email             Print the link only; do not email it
 `);
 }
@@ -235,6 +239,48 @@ async function deactivateEnterprise(value) {
   console.log("An earlier Paystack Pro subscription is not restored. Send a checkout link if they want Pro again.");
 }
 
+async function findOrganisation(value) {
+  const ref = String(value === true ? "" : value || "").trim();
+  if (!ref) return null;
+  const result = await query(
+    `select id, name from organisations
+      where id::text = $1 or lower(name) = lower($1)
+      limit 1`,
+    [ref],
+  );
+  return result.rows[0] ?? null;
+}
+
+async function setPool(args) {
+  const org = await findOrganisation(args.pool);
+  if (!org) {
+    console.error("No organisation matches --pool. Use its exact name or id.");
+    process.exitCode = 1;
+    return;
+  }
+  const hours = Number(args["pool-hours"]);
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 100_000) {
+    console.error("--pool-hours must be a number between 1 and 100000.");
+    process.exitCode = 1;
+    return;
+  }
+  const seconds = Math.round(hours * 3600);
+  await query("update organisations set plan = 'enterprise', pool_seconds = $2 where id = $1", [org.id, seconds]);
+  console.log(`${org.name} now shares ${hours} listening hours a month across its members.`);
+  console.log("Members whose account is on the enterprise plan draw from this pool instead of their own limit.");
+}
+
+async function clearPool(value) {
+  const org = await findOrganisation(value);
+  if (!org) {
+    console.error("No organisation matches --clear-pool. Use its exact name or id.");
+    process.exitCode = 1;
+    return;
+  }
+  await query("update organisations set plan = 'free', pool_seconds = null where id = $1", [org.id]);
+  console.log(`${org.name} no longer has a shared pool. Members fall back to their own plan limit.`);
+}
+
 async function createInvite(args) {
   const company = String(args.company === true ? "" : args.company || "").trim();
   const email = normalizeEmail(args.email);
@@ -350,6 +396,14 @@ async function main() {
       return;
     }
     await deactivateEnterprise(String(args.deactivate));
+    return;
+  }
+  if (args.pool) {
+    await setPool(args);
+    return;
+  }
+  if (args["clear-pool"]) {
+    await clearPool(args["clear-pool"]);
     return;
   }
   await createInvite(args);

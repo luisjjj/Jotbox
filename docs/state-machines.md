@@ -63,7 +63,7 @@ These events move more than one machine. Most serious bugs live at these seams.
 | Capture save returns 402 | 2, 14, 21 | Keep local copy, park sync, refresh usage, show upgrade path |
 | Auth cookie expires | 9, 21 | Every API returns 401; app should move to signed out |
 | Sign out | 9, 21, 24 | Flush or preserve unsynced work, stop sync, clear cache, prune audio |
-| Upgrade to Pro | 10, 11, 12, 14, 15 | Checkout, verify, entitlement, 30 hours a month, clear paywalls |
+| Upgrade to Pro | 10, 11, 12, 14, 15 | Checkout, verify, entitlement, 25 hours a month, clear paywalls |
 | Renewal fails | 12, 14, 21 | Attention status, grace window, then free |
 | Cancel renewal | 12, 13 | Keep Pro to period end, stop future charges |
 | Revoke share link | 16, 17 | Row revoked, public page 410, open tabs stale |
@@ -407,7 +407,7 @@ with an `ignored_reason` (`:287`).
 limit, pro exhausted, enterprise (`usageStore.ts:41`). **Server:** monthly sum
 over the `usage_ledger` table (`usage.mjs:47`), written in the same transaction
 as a saved capture (`captures.mjs:112`), with a 10 second overage grace. Limits
-come from `planMonthlySeconds`: 100 minutes free, 30 hours Pro, 1,000 hours
+come from `planMonthlySeconds`: 100 minutes free, 25 hours Pro, 1,000 hours
 enterprise, and enterprise is shown as unlimited.
 
 | From | Event | To | Effects |
@@ -416,7 +416,7 @@ enterprise, and enterprise is shown as unlimited.
 | free or pro within limit | Capture saves | within limit or exhausted | Server sum changes |
 | free or pro within limit | Capture would exceed | exhausted, save 402 | Local copy kept, sync parked |
 | exhausted | Calendar month changes | within limit | Server UTC month |
-| free | Upgrade | pro | 30 hours a month |
+| free | Upgrade | pro | 25 hours a month |
 | pro | Enterprise activation | enterprise | Shown as unlimited, hidden 1,000 hour ceiling |
 | pro | Period ends | free | Next refresh |
 | any | Delete capture | usage unchanged | Ledger keeps minutes already spent |

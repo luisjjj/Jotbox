@@ -8,6 +8,9 @@
     "api/billing.mjs": {
       "maxDuration": 60
     },
+    "api/captures.mjs": {
+      "maxDuration": 60
+    },
     "api/transcribe.mjs": {
       "maxDuration": 300
     },

@@ -3,6 +3,7 @@ import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
 import { isProUser } from "./billing.mjs";
 import { answerOrganisationMemory } from "./memory-ai.mjs";
+import { citationsFrom, indexCapture, retrieveChunks, scheduleChunkEmbedding } from "./memory-index.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -717,6 +718,21 @@ async function shareCapture(req, res) {
     },
   });
 
+  // Chunk after the share lands, so the same speaker turns and timestamps
+  // are searchable straight away. Embeddings fill in the background.
+  try {
+    const shared = await query(
+      "select id, user_id, org_id, department_id, transcript, notes from captures where id = $1",
+      [input.captureId],
+    );
+    if (shared.rows[0]) {
+      await indexCapture({ query }, shared.rows[0]);
+      void scheduleChunkEmbedding(input.captureId);
+    }
+  } catch (error) {
+    console.warn("[jotbox-orgs] memory index skipped", error instanceof Error ? error.message : error);
+  }
+
   sendJson(res, 200, {
     share: {
       id: capture.id,
@@ -820,6 +836,8 @@ async function unshareCapture(req, res) {  requireMethod(req, ["DELETE"]);
     // Unsharing resets sensitivity to standard, so revoke links or they would go live again.
     await revokeCaptureLinks(client, captureId);
     await client.query("delete from capture_grants where capture_id = $1", [captureId]);
+    // Unshared words must leave the organisation index at once.
+    await client.query("delete from memory_chunks where capture_id = $1", [captureId]);
     await client.query("commit");
   } catch (error) {
     await client.query("rollback").catch(() => {});
@@ -938,6 +956,7 @@ async function queryMemory(req, res) {
       reasonMissing: false,
       reasonNote: "",
       sources: [],
+      citations: [],
       scope: {
         role: member.role,
         retentionDays: member.retentionDays,
@@ -950,6 +969,15 @@ async function queryMemory(req, res) {
     return;
   }
 
+  const captureIds = accessible.rows.map((row) => row.id);
+  const chunks = await retrieveChunks({ query }, { question: searchQuestion, captureIds, limit: 32 });
+  const momentsByCapture = new Map();
+  for (const chunk of chunks) {
+    const list = momentsByCapture.get(chunk.captureId) ?? [];
+    list.push(chunk);
+    momentsByCapture.set(chunk.captureId, list);
+  }
+
   const terms = questionTerms(searchQuestion);
   const scored = accessible.rows.map((row) => {
     const notesText = notesToText(row.notes);
@@ -960,7 +988,8 @@ async function queryMemory(req, res) {
       score += 3 * Math.min(4, occurrences(notesText, term));
       score += Math.min(6, occurrences(transcriptText, term));
     }
-    return { row, notesText, transcriptText, score };
+    const momentScore = (momentsByCapture.get(row.id) ?? []).reduce((total, chunk) => total + chunk.score, 0);
+    return { row, notesText, transcriptText, score: score + momentScore * 100 };
   });
 
   const matched = scored.filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
@@ -979,6 +1008,11 @@ async function queryMemory(req, res) {
     notes: row.notes,
     notesText: notesText.slice(0, 8_000),
     transcriptText: transcriptText.slice(0, 5_000),
+    excerpts: (momentsByCapture.get(row.id) ?? []).slice(0, 5).map((chunk) => ({
+      speaker: chunk.speaker,
+      startSec: chunk.startSec,
+      text: chunk.text.slice(0, 900),
+    })),
   }));
 
   try {
@@ -1002,6 +1036,13 @@ async function queryMemory(req, res) {
       ...answer.recorded.flatMap((item) => item.sourceIds),
     ]);
     const sources = [...cited].flatMap((id) => (sourceMap.has(id) ? [sourceMap.get(id)] : []));
+    const citationSource = new Map(
+      selected.map(({ row }) => [row.id, { title: row.title, date: new Date(row.created_at).toISOString() }]),
+    );
+    const citations = citationsFrom(
+      chunks.filter((chunk) => citationSource.has(chunk.captureId)),
+      citationSource,
+    );
 
     await audit({
       req,
@@ -1015,6 +1056,7 @@ async function queryMemory(req, res) {
         considered: accessible.rows.length,
         used: selected.length,
         cited: sources.map((source) => source.id),
+        citations: citations.map((citation) => citation.id),
         reasonMissing: answer.reasonMissing,
       },
     });
@@ -1027,6 +1069,7 @@ async function queryMemory(req, res) {
       reasonMissing: answer.reasonMissing,
       reasonNote: answer.reasonNote,
       sources,
+      citations,
       scope: {
         role: member.role,
         retentionDays: member.retentionDays,

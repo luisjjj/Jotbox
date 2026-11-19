@@ -758,6 +758,30 @@ function AnswerCard({
 
       {open && (
         <div className="border-t border-line bg-raised-2/60 px-3.5 py-3.5">
+          {answer.citations && answer.citations.length > 0 && (
+            <div className="mb-4">
+              <h3 className="kicker">Moments cited</h3>
+              <ul className="mt-2 grid gap-2 lg:grid-cols-2">
+                {answer.citations.map((citation) => (
+                  <li key={citation.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSource(citation.captureId)}
+                      className="w-full rounded-lg border border-line bg-raised p-2.5 text-left transition-colors hover:border-line-strong"
+                    >
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="text-[13px] font-semibold text-ink">{citation.title}</span>
+                        <span className="text-[11.5px] text-faint">
+                          {citation.speaker || "Speaker"} at {formatClock(citation.startSec)}
+                        </span>
+                      </div>
+                      <p className="mt-1 line-clamp-3 text-[13px] leading-5 text-soft">{citation.excerpt}</p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {answer.timeline.length > 0 && (
             <div>
               <h3 className="kicker">How it unfolded</h3>

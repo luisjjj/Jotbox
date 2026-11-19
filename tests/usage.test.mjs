@@ -26,15 +26,15 @@ test("usage reports the remainder and never goes below zero", () => {
   assert.equal(over.remainingSeconds, 0);
 });
 
-test("Pro defaults to 30 hours and enterprise to a hidden 1000 hours", () => {
-  assert.equal(proMonthlySeconds({}), 30 * 3600);
+test("Pro defaults to 25 hours and enterprise to a hidden 1000 hours", () => {
+  assert.equal(proMonthlySeconds({}), 25 * 3600);
   assert.equal(proMonthlySeconds({ JOTBOX_PRO_MONTH_HOURS: "12" }), 12 * 3600);
-  assert.equal(proMonthlySeconds({ JOTBOX_PRO_MONTH_HOURS: "0" }), 30 * 3600);
-  assert.equal(proMonthlySeconds({ JOTBOX_PRO_MONTH_HOURS: "not-a-number" }), 30 * 3600);
+  assert.equal(proMonthlySeconds({ JOTBOX_PRO_MONTH_HOURS: "0" }), 25 * 3600);
+  assert.equal(proMonthlySeconds({ JOTBOX_PRO_MONTH_HOURS: "not-a-number" }), 25 * 3600);
   assert.equal(enterpriseMonthlySeconds({}), 1000 * 3600);
   assert.equal(enterpriseMonthlySeconds({ JOTBOX_ENTERPRISE_MONTH_HOURS: "2000" }), 1000 * 3600);
   assert.equal(planMonthlySeconds("free", {}), 6000);
-  assert.equal(planMonthlySeconds("pro", {}), 30 * 3600);
+  assert.equal(planMonthlySeconds("pro", {}), 25 * 3600);
   assert.equal(planMonthlySeconds("enterprise", {}), 1000 * 3600);
 });
 

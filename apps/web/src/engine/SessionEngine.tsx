@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
+import { ApiError, api } from "@/lib/api";
 import { saveAudio } from "@/lib/audioStore";
 import { conditionStream, shapeRoomAudio } from "@/lib/audioConditioning";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
@@ -34,6 +35,14 @@ import { withProcessingTimeout } from "@/lib/processing";
 import type { CaptureSource, LiveInsights, Participant, Session, SessionKind, TranscriptLine } from "@/lib/types";
 
 type EngineStatus = "idle" | "recording" | "paused" | "processing";
+
+type JobOutcome =
+  | { state: "done"; title: string; lines: TranscriptLine[]; notes: NonNullable<Session["notes"]> }
+  | { state: "failed"; message: string }
+  | { state: "unavailable" };
+
+const JOB_POLL_MS = 1500;
+const JOB_POLL_LIMIT = 160;
 
 interface SpeechAlternative {
   transcript: string;
@@ -661,6 +670,66 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  /**
+   * Hands the audio to the server job queue. Returns "unavailable" when the
+   * server cannot take it, so the caller can fall back to the inline path.
+   */
+  const runServerJob = useCallback(
+    async ({
+      session,
+      blob,
+      titleIsDefault,
+    }: {
+      session: Session;
+      blob: Blob;
+      titleIsDefault: boolean;
+    }): Promise<JobOutcome> => {
+      try {
+        await api.saveCapture(session);
+        const stored = await api.uploadCaptureAudio(session.id, blob);
+        let job = (
+          await api.startTranscribeJob({
+            id: session.id,
+            title: session.title,
+            kind: session.kind,
+            scratch: session.scratch,
+            participants: (session.participants ?? []).map((person) => person.name),
+            contentType: blob.type || "audio/webm",
+            audioKey: stored.key,
+            titleIsDefault,
+          })
+        ).job;
+        for (let attempt = 0; attempt < JOB_POLL_LIMIT; attempt += 1) {
+          if (job.status !== "queued" && job.status !== "running") break;
+          await new Promise<void>((resolve) => window.setTimeout(resolve, JOB_POLL_MS));
+          job = await api.getTranscribeJob(job.id);
+        }
+        if (job.status === "done" && job.result) {
+          return {
+            state: "done",
+            title: job.result.title || session.title,
+            lines: job.result.lines,
+            notes: job.result.notes,
+          };
+        }
+        if (job.status === "failed") {
+          return { state: "failed", message: job.error || "The notes could not be written." };
+        }
+        return {
+          state: "failed",
+          message: "The notes are still being written. Open this session again in a moment.",
+        };
+      } catch (error) {
+        // A plan limit is final: do not spend a provider call on the fallback.
+        if (error instanceof ApiError && error.status === 402) {
+          return { state: "failed", message: error.message };
+        }
+        return { state: "unavailable" };
+      }
+    },
+    [],
+  );
+
   const stop = useCallback(async () => {
     if (statusRef.current !== "recording" && statusRef.current !== "paused") return;
     const id = idRef.current;
@@ -688,7 +757,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     } catch {
       blob = null;
     }
-    useSessions.getState().upsert({
+    const base: Session = {
       id,
       title: titleNow,
       kind: kindNow,
@@ -701,8 +770,33 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       hasAudio: Boolean(blob && blob.size > 0),
       live: liveRef.current,
       participants: participantsRef.current,
-    });
+    };
+    useSessions.getState().upsert(base);
     navigate(`/session/${id}`);
+    if (blob && blob.size > 0) {
+      const outcome = await runServerJob({ session: base, blob, titleIsDefault });
+      if (outcome.state === "done") {
+        useSessions.getState().upsert({
+          ...base,
+          title: outcome.title,
+          status: "ready",
+          transcript: outcome.lines,
+          notes: outcome.notes,
+        });
+        void refreshUsage();
+        reset();
+        return;
+      }
+      if (outcome.state === "failed") {
+        useSessions.getState().upsert({
+          ...base,
+          status: "failed",
+          error: outcome.message,
+        });
+        reset();
+        return;
+      }
+    }
     try {
       const ai = await studioAvailable();
       const result = await withProcessingTimeout(
@@ -718,38 +812,21 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         }),
       );
       useSessions.getState().upsert({
-        id,
+        ...base,
         title: result.title,
-        kind: kindNow,
-        createdAt,
-        durationSec: duration,
         status: "ready",
-        scratch: scratchNow,
         transcript: result.lines,
         notes: result.notes,
-        hasAudio: Boolean(blob && blob.size > 0),
-        live: liveRef.current,
-        participants: participantsRef.current,
       });
     } catch (caught) {
       useSessions.getState().upsert({
-        id,
-        title: titleNow,
-        kind: kindNow,
-        createdAt,
-        durationSec: duration,
+        ...base,
         status: "failed",
-        scratch: scratchNow,
-        transcript: linesNow,
-        notes: null,
-        hasAudio: Boolean(blob && blob.size > 0),
-        live: liveRef.current,
-        participants: participantsRef.current,
         error: caught instanceof Error ? caught.message : "The notes could not be written.",
       });
     }
     reset();
-  }, [navigate]);
+  }, [navigate, runServerJob]);
 
   stopRef.current = stop;
 
@@ -774,6 +851,20 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const id = crypto.randomUUID();
       const createdAt = Date.now();
       const nextTitle = options.title?.trim() || titleRef.current.trim() || defaultTitle(options.kind);
+      // Take the time before the recorder opens, so an exhausted plan is
+      // refused before any speech provider is paid.
+      if (usage.loaded && !usage.unlimited && usage.remainingSeconds !== null) {
+        const seconds = Math.max(1, Math.min(4 * 3600, Math.ceil(usage.remainingSeconds)));
+        try {
+          await api.reserveQuota(id, seconds);
+        } catch (caught) {
+          if (caught instanceof ApiError && caught.status === 402) {
+            startingRef.current = false;
+            setError(caught.message);
+            return;
+          }
+        }
+      }
       try {
         const stream = await openStream(options.source);
         streamRef.current = stream;
@@ -828,6 +919,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       } catch (caught) {
         stopStreamRef.current();
         stopStreamRef.current = () => {};
+        void api.releaseQuota(id).catch(() => undefined);
         setAllowanceBoth(null);
         startingRef.current = false;
         setError(messageFor(caught, options.source));
@@ -905,11 +997,22 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const id = crypto.randomUUID();
       const createdAt = Date.now();
       const nextTitle = file.name.replace(/\.[^.]+$/, "") || defaultTitle(nextKind);
+      if (usage.loaded && !usage.unlimited && duration > 0) {
+        try {
+          await api.reserveQuota(id, Math.min(4 * 3600, Math.ceil(duration)));
+        } catch (caught) {
+          if (caught instanceof ApiError && caught.status === 402) {
+            startingRef.current = false;
+            setError(caught.message);
+            return;
+          }
+        }
+      }
       idRef.current = id;
       setSessionId(id);
       setStatusBoth("processing");
       setError(null);
-      useSessions.getState().upsert({
+      const base: Session = {
         id,
         title: nextTitle,
         kind: nextKind,
@@ -919,26 +1022,38 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         scratch: "",
         transcript: [],
         notes: null,
-        hasAudio: false,
+        hasAudio: true,
         participants: people,
-      });
+      };
+      useSessions.getState().upsert(base);
       navigate(`/session/${id}`);
       try {
         await saveAudio(id, file);
+        const outcome = await runServerJob({ session: base, blob: file, titleIsDefault: true });
+        if (outcome.state === "done") {
+          useSessions.getState().upsert({
+            ...base,
+            title: outcome.title,
+            status: "ready",
+            transcript: outcome.lines,
+            notes: outcome.notes,
+          });
+          void refreshUsage();
+          return;
+        }
+        if (outcome.state === "failed") {
+          useSessions.getState().upsert({
+            ...base,
+            status: "failed",
+            error: outcome.message,
+          });
+          return;
+        }
         const ai = await studioAvailable();
         if (!ai) {
           useSessions.getState().upsert({
-            id,
-            title: nextTitle,
-            kind: nextKind,
-            createdAt,
-            durationSec: duration,
+            ...base,
             status: "failed",
-            scratch: "",
-            transcript: [],
-            notes: null,
-            hasAudio: true,
-            participants: people,
             error:
               "The recording is saved on this device. JotBox can't write notes from it right now. You can paste the words below and JotBox will write the notes from them.",
           });
@@ -958,32 +1073,17 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         );
         const wrote = result.lines.length > 0 || result.notes.highlights.length > 0;
         useSessions.getState().upsert({
-          id,
+          ...base,
           title: result.title,
-          kind: nextKind,
-          createdAt,
-          durationSec: duration,
           status: wrote ? "ready" : "failed",
-          scratch: "",
           transcript: result.lines,
           notes: wrote ? result.notes : null,
-          hasAudio: true,
-          participants: people,
           error: wrote ? undefined : "No words came back from that recording.",
         });
       } catch (caught) {
         useSessions.getState().upsert({
-          id,
-          title: nextTitle,
-          kind: nextKind,
-          createdAt,
-          durationSec: duration,
+          ...base,
           status: "failed",
-          scratch: "",
-          transcript: [],
-          notes: null,
-          hasAudio: true,
-          participants: people,
           error: caught instanceof Error ? caught.message : "JotBox could not read that recording.",
         });
       } finally {
@@ -995,7 +1095,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         setStatusBoth("idle");
       }
     },
-    [navigate],
+    [navigate, runServerJob],
   );
 
   const pin = useCallback(async () => {

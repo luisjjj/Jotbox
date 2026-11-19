@@ -25,7 +25,7 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
@@ -165,6 +165,15 @@ function Panel({
   const [panel, setPanel] = useState<"transcript" | "notes">("transcript");
   const audioUrl = useAudioUrl(session.id, session.hasAudio);
   const audioRef = useRef<AudioHandle>(null);
+  const [searchParams] = useSearchParams();
+  const startAt = Number(searchParams.get("t"));
+
+  // A memory citation links to the exact second it quoted.
+  useEffect(() => {
+    if (!audioUrl || !Number.isFinite(startAt) || startAt <= 0) return;
+    const timer = window.setTimeout(() => audioRef.current?.seek(startAt), 350);
+    return () => window.clearTimeout(timer);
+  }, [audioUrl, startAt]);
 
   return (
     <div className="space-y-3">

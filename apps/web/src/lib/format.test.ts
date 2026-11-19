@@ -46,7 +46,7 @@ describe("formatClock", () => {
 
 describe("formatAllowance", () => {
   it("uses hours for paid allowances and minutes for the free hour", () => {
-    expect(formatAllowance(30 * 3600)).toBe("30 hours");
+    expect(formatAllowance(25 * 3600)).toBe("25 hours");
     expect(formatAllowance(1.5 * 3600)).toBe("1.5 hours");
     expect(formatAllowance(3600)).toBe("1 hour");
     expect(formatAllowance(3599)).toBe("60 minutes");

@@ -25,6 +25,7 @@ Separate the record from your reading:
 - inferences: a conclusion you draw by connecting records. Mark it as an inference. Never present an inference as something a person said or decided.
 - If the question asks why something changed and no record explicitly states a reason, set reasonMissing to true and say plainly that no reason was recorded. Do not supply a plausible reason.
 - Keep Nigerian Pidgin and other quoted speech exactly as recorded.
+- When a record includes relevant moments, use the speaker and timestamp shown there so the answer can point back to that second.
 - Use plain, direct language. Use commas, colons and full stops, never em dashes. Timeline entries must be in chronological order.
 
 Return only a JSON object with this exact shape:
@@ -52,6 +53,11 @@ function clipped(value, limit) {
   return text.length > limit ? `${text.slice(0, limit)}…` : text;
 }
 
+function clock(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 function formatRecord(record, index) {
   const lines = [
     `[record ${index + 1}] id=${record.id} | date=${record.date} | title=${record.title} | kind=${record.kind} | department=${record.department || "none"} | sensitivity=${record.sensitivity}`,
@@ -60,6 +66,13 @@ function formatRecord(record, index) {
     "Spoken words:",
     clipped(record.transcriptText, 2_500) || "(none)",
   ];
+  if (Array.isArray(record.excerpts) && record.excerpts.length) {
+    lines.push("Relevant moments:");
+    for (const moment of record.excerpts.slice(0, 5)) {
+      const speaker = moment?.speaker ? `${moment.speaker}: ` : "";
+      lines.push(`- [${clock(moment?.startSec)}] ${speaker}${clipped(moment?.text, 700)}`);
+    }
+  }
   return lines.join("\n");
 }
 

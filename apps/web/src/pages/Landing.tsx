@@ -118,7 +118,7 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  "30 hours of listening a month",
+  "25 hours of listening a month",
   "Branded PDF export for every session",
   "Five share links, up to 30 days each",
   "AI follow-up drafts in English or Pidgin",

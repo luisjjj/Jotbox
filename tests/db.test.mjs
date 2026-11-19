@@ -6,7 +6,7 @@ import { loadEnv } from "./env.mjs";
 
 const connectionString = loadEnv();
 const pool = connectionString
-  ? new pg.Pool({ connectionString, ssl: { rejectUnauthorized: true }, max: 1, connectionTimeoutMillis: 15_000 })
+  ? new pg.Pool({ connectionString, ssl: { rejectUnauthorized: true }, max: 1, connectionTimeoutMillis: 30_000 })
   : null;
 
 after(async () => {
@@ -32,6 +32,9 @@ const REQUIRED_TABLES = [
   "referral_payouts",
   "billing_reminders",
   "founder_outreach",
+  "usage_reservations",
+  "ai_jobs",
+  "memory_chunks",
 ];
 
 const REQUIRED_COLUMNS = {
@@ -52,6 +55,53 @@ const REQUIRED_COLUMNS = {
     "department_id",
     "visibility",
     "sensitivity",
+    "audio_key",
+    "audio_content_type",
+    "audio_bytes",
+    "audio_deleted_at",
+  ],
+  organisations: ["id", "name", "plan", "pool_seconds"],
+  usage_reservations: [
+    "id",
+    "user_id",
+    "capture_id",
+    "org_id",
+    "seconds",
+    "status",
+    "created_at",
+    "expires_at",
+    "settled_at",
+  ],
+  ai_jobs: [
+    "id",
+    "user_id",
+    "capture_id",
+    "kind",
+    "status",
+    "attempt",
+    "payload",
+    "result",
+    "error",
+    "created_at",
+    "started_at",
+    "finished_at",
+    "updated_at",
+  ],
+  memory_chunks: [
+    "id",
+    "capture_id",
+    "org_id",
+    "department_id",
+    "owner_id",
+    "chunk_index",
+    "speaker",
+    "start_sec",
+    "end_sec",
+    "text",
+    "tsv",
+    "embedding",
+    "embedding_model",
+    "created_at",
   ],
   org_members: ["org_id", "user_id", "role", "department_id", "joined_at"],
   capture_grants: ["capture_id", "user_id", "granted_by", "created_at"],
@@ -123,6 +173,7 @@ test("database schema supports recordings, org memory and audit", { skip: pool ?
   assert.ok(applied.includes("007_usage_ledger"));
   assert.ok(applied.includes("011_referrals"));
   assert.ok(applied.includes("012_lifecycle_email"));
+  assert.ok(applied.includes("013_async_rag_storage"));
 
   const constraints = await pool.query(
     `select conname from pg_constraint where conrelid = 'captures'::regclass and contype = 'c'`,
