@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { Modal } from "./Modal";
 import { Select } from "./Select";
 import { api, ApiError, type JiraHandoffLink, type JiraHandoffResult, type JiraProjectList } from "@/lib/api";
+import posthog, { posthogEnabled } from "@/lib/posthog";
 import type { Session } from "@/lib/types";
 
 function errorText(error: unknown) {
@@ -93,6 +94,13 @@ export function JiraHandoffDialog({
       });
       const links = [...result.created, ...result.existing];
       onHandedOff(links);
+      if (result.created.length > 0 && posthogEnabled) {
+        posthog.capture("jira_handoff_completed", {
+          created_ticket_count: result.created.length,
+          include_context: includeContext,
+          issue_type: issueType,
+        });
+      }
       if (result.created.length > 0) {
         toast.success(result.created.length === 1 ? "Ticket created in Jira" : `${result.created.length} tickets created in Jira`);
       }

@@ -46,6 +46,7 @@ import { copyNotes, downloadMarkdown, printSession } from "@/lib/exportNotes";
 import { downloadSessionPdf } from "@/lib/pdf";
 import { formatClock, isDefaultTitle, notesLookEmpty } from "@/lib/format";
 import { OUTPUT_PRESETS } from "@/lib/presets";
+import posthog, { posthogEnabled } from "@/lib/posthog";
 import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { linesFromText } from "@/lib/transcript";
@@ -366,6 +367,12 @@ export default function SessionPage() {
         transcript: result.lines,
         title: result.title,
       });
+      if (posthogEnabled) {
+        posthog.capture("session_notes_regenerated", {
+          session_kind: session.kind,
+          notes_source: result.notes.source,
+        });
+      }
       toast.success(audio ? "Words and notes are ready" : ai ? "Notes rewritten" : "Notes written on this device");
       return true;
     } catch (caught) {
@@ -482,6 +489,7 @@ export default function SessionPage() {
       return;
     }
     remove(session.id);
+    if (posthogEnabled) posthog.capture("session_deleted", { session_kind: session.kind });
     void deleteAudio(session.id);
     toast.success("Session deleted");
     navigate("/library");
@@ -815,7 +823,15 @@ export default function SessionPage() {
                           type="button"
                           className="action-box mt-0.5"
                           data-done={action.done}
-                          onClick={() => toggleAction(session.id, action.id)}
+                          onClick={() => {
+                            toggleAction(session.id, action.id);
+                            if (posthogEnabled) {
+                              posthog.capture("session_action_toggled", {
+                                session_kind: session.kind,
+                                completed: !action.done,
+                              });
+                            }
+                          }}
                           aria-pressed={action.done}
                           aria-label={`${action.done ? "Reopen" : "Complete"} action: ${action.text}`}
                         >
