@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
-import { isProUser } from "./billing.mjs";
-import { freeMonthlySeconds, usageSeconds } from "./usage.mjs";
+import { planForUser } from "./billing.mjs";
+import { planMonthlySeconds, usageSeconds } from "./usage.mjs";
 import {
   HttpError,
   assertSameOrigin,
@@ -73,6 +73,21 @@ const EXPIRED_LIVE_ERROR =
 // final tick, so an honest capture is never refused for stopping on time.
 const OVERAGE_GRACE_SECONDS = 10;
 
+function overLimitMessage(plan, limitSeconds, exhausted) {
+  if (plan === "enterprise") {
+    return "This workspace has used its listening time for this month. Your notes are still saved on this device.";
+  }
+  if (plan === "pro") {
+    const hours = Math.max(1, Math.round(limitSeconds / 3600));
+    return exhausted
+      ? `You have used the ${hours} hours included with Pro this month. It resets at the start of next month. Your notes are still saved on this device.`
+      : `This capture is longer than the Pro listening time you have left this month. Your notes are still saved on this device.`;
+  }
+  return exhausted
+    ? "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening. Your notes are still saved on this device."
+    : "This capture is longer than the free listening time you have left this month. Upgrade to Pro to keep listening. Your notes are still saved on this device.";
+}
+
 function fromRow(row) {
   return {
     id: row.id,
@@ -120,23 +135,17 @@ export async function handleCaptures(req, res) {
       throw new HttpError(400, parsed.error.issues[0]?.message || "That session could not be saved.");
     }
     const item = parsed.data;
-    const pro = await isProUser(user.id);
-    const limit = pro ? null : freeMonthlySeconds();
+    const plan = await planForUser(user.id);
+    const limit = planMonthlySeconds(plan);
     const client = await getPool().connect();
     try {
       await client.query("begin");
-      // One lock per person keeps the free check and the ledger write atomic, so
-      // two tabs saving at once cannot both pass the last free minute.
+      // One lock per person keeps the plan check and the ledger write atomic, so
+      // two tabs saving at once cannot both pass the last minute.
       await client.query("select pg_advisory_xact_lock(hashtext($1))", [`usage:${user.id}`]);
-      if (limit !== null) {
-        const used = await usageSeconds(client, user.id, item.id);
-        if (used + item.durationSec > limit + OVERAGE_GRACE_SECONDS) {
-          const message =
-            used >= limit
-              ? "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening. Your notes are still saved on this device."
-              : "This capture is longer than the free listening time you have left this month. Upgrade to Pro to keep listening. Your notes are still saved on this device.";
-          throw new HttpError(402, message);
-        }
+      const used = await usageSeconds(client, user.id, item.id);
+      if (used + item.durationSec > limit + OVERAGE_GRACE_SECONDS) {
+        throw new HttpError(402, overLimitMessage(plan, limit, used >= limit));
       }
 
       const result = await client.query(

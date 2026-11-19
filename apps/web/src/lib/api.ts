@@ -163,6 +163,8 @@ export interface BillingSubscription {
   reconciledAt: number | null;
 }
 
+export type Plan = "free" | "pro" | "enterprise";
+
 export interface BillingUsage {
   unlimited: boolean;
   usedSeconds: number;
@@ -174,7 +176,7 @@ export interface BillingUsage {
 
 export interface BillingStatus {
   configured: boolean;
-  plan: "free" | "pro";
+  plan: Plan;
   subscription: BillingSubscription | null;
   pricing: BillingPricing;
   usage: BillingUsage;

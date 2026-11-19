@@ -6,6 +6,7 @@ import {
   clampPeriodEnd,
   eventTime,
   isEntitled,
+  planOf,
   subscriptionView,
   validProCharge,
   verifyWebhookSignature,
@@ -80,6 +81,29 @@ test("paid statuses keep Pro, and a cancelled plan keeps the paid period", () =>
   assert.equal(
     isEntitled({ status: "cancelled", next_payment_at: "2026-11-01T00:00:00.000Z" }, Date.parse("2026-11-13")),
     false,
+  );
+});
+
+test("an active manual enterprise row stays on without a Paystack period", () => {
+  const now = Date.parse("2026-11-13");
+  const enterprise = {
+    plan_key: "enterprise",
+    provider: "manual",
+    status: "active",
+    started_at: "2020-01-01T00:00:00.000Z",
+  };
+  assert.equal(isEntitled(enterprise, now), true);
+  assert.equal(planOf(enterprise, now), "enterprise");
+  assert.equal(planOf({ ...enterprise, status: "cancelled" }, now), "free");
+});
+
+test("planOf sends unpaid or unknown rows to free", () => {
+  const now = Date.parse("2026-11-13");
+  assert.equal(planOf(null, now), "free");
+  assert.equal(planOf({ plan_key: "pro", status: "completed" }, now), "free");
+  assert.equal(
+    planOf({ plan_key: "pro", status: "active", started_at: new Date(now - DAY).toISOString() }, now),
+    "pro",
   );
 });
 

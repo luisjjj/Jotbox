@@ -1,13 +1,38 @@
 import { query } from "./pg.mjs";
 
 const DEFAULT_FREE_MINUTES = 60;
-const MAX_FREE_MINUTES = 24 * 60 * 31;
+const DEFAULT_PRO_HOURS = 30;
+const DEFAULT_ENTERPRISE_HOURS = 1000;
+const MAX_MONTH_MINUTES = 24 * 60 * 31;
+// The hidden enterprise ceiling is larger than any calendar month, so it is
+// capped by the product limit rather than by days in a month.
+const MAX_MONTH_HOURS = 1000;
+
+function monthHours(env, name, fallback) {
+  const raw = Number(env[name]);
+  const hours = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(1, Math.round(raw)), MAX_MONTH_HOURS) : fallback;
+  return hours * 3600;
+}
 
 export function freeMonthlySeconds(env = process.env) {
   const raw = Number(env.JOTBOX_FREE_MONTH_MINUTES);
   const minutes =
-    Number.isFinite(raw) && raw > 0 ? Math.min(Math.round(raw), MAX_FREE_MINUTES) : DEFAULT_FREE_MINUTES;
+    Number.isFinite(raw) && raw > 0 ? Math.min(Math.round(raw), MAX_MONTH_MINUTES) : DEFAULT_FREE_MINUTES;
   return minutes * 60;
+}
+
+export function proMonthlySeconds(env = process.env) {
+  return monthHours(env, "JOTBOX_PRO_MONTH_HOURS", DEFAULT_PRO_HOURS);
+}
+
+export function enterpriseMonthlySeconds(env = process.env) {
+  return monthHours(env, "JOTBOX_ENTERPRISE_MONTH_HOURS", DEFAULT_ENTERPRISE_HOURS);
+}
+
+export function planMonthlySeconds(plan, env = process.env) {
+  if (plan === "enterprise") return enterpriseMonthlySeconds(env);
+  if (plan === "pro") return proMonthlySeconds(env);
+  return freeMonthlySeconds(env);
 }
 
 export function usageSnapshot(usedSeconds, { unlimited = false, limitSeconds = freeMonthlySeconds() } = {}, bounds = {}) {
@@ -63,7 +88,7 @@ export async function monthlyUsageSeconds(userId, { excludeId } = {}) {
   return usageSeconds({ query }, userId, excludeId ?? null);
 }
 
-export async function usageView(userId, { unlimited = false, excludeId } = {}) {
+export async function usageView(userId, { unlimited = false, limitSeconds, excludeId } = {}) {
   const row = await usageRow(userId, excludeId);
-  return usageSnapshot(row.used, { unlimited }, { start: row.start_at, end: row.end_at });
+  return usageSnapshot(row.used, { unlimited, limitSeconds }, { start: row.start_at, end: row.end_at });
 }

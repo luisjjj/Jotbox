@@ -3,15 +3,18 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { query, getPool } from "../server/api/pg.mjs";
+import { isEntitled } from "../server/api/billing.mjs";
 import { appUrlFor, emailConfigured, sendEnterpriseInviteEmail } from "../server/api/email.mjs";
 
 /**
- * Issue, email, list, or revoke the private enterprise onboarding link.
+ * Issue, email, list, revoke, or activate the private enterprise plan.
  *
  * Usage:
  *   npm run enterprise:invite -- --company "Acme" --email cto@acme.com --name "Ada" --seats 20
  *   npm run enterprise:invite -- --list
  *   npm run enterprise:invite -- --revoke <invite-id>
+ *   npm run enterprise:invite -- --activate cto@acme.com
+ *   npm run enterprise:invite -- --deactivate cto@acme.com
  */
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +22,7 @@ const root = path.resolve(here, "..");
 const DEFAULT_DAYS = 30;
 const DEFAULT_SEATS = 5;
 const DEFAULT_PRICE_USD = 25;
+const ENTERPRISE_AMOUNT_CENTS = DEFAULT_PRICE_USD * 100;
 
 function loadEnv() {
   if (process.env.DATABASE_URL) return;
@@ -61,6 +65,8 @@ function usage() {
 
   --list                 Show recent invites
   --revoke <invite-id>   Turn an invite link off
+  --activate <email>     Put an existing account on the enterprise plan
+  --deactivate <email>   Take an account off enterprise and back to free
   --no-email             Print the link only; do not email it
 `);
 }
@@ -122,6 +128,111 @@ async function revoke(id) {
     return;
   }
   console.log(`Revoked the onboarding link for ${row.company} <${row.contact_email}>.`);
+}
+
+async function findAccount(email) {
+  const result = await query("select id, email, name from users where lower(email) = $1 limit 1", [email]);
+  return result.rows[0] ?? null;
+}
+
+async function subscriptionFor(userId) {
+  const result = await query("select * from billing_subscriptions where user_id = $1", [userId]);
+  return result.rows[0] ?? null;
+}
+
+function paidUntil(row) {
+  const end = row.current_period_end || row.next_payment_at;
+  return end ? formatWhen(end) : "the end of the current period";
+}
+
+async function activateEnterprise(value) {
+  const email = normalizeEmail(value);
+  if (!email) {
+    console.error("Add a valid account email after --activate.");
+    process.exitCode = 1;
+    return;
+  }
+  const user = await findAccount(email);
+  if (!user) {
+    console.error(`No JotBox account uses ${email}.`);
+    process.exitCode = 1;
+    return;
+  }
+  const existing = await subscriptionFor(user.id);
+  if (existing?.provider === "manual" && isEntitled(existing)) {
+    console.log(`${user.email} is already on the enterprise plan.`);
+    return;
+  }
+  if (existing && existing.provider !== "manual" && isEntitled(existing)) {
+    console.error(
+      `${user.email} still has an active Paystack subscription until ${paidUntil(existing)}. Cancel or refund it before activating enterprise, so nobody is billed twice.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const saved = await query(
+    `insert into billing_subscriptions
+       (user_id, provider, plan_key, status, currency, amount, interval, started_at,
+        cancelled_at, next_payment_at, current_period_end)
+     values ($1, 'manual', 'enterprise', 'active', 'USD', $2, 'monthly', now(),
+        null, null, null)
+     on conflict (user_id) do update set
+       provider = 'manual',
+       plan_key = 'enterprise',
+       status = 'active',
+       currency = 'USD',
+       amount = excluded.amount,
+       interval = 'monthly',
+       plan_code = null,
+       subscription_code = null,
+       email_token = null,
+       customer_code = null,
+       reference = null,
+       next_payment_at = null,
+       current_period_end = null,
+       cancelled_at = null,
+       started_at = case
+         when billing_subscriptions.plan_key = 'enterprise'
+           and billing_subscriptions.status = 'active'
+           then billing_subscriptions.started_at
+         else now()
+       end,
+       updated_at = now()
+     returning started_at`,
+    [user.id, ENTERPRISE_AMOUNT_CENTS],
+  );
+
+  console.log(`${user.email} is now on enterprise.`);
+  console.log(`  price:  $${DEFAULT_PRICE_USD} per seat each month, invoiced outside Paystack`);
+  console.log(`  started: ${formatWhen(saved.rows[0].started_at)}`);
+  console.log("Listening shows as unlimited in the app.");
+}
+
+async function deactivateEnterprise(value) {
+  const email = normalizeEmail(value);
+  if (!email) {
+    console.error("Add a valid account email after --deactivate.");
+    process.exitCode = 1;
+    return;
+  }
+  const user = await findAccount(email);
+  if (!user) {
+    console.error(`No JotBox account uses ${email}.`);
+    process.exitCode = 1;
+    return;
+  }
+  const existing = await subscriptionFor(user.id);
+  if (existing?.provider !== "manual" || existing.plan_key !== "enterprise" || existing.status !== "active") {
+    console.log(`${user.email} is not on an active enterprise plan. Nothing to do.`);
+    return;
+  }
+  await query(
+    "update billing_subscriptions set status = 'cancelled', cancelled_at = now(), updated_at = now() where user_id = $1",
+    [user.id],
+  );
+  console.log(`${user.email} is off enterprise and back on the free plan.`);
+  console.log("An earlier Paystack Pro subscription is not restored. Send a checkout link if they want Pro again.");
 }
 
 async function createInvite(args) {
@@ -221,6 +332,24 @@ async function main() {
       return;
     }
     await revoke(String(args.revoke));
+    return;
+  }
+  if (args.activate) {
+    if (args.activate === true) {
+      console.error("Add an account email after --activate.");
+      process.exitCode = 1;
+      return;
+    }
+    await activateEnterprise(String(args.activate));
+    return;
+  }
+  if (args.deactivate) {
+    if (args.deactivate === true) {
+      console.error("Add an account email after --deactivate.");
+      process.exitCode = 1;
+      return;
+    }
+    await deactivateEnterprise(String(args.deactivate));
     return;
   }
   await createInvite(args);

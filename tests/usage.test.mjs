@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { freeMonthlySeconds, usageSnapshot } from "../server/api/usage.mjs";
+import { enterpriseMonthlySeconds, freeMonthlySeconds, planMonthlySeconds, proMonthlySeconds, usageSnapshot } from "../server/api/usage.mjs";
 
 test("free listening defaults to 60 minutes and can be changed", () => {
   assert.equal(freeMonthlySeconds({}), 3600);
@@ -26,7 +26,19 @@ test("usage reports the remainder and never goes below zero", () => {
   assert.equal(over.remainingSeconds, 0);
 });
 
-test("Pro usage is unlimited", () => {
+test("Pro defaults to 30 hours and enterprise to a hidden 1000 hours", () => {
+  assert.equal(proMonthlySeconds({}), 30 * 3600);
+  assert.equal(proMonthlySeconds({ JOTBOX_PRO_MONTH_HOURS: "12" }), 12 * 3600);
+  assert.equal(proMonthlySeconds({ JOTBOX_PRO_MONTH_HOURS: "0" }), 30 * 3600);
+  assert.equal(proMonthlySeconds({ JOTBOX_PRO_MONTH_HOURS: "not-a-number" }), 30 * 3600);
+  assert.equal(enterpriseMonthlySeconds({}), 1000 * 3600);
+  assert.equal(enterpriseMonthlySeconds({ JOTBOX_ENTERPRISE_MONTH_HOURS: "2000" }), 1000 * 3600);
+  assert.equal(planMonthlySeconds("free", {}), 3600);
+  assert.equal(planMonthlySeconds("pro", {}), 30 * 3600);
+  assert.equal(planMonthlySeconds("enterprise", {}), 1000 * 3600);
+});
+
+test("enterprise usage hides a larger cap as unlimited", () => {
   const usage = usageSnapshot(99_999, { unlimited: true, limitSeconds: 3600 });
   assert.equal(usage.unlimited, true);
   assert.equal(usage.limitSeconds, null);

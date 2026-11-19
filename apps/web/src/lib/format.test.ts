@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClock, isDefaultTitle, notesLookEmpty, notesToMarkdown } from "./format";
+import { formatAllowance, formatClock, isDefaultTitle, notesLookEmpty, notesToMarkdown } from "./format";
 import { sessionSlug } from "./exportNotes";
 import type { Session } from "./types";
 
@@ -41,6 +41,15 @@ describe("formatClock", () => {
 
   it("clamps negative values", () => {
     expect(formatClock(-12)).toBe("0:00");
+  });
+});
+
+describe("formatAllowance", () => {
+  it("uses hours for paid allowances and minutes for the free hour", () => {
+    expect(formatAllowance(30 * 3600)).toBe("30 hours");
+    expect(formatAllowance(1.5 * 3600)).toBe("1.5 hours");
+    expect(formatAllowance(3600)).toBe("1 hour");
+    expect(formatAllowance(3599)).toBe("60 minutes");
   });
 });
 

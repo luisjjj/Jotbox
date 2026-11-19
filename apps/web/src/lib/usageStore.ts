@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, type BillingPricing, type BillingStatus, type BillingUsage } from "./api";
+import { api, type BillingPricing, type BillingStatus, type BillingUsage, type Plan } from "./api";
 
 const EMPTY: BillingUsage = {
   unlimited: false,
@@ -10,9 +10,13 @@ const EMPTY: BillingUsage = {
   periodEnd: null,
 };
 
+export function isPaidPlan(plan: Plan) {
+  return plan === "pro" || plan === "enterprise";
+}
+
 interface UsageState extends BillingUsage {
   loaded: boolean;
-  plan: "free" | "pro";
+  plan: Plan;
   configured: boolean;
   pricing: BillingPricing | null;
   applyStatus: (status: BillingStatus) => void;
@@ -48,13 +52,13 @@ export const useUsage = create<UsageState>()((set) => ({
 }));
 
 export function usePro() {
-  return useUsage((state) => state.plan === "pro");
+  return useUsage((state) => isPaidPlan(state.plan));
 }
 
 export function usePlan() {
-  const pro = useUsage((state) => state.plan === "pro");
+  const plan = useUsage((state) => state.plan);
   const loaded = useUsage((state) => state.loaded);
-  return { pro, loaded };
+  return { plan, pro: isPaidPlan(plan), loaded };
 }
 
 export async function refreshUsage() {
@@ -75,5 +79,5 @@ export async function ensureUsage() {
 export async function ensurePro(): Promise<boolean | null> {
   if (!useUsage.getState().loaded) await refreshUsage();
   const state = useUsage.getState();
-  return state.loaded ? state.plan === "pro" : null;
+  return state.loaded ? isPaidPlan(state.plan) : null;
 }

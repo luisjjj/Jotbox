@@ -30,9 +30,10 @@ import { toast } from "react-hot-toast";
 import { APP_CONFIG } from "@jotbox/config";
 import { useEngine } from "@/engine/SessionEngine";
 import { useStudio } from "@/hooks/useStudio";
-import { defaultTitle, formatClock, formatMinutes, KIND_META } from "@/lib/format";
+import { defaultTitle, formatAllowance, formatClock, formatMinutes, KIND_META } from "@/lib/format";
 import { isDesktop } from "@/lib/desktop";
 import { useUsage } from "@/lib/usageStore";
+import { limitReachedMessage } from "@/lib/planLimitCopy";
 import {
   FOCUS_OPTIONS,
   LANGUAGE_OPTIONS,
@@ -58,9 +59,6 @@ import { LiveBoard } from "@/components/LiveBoard";
 import { NoticeDialog } from "@/components/NoticeDialog";
 
 const KINDS: SessionKind[] = ["meeting", "seminar", "lecture", "voice"];
-
-const FREE_LIMIT_NOTICE =
-  "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening.";
 
 function KindSelector({ kind, onChange }: { kind: SessionKind; onChange: (kind: SessionKind) => void }) {
   return (
@@ -232,8 +230,8 @@ function Setup() {
   const [params] = useSearchParams();
   const prefillTitle = params.get("title") ?? "";
   const prefillKind = params.get("kind");
-  const freeLeft = usage.loaded && !usage.unlimited ? usage.remainingSeconds : null;
-  const outOfTime = freeLeft !== null && freeLeft <= 0;
+  const timeLeft = usage.loaded && !usage.unlimited ? usage.remainingSeconds : null;
+  const outOfTime = timeLeft !== null && timeLeft <= 0;
   const [title, setTitle] = useState(prefillTitle);
   const [people, setPeople] = useState<Participant[]>([]);
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
@@ -306,7 +304,7 @@ function Setup() {
             </div>
           )}
 
-          {freeLeft !== null && (
+          {timeLeft !== null && (
             <div
               className={clsx(
                 "mb-4 flex flex-col gap-2.5 rounded-xl border p-3 sm:flex-row sm:items-center",
@@ -317,12 +315,14 @@ function Setup() {
                 <Timer className={clsx("mt-0.5 h-4 w-4 flex-none", outOfTime ? "text-rec" : "text-accent")} />
                 <p className="min-w-0 flex-1 text-[13.5px] leading-5 text-soft">
                   {outOfTime
-                    ? FREE_LIMIT_NOTICE
-                    : `${formatMinutes(freeLeft)} left on the free plan this month. Pro keeps you listening without a cap.`}
+                    ? limitReachedMessage(usage.plan, usage.limitSeconds)
+                    : usage.plan === "pro"
+                      ? `${formatAllowance(timeLeft)} left on Pro this month. It resets at the start of next month.`
+                      : `${formatMinutes(timeLeft)} left on the free plan this month. Pro keeps you listening without a cap.`}
                 </p>
               </div>
               <Link to="/account" className="btn btn-line btn-sm w-full justify-center sm:w-auto sm:flex-none">
-                {outOfTime ? "Upgrade to Pro" : "Your plan"}
+                {outOfTime && usage.plan === "free" ? "Upgrade to Pro" : "Your plan"}
               </Link>
             </div>
           )}
@@ -734,8 +734,8 @@ ${line}` : line;
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-line bg-raised-2 px-3.5 py-2.5">
           <Timer className="mt-0.5 h-3.5 w-3.5 flex-none text-brass" />
           <p className="text-[13.5px] leading-5 text-muted">
-            About a minute of free listening left. When it reaches zero, JotBox stops and writes the notes from what it
-            heard.
+            About a minute of listening left on your plan. When it reaches zero, JotBox stops and writes the notes from
+            what it heard.
           </p>
         </div>
       )}

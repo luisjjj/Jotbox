@@ -19,7 +19,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { IntegrationsCard } from "@/components/IntegrationsCard";
 import { requestCloudSync } from "@/components/CloudSync";
 import { api, type BillingStatus, type CloudUser } from "@/lib/api";
-import { formatMinutes } from "@/lib/format";
+import { formatAllowance } from "@/lib/format";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
 import { useUsage } from "@/lib/usageStore";
@@ -139,7 +139,7 @@ function PlanCard() {
           setBilling(result);
           useUsage.getState().applyStatus(result);
           if (returning) toast("No payment was made.");
-          if (wantsPro && !returning && result.plan !== "pro" && result.configured) {
+          if (wantsPro && !returning && result.plan === "free" && result.configured) {
             setBusy(true);
             try {
               const session = await api.startCheckout();
@@ -215,13 +215,15 @@ function PlanCard() {
     }
   };
 
-  const paid = billing?.plan === "pro";
+  const plan = billing?.plan ?? "free";
+  const paid = plan === "pro" || plan === "enterprise";
+  const enterprise = plan === "enterprise";
   const status = billing?.subscription ?? null;
-  const canCancel = paid && status?.status === "active";
+  const canCancel = plan === "pro" && status?.status === "active";
   const price = billing ? naira.format(billing.pricing.naira) : "";
   const usage = billing?.usage ?? null;
-  const freeLeft = usage && !usage.unlimited ? usage.remainingSeconds : null;
-  const freeLimitMinutes = usage?.limitSeconds ? Math.max(1, Math.round(usage.limitSeconds / 60)) : null;
+  const left = usage && !usage.unlimited ? usage.remainingSeconds : null;
+  const limitMinutes = usage?.limitSeconds ? Math.max(1, Math.round(usage.limitSeconds / 60)) : null;
   const usedPct =
     usage?.limitSeconds && usage.limitSeconds > 0
       ? Math.min(100, Math.round((usage.usedSeconds / usage.limitSeconds) * 100))
@@ -229,11 +231,13 @@ function PlanCard() {
 
   const summary = loading
     ? "Checking your plan."
-    : paid
-      ? status
-        ? planNote(status)
-        : "Pro is active."
-      : `Free covers ${freeLimitMinutes ?? 60} minutes a month, and every note stays yours.`;
+    : enterprise
+      ? "Enterprise listening is unlimited for your workspace."
+      : paid
+        ? status
+          ? planNote(status)
+          : "Pro is active."
+        : `Free covers ${limitMinutes ?? 60} minutes a month, and every note stays yours.`;
 
   return (
     <>
@@ -253,26 +257,31 @@ function PlanCard() {
                       : "chip border-line text-muted"
                   }
                 >
-                  {paid ? "Pro" : loading ? "Checking" : "Free"}
+                  {enterprise ? "Enterprise" : paid ? "Pro" : loading ? "Checking" : "Free"}
                 </span>
               </div>
               <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-muted">{summary}</p>
-              {freeLeft !== null && freeLimitMinutes !== null && (
+              {left !== null && limitMinutes !== null && (
                 <div className="mt-2 max-w-[320px]">
                   <div className="h-1.5 overflow-hidden rounded-full bg-raised-2">
                     <div
-                      className={freeLeft > 0 ? "h-full rounded-full bg-accent" : "h-full rounded-full bg-rec"}
-                      style={{ width: `${freeLeft <= 0 ? 100 : usedPct}%` }}
+                      className={left > 0 ? "h-full rounded-full bg-accent" : "h-full rounded-full bg-rec"}
+                      style={{ width: `${left <= 0 ? 100 : usedPct}%` }}
                     />
                   </div>
                   <p className="mt-1 text-[12.5px] leading-4 text-faint">
-                    {freeLeft <= 0
-                      ? "Free minutes are finished for this month. Pro lifts the cap."
-                      : `${formatMinutes(freeLeft)} left of ${freeLimitMinutes} minutes this month.`}
+                    {left <= 0
+                      ? plan === "pro"
+                        ? "Pro listening is finished for this month. It resets at the start of next month."
+                        : "Free minutes are finished for this month. Pro lifts the cap."
+                      : `${formatAllowance(left)} left of ${formatAllowance(usage?.limitSeconds ?? 0)} this month.`}
                   </p>
                 </div>
               )}
-              {billing && paid && (
+              {billing && enterprise && (
+                <p className="mt-1 text-[12.5px] text-faint">Enterprise plan. Billed per seat each month.</p>
+              )}
+              {billing && plan === "pro" && (
                 <p className="mt-1 text-[12.5px] text-faint">
                   {price} a month. Billed in {billing.pricing.currency === "NGN" ? "Naira" : billing.pricing.currency}.
                 </p>
@@ -310,7 +319,7 @@ function PlanCard() {
                   Cancel renewal
                 </button>
               )}
-              {billing.configured && (
+              {billing.configured && !enterprise && (
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm w-full sm:w-auto"
@@ -349,10 +358,12 @@ function PlanCard() {
           </div>
         )}
 
-        <p className="mt-4 flex items-start gap-1.5 text-[12px] leading-4 text-faint">
-          <ShieldCheck className="mt-px h-3 w-3 flex-none" />
-          Payments are handled by Paystack. JotBox never sees your card details.
-        </p>
+        {!enterprise && (
+          <p className="mt-4 flex items-start gap-1.5 text-[12px] leading-4 text-faint">
+            <ShieldCheck className="mt-px h-3 w-3 flex-none" />
+            Payments are handled by Paystack. JotBox never sees your card details.
+          </p>
+        )}
 
         <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] leading-4 text-faint">
           <Link to="/refunds" className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">

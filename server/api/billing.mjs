@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
-import { usageView } from "./usage.mjs";
+import { planMonthlySeconds, usageView } from "./usage.mjs";
 import { sendCancellationEmail, sendReceiptEmail, sendRenewalReminderEmail } from "./email.mjs";
 import {
   HttpError,
@@ -28,6 +28,7 @@ const PAYSTACK_API = "https://api.paystack.co";
 const PRO_PRICE_USD = 5;
 const DEFAULT_NGN_PER_USD = 1600;
 const PRO_PLAN_KEY = "pro";
+const ENTERPRISE_PLAN_KEY = "enterprise";
 const PAYSTACK_TIMEOUT_MS = 20_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CHECKOUT_CREATING_MS = 90 * 1000;
@@ -244,6 +245,9 @@ export function clampPeriodEnd(value, now = Date.now(), existingEnd = null) {
 
 export function isEntitled(row, now = Date.now()) {
   if (!row) return false;
+  // Enterprise seats are invoiced outside Paystack, so an active manual plan
+  // stays on until an operator turns it off.
+  if (row.plan_key === ENTERPRISE_PLAN_KEY && row.status === "active") return true;
   const end = dateOrNull(row.current_period_end || row.next_payment_at)?.getTime() ?? null;
   const recent = dateOrNull(row.updated_at || row.started_at)?.getTime() ?? null;
 
@@ -288,6 +292,15 @@ async function getSubscription(userId) {
 
 export async function isProUser(userId) {
   return isEntitled(await getSubscription(userId));
+}
+
+export function planOf(row, now = Date.now()) {
+  if (!isEntitled(row, now)) return "free";
+  return row.plan_key === ENTERPRISE_PLAN_KEY ? "enterprise" : "pro";
+}
+
+export async function planForUser(userId) {
+  return planOf(await getSubscription(userId));
 }
 
 async function withTransaction(fn) {
@@ -364,7 +377,8 @@ async function saveSubscription(input, client = null) {
        values ($1, 'paystack', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                $13, $14, coalesce($15, now()), $16, $17, $18, $19)
        on conflict (user_id) do update
-         set plan_key = excluded.plan_key,
+         set provider = excluded.provider,
+             plan_key = excluded.plan_key,
              plan_code = coalesce(excluded.plan_code, billing_subscriptions.plan_code),
              subscription_code = coalesce(excluded.subscription_code, billing_subscriptions.subscription_code),
              email_token = coalesce(excluded.email_token, billing_subscriptions.email_token),
@@ -721,19 +735,25 @@ export async function sendRenewalReminders({ limit = REMINDER_BATCH } = {}) {
 
 async function statusFor(userId, { reconcile = false } = {}) {
   const config = billingConfig();
-  if (reconcile && config.configured) {
+  let row = await getSubscription(userId);
+  // Manual enterprise rows have no Paystack reference; reconciling them would
+  // let an unrelated old Paystack subscription overwrite the plan.
+  if (reconcile && config.configured && row?.provider !== "manual") {
     await reconcileUser(userId).catch((error) => {
       console.warn("[jotbox-billing] reconcile skipped", error instanceof Error ? error.message : error);
     });
+    row = await getSubscription(userId);
   }
-  const row = await getSubscription(userId);
-  const pro = isEntitled(row);
+  const plan = planOf(row);
   return {
     configured: config.configured,
-    plan: pro ? "pro" : "free",
+    plan,
     subscription: subscriptionView(row),
     pricing: publicPricing(config),
-    usage: await usageView(userId, { unlimited: pro }),
+    usage: await usageView(userId, {
+      unlimited: plan === "enterprise",
+      limitSeconds: planMonthlySeconds(plan),
+    }),
   };
 }
 

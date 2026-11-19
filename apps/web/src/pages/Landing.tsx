@@ -118,7 +118,7 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  "Unlimited listening, every month",
+  "30 hours of listening a month",
   "Branded PDF export for every session",
   "Five share links, up to 30 days each",
   "AI follow-up drafts in English or Pidgin",
@@ -130,7 +130,7 @@ const PRO_FEATURES = [
 ];
 
 const TEAM_FEATURES = [
-  "Everything in Pro, for every seat",
+  "Everything in Pro, with unlimited listening for every seat",
   "Organisational memory across every meeting",
   "Admin, roles, and meeting-level access",
   "Retention rules and a full audit trail",

@@ -21,7 +21,9 @@ The status card on `/account` reads `GET /api/billing`. Every billing action req
 | `PAYSTACK_PLAN_CODE` | Optional. Use an existing monthly NGN plan instead of letting JotBox create and cache one. It must match the current amount, currency, and interval, or checkout refuses to start. |
 | `PAYSTACK_PRO_AMOUNT_NGN` | Naira charged each month. Defaults to `$5 × JOTBOX_USD_TO_NGN`, which is 8,000 Naira. |
 | `JOTBOX_USD_TO_NGN` | Display and fallback conversion rate. Defaults to `1600`. |
-| `JOTBOX_FREE_MONTH_MINUTES` | Free listening each calendar month. Defaults to `60`; Pro is unlimited. |
+| `JOTBOX_FREE_MONTH_MINUTES` | Free listening each calendar month. Defaults to `60`. |
+| `JOTBOX_PRO_MONTH_HOURS` | Pro listening each calendar month. Defaults to `30`. |
+| `JOTBOX_ENTERPRISE_MONTH_HOURS` | Hidden enterprise listening cap each calendar month. Defaults to `1000`; the app shows enterprise as unlimited. |
 | `JOTBOX_PUBLIC_URL` | Public origin used for the Paystack callback. Falls back to the request host. |
 | `CRON_SECRET` | Bearer token Vercel Cron sends to the daily payment check. Generate a long random string. |
 
@@ -95,33 +97,44 @@ Cron access requires `Authorization: Bearer $CRON_SECRET` (or `?secret=`). Set `
 
 `isEntitled()` treats `active`, `attention` (a failed renewal that Paystack is retrying), and `non-renewing` as Pro while the paid period lasts, with a short grace window (1 day for active, 2 days for attention). A cancelled subscription keeps Pro until `current_period_end`, with no grace. The account card uses the same status to decide whether to show **Upgrade to Pro** or **Cancel renewal**. A new checkout is refused while a plan is still entitled, so a failed renewal cannot create a second subscription.
 
-## Free and Pro
+## Plans and listening limits
 
 Every feature is visible on the free plan. The paid ones show a paywall with a way to upgrade, not a missing button.
 
-| Feature | Free | Pro |
-| --- | --- | --- |
-| Listening | 60 minutes a calendar month | Unlimited |
-| Notes, jottings, transcript, copy, Markdown, print | Yes | Yes |
-| Share links | 1 live link per session, 7 days | 5 live links, up to 30 days |
-| Branded PDF | Paywall | Yes |
-| AI follow-up draft | Local draft from notes (paywall for AI) | Yes |
-| Organisation Ask | Workspace and audit trail; Ask shows a paywall | Yes |
-| Session ask and live decisions | Yes | Yes |
+| Feature | Free | Pro | Enterprise |
+| --- | --- | --- | --- |
+| Listening | 60 minutes a calendar month | 30 hours a calendar month | 1,000 hours a calendar month, shown as unlimited |
+| Notes, jottings, transcript, copy, Markdown, print | Yes | Yes | Yes |
+| Share links | 1 live link per session, 7 days | 5 live links, up to 30 days | 5 live links, up to 30 days |
+| Branded PDF | Paywall | Yes | Yes |
+| AI follow-up draft | Local draft from notes (paywall for AI) | Yes | Yes |
+| Organisation Ask | Workspace and audit trail; Ask shows a paywall | Yes | Yes |
+| Session ask and live decisions | Yes | Yes | Yes |
 
 The server enforces share limits (`server/api/limits.mjs`), the follow-up AI check, and the organisation Ask check. Client paywalls mirror those rules but are not trusted on their own.
 
-## Free listening limit
+## Listening limits
 
-`GET /api/billing` returns a `usage` object with `usedSeconds`, `limitSeconds`, `remainingSeconds`, and the calendar-month period. Pro returns `unlimited: true`.
+`GET /api/billing` returns a `usage` object with `usedSeconds`, `limitSeconds`, `remainingSeconds`, and the calendar-month period. Free and Pro return their real limit. Enterprise returns `unlimited: true` so the hidden 1,000-hour cap is not shown.
 
 The limit is enforced in three places:
 
-1. Before a capture or upload starts, the app checks the remaining time. At zero it explains the cap and links to `/account`.
+1. Before a capture or upload starts, the app checks the remaining time. At zero it explains the plan cap and links to `/account`.
 2. While recording, the app counts the local elapsed time against the amount left. At zero it stops the recorder, keeps the audio and words heard so far, and writes the notes. Pausing cannot extend the allowance.
-3. `POST /api/captures` checks the month's usage with the server clock and refuses a free capture that would pass the limit. Clearing local data or calling the API directly does not bypass this. The capture stays in the local cache so it can sync after an upgrade.
+3. `POST /api/captures` checks the month's usage with the server clock and refuses a capture that would pass the limit. Clearing local data or calling the API directly does not bypass this. The capture stays in the local cache so it can sync after an upgrade.
 
 The server counts every capture row, including live and failed rows, so abandoned recordings still use time. Deleting a capture does not refund its minutes: the `usage_ledger` row stays behind after the capture row is gone. Uploaded audio counts by its real duration.
+
+### Enterprise plan
+
+Enterprise seats are invoiced per seat outside Paystack. An operator turns the plan on and off with the same tool that issues onboarding links:
+
+```bash
+npm run enterprise:invite -- --activate cto@acme.com
+npm run enterprise:invite -- --deactivate cto@acme.com
+```
+
+Activation writes a manual subscription row with `plan_key = enterprise` and `provider = manual`. It refuses to replace an active Paystack Pro subscription, so nobody is billed twice. Deactivation cancels that row and the account falls back to the free plan. The `JOTBOX_ENTERPRISE_MONTH_HOURS` value is the hidden ceiling; the app shows enterprise as unlimited.
 
 ## What listening costs
 
@@ -177,5 +190,5 @@ The Dev tier raises throughput to roughly 200,000 audio-seconds an hour for larg
 - **Silence gate.** The capture already computes an RMS level for the meter. Skipping silent chunks would cut both audio seconds and requests.
 - **Retries.** A failed notes build retries with a fresh full-audio pass, which costs another final transcription. Note rewrites do not re-transcribe.
 - **Self-hosted worker.** `WHISPER_BASE_URL` moves long or heavy recordings to a flat-cost worker and away from Groq metering.
-- **Pro fair use.** At 30 hours a month Pro still clears $0.47. A soft monthly cap near 30 to 40 hours protects the margin without changing the headline of unlimited.
+- **Pro cap.** At 30 hours a month Pro still clears $0.47. The cap is now hard, enforced on start and on save, so a heavy user cannot erode the margin. `JOTBOX_PRO_MONTH_HOURS` can raise it if costs fall.
 

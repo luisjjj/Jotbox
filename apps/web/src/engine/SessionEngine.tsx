@@ -29,6 +29,7 @@ import {
 import { useSessions } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 import { ensureUsage, refreshUsage, useUsage } from "@/lib/usageStore";
+import { limitReachedMessage, uploadTooLongMessage } from "@/lib/planLimitCopy";
 import { withProcessingTimeout } from "@/lib/processing";
 import type { CaptureSource, LiveInsights, Participant, Session, SessionKind, TranscriptLine } from "@/lib/types";
 
@@ -166,11 +167,6 @@ function audioDuration(file: File) {
     audio.src = url;
   });
 }
-
-const FREE_LIMIT_ERROR =
-  "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening.";
-const UPLOAD_TOO_LONG =
-  "That recording is longer than the free listening time you have left this month. Upgrade to Pro to keep listening.";
 
 // Electron has no Web Speech API, so the desktop app sends short standalone
 // chunks to the same transcription endpoint the final pass uses.
@@ -768,7 +764,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const usage = await usageSnapshot();
       if (usage.loaded && !usage.unlimited && (usage.remainingSeconds ?? 0) <= 0) {
         startingRef.current = false;
-        setError(FREE_LIMIT_ERROR);
+        setError(limitReachedMessage(usage.plan, usage.limitSeconds));
         return;
       }
       const nextAllowance =
@@ -864,7 +860,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     if (statusRef.current !== "paused") return;
     const left = allowanceRef.current;
     if (left && left.limit - left.baseline - currentElapsed() <= 0) {
-      toast(FREE_LIMIT_ERROR, { id: "free-limit" });
+      toast(limitReachedMessage(useUsage.getState().plan, left.limit), { id: "plan-limit" });
       return;
     }
     tickStart.current = Date.now();
@@ -892,7 +888,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const usage = await usageSnapshot();
       if (usage.loaded && !usage.unlimited && usage.remainingSeconds !== null && usage.remainingSeconds <= 0) {
         startingRef.current = false;
-        setError(FREE_LIMIT_ERROR);
+        setError(limitReachedMessage(usage.plan, usage.limitSeconds));
         return;
       }
       const duration = await audioDuration(file);
@@ -903,7 +899,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         duration > usage.remainingSeconds
       ) {
         startingRef.current = false;
-        setError(UPLOAD_TOO_LONG);
+        setError(uploadTooLongMessage(usage.plan));
         return;
       }
       const id = crypto.randomUUID();
@@ -1195,7 +1191,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const allowance = allowanceRef.current;
       if (allowance && statusRef.current === "recording") {
         if (allowance.limit - allowance.baseline - currentElapsed() <= 0) {
-          toast(FREE_LIMIT_ERROR, { id: "free-limit" });
+          toast(limitReachedMessage(useUsage.getState().plan, allowance.limit), { id: "plan-limit" });
           void stopRef.current();
           return;
         }

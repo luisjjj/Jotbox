@@ -14,6 +14,16 @@ export function formatMinutes(seconds: number) {
   return `${minutes} minute${minutes === 1 ? "" : "s"}`;
 }
 
+export function formatAllowance(seconds: number) {
+  const safe = Math.max(0, seconds);
+  if (safe >= 3600) {
+    const hours = safe / 3600;
+    const value = Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+    return `${value} hour${value === "1" ? "" : "s"}`;
+  }
+  return formatMinutes(safe);
+}
+
 export function formatClock(seconds: number) {
   const total = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(total / 3600);
