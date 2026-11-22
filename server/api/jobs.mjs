@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { enhanceSession, sanitizeSttContext, transcribeAudio } from "./ai.mjs";
 import { requireSession } from "./auth.mjs";
+import { planForUser } from "./billing.mjs";
+import { glossaryForUser } from "./org-glossary.mjs";
 import { query } from "./pg.mjs";
 import { audioKeyFor, getAudio, presignAudio } from "./storage.mjs";
 import { HttpError, assertSameOrigin, readJson, requireMethod, sendJson } from "./http.mjs";
@@ -164,6 +166,8 @@ export async function runJob(jobId) {
       filename: `session.${payload.audioKey.split(".").pop() || "webm"}`,
       context: payload.context ?? null,
       sourceUrl,
+      plan: payload.plan ?? "free",
+      glossary: Array.isArray(payload.glossary) ? payload.glossary : [],
     });
     timings.transcribeMs = Date.now() - transcribeStarted;
 
@@ -181,6 +185,7 @@ export async function runJob(jobId) {
           lines,
           notes: null,
           language: transcription.language ?? null,
+          routing: transcription.routing ?? null,
           stage: "transcript",
           timings: { ...timings, totalMs: Date.now() - startedAt },
         }),
@@ -202,6 +207,7 @@ export async function runJob(jobId) {
       lines,
       notes,
       language: transcription.language ?? null,
+      routing: transcription.routing ?? null,
       stage: "notes",
       timings: { ...timings, totalMs: Date.now() - startedAt },
     };
@@ -259,6 +265,7 @@ const jobInput = z.object({
   id: uuid,
   title: z.string().trim().min(1).max(200),
   kind: z.enum(["meeting", "seminar", "lecture", "voice"]),
+  mode: z.enum(["lecture", "group"]).optional(),
   scratch: z.string().max(200_000).default(""),
   participants: z.array(z.string().max(120)).max(100).default([]),
   context: z.unknown().optional().nullable(),
@@ -281,15 +288,27 @@ export async function handleTranscribeJob(req, res) {
     if (!owned.rowCount) throw new HttpError(404, "Save the session before writing its notes.");
     const expectedKey = audioKeyFor(user.id, input.id, input.contentType);
     if (input.audioKey !== expectedKey) throw new HttpError(400, "That audio does not belong to this session.");
+    const plan = await planForUser(user.id);
+    const glossary = plan === "enterprise" ? await glossaryForUser(user.id).catch(() => []) : [];
+    const context = sanitizeSttContext({
+      ...(input.context && typeof input.context === "object" ? input.context : {}),
+      title: input.title,
+      kind: input.kind,
+      mode: input.mode,
+      names: input.participants,
+    });
     const job = await createJob({
       userId: user.id,
       captureId: input.id,
       payload: {
         title: input.title,
         kind: input.kind,
+        mode: input.mode ?? null,
         scratch: input.scratch,
         participants: input.participants,
-        context: sanitizeSttContext(input.context),
+        context,
+        plan,
+        glossary,
         contentType: input.contentType,
         audioKey: input.audioKey,
         titleIsDefault: input.titleIsDefault,

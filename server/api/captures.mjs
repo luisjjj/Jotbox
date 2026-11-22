@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
 import { indexCapture, scheduleChunkEmbedding } from "./memory-index.mjs";
+import { syncMeetingInsights } from "./meeting-insights.mjs";
 import {
   overLimitMessage,
   OVERAGE_GRACE_SECONDS,
@@ -374,6 +375,11 @@ export async function handleCaptures(req, res) {
         void scheduleChunkEmbedding(item.id);
       } catch (error) {
         console.warn("[jotbox-captures] memory index skipped", error instanceof Error ? error.message : error);
+      }
+      try {
+        await syncMeetingInsights({ query }, { ...saved.rows[0], notes: item.notes });
+      } catch (error) {
+        console.warn("[jotbox-captures] insight sync skipped", error instanceof Error ? error.message : error);
       }
     }
     sendJson(res, 200, { id: item.id });
