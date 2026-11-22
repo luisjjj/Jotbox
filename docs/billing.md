@@ -1,6 +1,6 @@
 # Payments and Pro subscriptions
 
-JotBox uses Paystack for Pro. The site shows **$5 a month**, and checkout charges the Naira equivalent because a Paystack plan is locked to one currency. Nigerian cards are charged in Naira by JotBox itself, not converted silently by Paystack.
+JotBox uses Paystack for Pro. The site shows **$7 a month**, and checkout charges the Naira equivalent because a Paystack plan is locked to one currency. Nigerian cards are charged in Naira by JotBox itself, not converted silently by Paystack.
 
 ## How the flow works
 
@@ -19,10 +19,10 @@ The status card on `/account` reads `GET /api/billing`. Every billing action req
 | --- | --- |
 | `PAYSTACK_SECRET_KEY` | Server-only key. `sk_test_...` while testing, `sk_live_...` in production. |
 | `PAYSTACK_PLAN_CODE` | Optional. Use an existing monthly NGN plan instead of letting JotBox create and cache one. It must match the current amount, currency, and interval, or checkout refuses to start. |
-| `PAYSTACK_PRO_AMOUNT_NGN` | Naira charged each month. Defaults to `$5 × JOTBOX_USD_TO_NGN`, which is 8,000 Naira. |
-| `JOTBOX_USD_TO_NGN` | Display and fallback conversion rate. Defaults to `1600`. |
-| `JOTBOX_FREE_MONTH_MINUTES` | Free listening each calendar month. Defaults to `60`. |
-| `JOTBOX_PRO_MONTH_HOURS` | Pro listening each calendar month. Defaults to `30`. |
+| `PAYSTACK_PRO_AMOUNT_NGN` | Naira charged each month. Defaults to `$7 × JOTBOX_USD_TO_NGN`, which is 9,800 Naira. |
+| `JOTBOX_USD_TO_NGN` | Display and fallback conversion rate. Defaults to `1400`. |
+| `JOTBOX_FREE_MONTH_MINUTES` | Free listening each calendar month. Defaults to `100`. |
+| `JOTBOX_PRO_MONTH_HOURS` | Pro listening each calendar month. Defaults to `25`. |
 | `JOTBOX_ENTERPRISE_MONTH_HOURS` | Hidden enterprise listening cap each calendar month. Defaults to `1000`; the app shows enterprise as unlimited. |
 | `JOTBOX_PUBLIC_URL` | Public origin used for the Paystack callback. Falls back to the request host. |
 | `CRON_SECRET` | Bearer token Vercel Cron sends to the daily payment check. Generate a long random string. |
@@ -34,7 +34,7 @@ In Vercel Production, `PAYSTACK_SECRET_KEY` must start with `sk_live_`. The serv
 ## Going live
 
 1. Copy the live secret key from **Settings, API Keys and Webhooks** in the Paystack dashboard and save it as `PAYSTACK_SECRET_KEY` in Vercel Production (sensitive). Redeploy afterwards so the function picks it up.
-2. Set `PAYSTACK_PRO_AMOUNT_NGN=8000` (5 dollars at the 1,600 rate) and `JOTBOX_PUBLIC_URL=https://your-domain`.
+2. Set `PAYSTACK_PRO_AMOUNT_NGN=9800` (7 dollars at the 1,400 rate) and `JOTBOX_PUBLIC_URL=https://your-domain`.
 3. In live mode, set the webhook URL to `https://your-domain/api/billing`.
 4. Keep `PAYSTACK_PLAN_CODE` empty unless you created a live monthly NGN plan. A test-mode plan code does not exist in live mode, and checkout will fail on it.
 5. Make one small live payment with a real card, confirm Pro turns on, the webhook appears in the Paystack dashboard, and **Cancel renewal** works. Then refund it.
@@ -140,7 +140,7 @@ Activation writes a manual subscription row with `plan_key = enterprise` and `pr
 
 Groq bills speech by audio duration, not by request. `whisper-large-v3` costs $0.111 per audio hour and `whisper-large-v3-turbo` costs $0.04. Live captions and the final transcript both send the same audio, so a recorded session normally costs two passes. The kept transcript is always rebuilt from the full-audio pass, so live previews now use turbo through `GROQ_LIVE_STT_MODEL` while the final pass stays on `GROQ_STT_MODEL` (`whisper-large-v3`).
 
-When `ELEVENLABS_API_KEY` is set, Scribe v3 replaces the final Groq pass and adds diarisation. Scribe is billed at about $0.20 per audio hour, so a recorded hour costs about $0.24 with Groq turbo previews, against $0.151 on Groq alone. That difference sets the Pro cap: at 25 hours of full use, Scribe plus live previews costs about $6.00, so a maximally heavy Pro user costs about $1.00 more than the $5 plan earns. The tables below assume Groq is the final pass; swap the large-v3 column for $0.20 an hour when Scribe is on.
+When `ELEVENLABS_API_KEY` is set, Scribe v3 replaces the final Groq pass and adds diarisation. Scribe is billed at about $0.20 per audio hour, so a recorded hour costs about $0.24 with Groq turbo previews, against $0.151 on Groq alone. That difference sets the Pro cap: at 25 hours of full use, Scribe plus live previews costs about $6.00, which stays about $1.00 under the $7 plan. The tables below assume Groq is the final pass; swap the large-v3 column for $0.20 an hour when Scribe is on.
 
 Prices and limits below are as published at the time of writing; confirm them in the Groq console before relying on them.
 
@@ -154,7 +154,7 @@ Prices and limits below are as published at the time of writing; confirm them in
 
 Per 1,000 session-hours the change takes speech cost from $222 to $151, about 32% lower.
 
-On a $5 Pro plan, the break-even point on speech alone moves from 22.5 hours to 33.1 hours a month.
+On a $7 Pro plan, the break-even point on speech alone moves from 31.5 hours to 46.4 hours a month.
 
 | Monthly listening | Both passes on large-v3 | Now |
 | --- | --- | --- |
@@ -165,23 +165,23 @@ On a $5 Pro plan, the break-even point on speech alone moves from 22.5 hours to 
 | 30 h | $6.66 | $4.53 |
 | 40 h | $8.88 | $6.04 |
 
-At 25 hours a month with Groq as the final pass, Pro leaves $1.22 before payment fees. With Scribe as the final pass, 25 hours costs about $6.00, so the cap holds the worst case to about $1.00 above the plan instead of $2.20 at the old 30-hour limit. A user who talks for 40 hours is refused before the spend happens.
+At 25 hours a month with Groq as the final pass, Pro leaves $3.22 before payment fees. With Scribe as the final pass, 25 hours costs about $6.00, which stays about $1.00 under the plan instead of $2.20 above the old 30-hour limit. A user who talks for 40 hours is refused before the spend happens.
 
 ### Free tier limits
 
-Groq's free plan allows, per organization and per model: 20 requests a minute, 2,000 requests a day, 7,200 audio-seconds an hour (2 audio-hours) and 28,800 audio-seconds a day (8 audio-hours). Live chunks are 10 seconds, so one live session makes six requests a minute.
+Groq's free plan allows, per organization and per model: 20 requests a minute, 2,000 requests a day, 7,200 audio-seconds an hour (2 audio-hours) and 28,800 audio-seconds a day (8 audio-hours). Live chunks are 5 seconds, so one live session makes 12 requests a minute.
 
-Because live previews and the final pass now hit different models, the free daily allowance roughly doubles:
+Live previews run on turbo while the final pass runs on large-v3, so the two passes use separate model quotas. At 5-second chunks, live captions use 12 requests a minute, which makes the 2,000 requests a day the ceiling:
 
-| Session length | Sessions a day before | Sessions a day now |
-| --- | --- | --- |
-| 15 min | 16.0 | 22.2 |
-| 30 min | 8.0 | 11.1 |
-| 60 min | 4.0 | 5.6 |
-| 90 min | 2.7 | 3.7 |
-| 120 min | 2.0 | 2.8 |
+| Session length | Sessions a day |
+| --- | --- |
+| 15 min | 11.1 |
+| 30 min | 5.6 |
+| 60 min | 2.8 |
+| 90 min | 1.9 |
+| 120 min | 1.4 |
 
-At 60 minutes the binding limit is now the 2,000 live requests a day, not audio time. A single always-on recording with live captions uses 2 audio-hours an hour, which fills the free hourly audio cap by itself. After the split, two can run at once: sustained concurrency goes from 1 to 2.
+A single always-on recording with live captions uses 2 audio-hours an hour, which fills the free hourly audio cap by itself. Because the final pass is on a separate model, two can run at once: sustained concurrency is 2.
 
 ### Dev tier
 
@@ -189,7 +189,7 @@ The Dev tier raises throughput to roughly 200,000 audio-seconds an hour for larg
 
 ### Levers that move the number further
 
-- **Live chunk size.** 10-second chunks create the requests-a-day ceiling on free. 20-second chunks would roughly double free daily sessions, at the cost of caption latency.
+- **Live chunk size.** 5-second chunks keep captions close to the room. Longer chunks reduce request count but make lines arrive later; the final pass still rebuilds the transcript from the full audio.
 - **Silence gate.** The capture already computes an RMS level for the meter. Skipping silent chunks would cut both audio seconds and requests.
 - **Retries.** A failed notes build retries with a fresh full-audio pass, which costs another final transcription. Note rewrites do not re-transcribe.
 - **Self-hosted worker.** `WHISPER_BASE_URL` moves long or heavy recordings to a flat-cost worker and away from Groq metering.

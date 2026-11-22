@@ -190,9 +190,11 @@ function audioDuration(file: File) {
 }
 
 // Electron has no Web Speech API, so the desktop app sends short standalone
-// chunks to the same transcription endpoint the final pass uses.
-const LIVE_SEGMENT_MS = 10_000;
-const LIVE_QUEUE_LIMIT = 6;
+// chunks to the same transcription endpoint the final pass uses. Five seconds
+// keeps the committed lines close to the room without cutting so much context
+// that the reader loses accuracy.
+const LIVE_SEGMENT_MS = 5_000;
+const LIVE_QUEUE_LIMIT = 3;
 
 interface ServerLive {
   active: boolean;
@@ -264,6 +266,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     failures: 0,
   });
   const speechRef = useRef<SpeechRec | null>(null);
+  const previewRef = useRef<SpeechRec | null>(null);
   const listenRef = useRef(false);
   const liveFallbackRef = useRef<(() => void) | null>(null);
   const stopStreamRef = useRef<() => void>(() => {});
@@ -482,6 +485,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     if (last && last.text.trim().toLowerCase() === text.toLowerCase()) return;
     linesRef.current = [...linesRef.current, { id: crypto.randomUUID(), text, at: currentElapsed() }];
     setLines(linesRef.current);
+    setInterim("");
     persistLive();
   };
 
@@ -595,10 +599,21 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     startServerSegment();
   };
 
-  const armWebSpeech = () => {
+  const stopSpeech = (ref: { current: SpeechRec | null }) => {
+    const rec = ref.current;
+    ref.current = null;
+    if (!rec) return;
+    try {
+      rec.stop();
+    } catch {
+      /* already stopped */
+    }
+  };
+
+  const armWebSpeech = ({ commit = true }: { commit?: boolean } = {}) => {
     const Ctor = speechCtor();
     if (!Ctor) {
-      setCaptions(false);
+      if (commit) setCaptions(false);
       return;
     }
     const rec = new Ctor();
@@ -612,8 +627,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         const text = result[0].transcript.trim();
         if (!text) continue;
         if (result.isFinal) {
+          if (commit) appendLiveText(text);
           pending = "";
-          appendLiveText(text);
         } else if (!isNoiseLine(text)) {
           pending += `${text} `;
         }
@@ -621,52 +636,61 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       setInterim(pending.trim());
     };
     rec.onerror = (event) => {
+      setInterim("");
       if (event.error === "not-allowed" || event.error === "network" || event.error === "service-not-allowed") {
-        setCaptions(false);
+        if (speechRef.current === rec) speechRef.current = null;
+        if (previewRef.current === rec) previewRef.current = null;
+        if (commit) setCaptions(false);
       }
     };
     rec.onend = () => {
       if (!listenRef.current) return;
+      if (speechRef.current !== rec && previewRef.current !== rec) return;
       window.setTimeout(() => {
         if (!listenRef.current) return;
+        if (speechRef.current !== rec && previewRef.current !== rec) return;
         try {
           rec.start();
         } catch {
-          setCaptions(false);
+          setInterim("");
+          if (commit) setCaptions(false);
         }
       }, 300);
     };
     try {
       rec.start();
-      speechRef.current = rec;
+      if (commit) speechRef.current = rec;
+      else previewRef.current = rec;
       listenRef.current = true;
     } catch {
-      setCaptions(false);
+      if (commit) setCaptions(false);
     }
   };
 
   const armSpeech = () => {
-    // Every environment uses the server reader first, because the browser
-    // speech service fails quietly in noisy rooms. Web Speech is only a
-    // backup for browsers where the endpoint cannot be reached.
+    // The server reader writes the committed lines. On the web, the browser
+    // speech service runs alongside it as an instant preview, so words keep
+    // writing while the fresh five-second chunk is still being read.
+    stopSpeech(previewRef);
+    stopSpeech(speechRef);
     armServerSpeech(() => {
+      stopSpeech(previewRef);
       if (!desktop) {
+        setInterim("");
         armWebSpeech();
         return;
       }
       setCaptions(false);
     });
+    if (!desktop) armWebSpeech({ commit: false });
   };
 
   const finishRecorder = () => {
     listenRef.current = false;
     stopServerLive();
-    try {
-      speechRef.current?.stop();
-    } catch {
-      /* already stopped */
-    }
-    speechRef.current = null;
+    stopSpeech(previewRef);
+    stopSpeech(speechRef);
+    setInterim("");
     const recorder = recorderRef.current;
     const blob = new Promise<Blob>((resolve) => {
       const pack = () => new Blob(chunks.current, { type: mimeRef.current || "audio/webm" });
@@ -1000,11 +1024,9 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     if (recorderRef.current?.state === "recording") recorderRef.current.pause();
     listenRef.current = false;
     stopServerLive();
-    try {
-      speechRef.current?.stop();
-    } catch {
-      /* already stopped */
-    }
+    stopSpeech(previewRef);
+    stopSpeech(speechRef);
+    setInterim("");
     setStatusBoth("paused");
     persistLive();
   }, [persistLive]);

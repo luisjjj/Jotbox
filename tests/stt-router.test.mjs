@@ -132,7 +132,7 @@ test("nothing configured returns a none route instead of throwing", () => {
   assert.equal(route.fallback, true);
 });
 
-test("live captions always stay on the cheapest reader", () => {
+test("live captions stay on the fastest reader and leave batch Scribe for last", () => {
   const route = routeLiveTranscription();
   assert.equal(route.provider, "groq");
   assert.equal(route.model, "whisper-large-v3-turbo");
@@ -140,10 +140,23 @@ test("live captions always stay on the cheapest reader", () => {
   assert.deepEqual(route.keyterms, []);
   assert.equal(route.costPerHour, STT_PRICES["groq-turbo"]);
 
-  const fallback = routeLiveTranscription({ available: { groq: false } });
-  assert.equal(fallback.provider, "elevenlabs");
-  assert.equal(fallback.diarize, false);
-  assert.deepEqual(fallback.keyterms, []);
+  const hosted = routeLiveTranscription({ available: { groq: false, scribe: true, xai: true } });
+  assert.equal(hosted.provider, "xai");
+  assert.equal(hosted.fallback, true);
+
+  const worker = routeLiveTranscription({ available: { groq: false, scribe: true, xai: false, worker: true } });
+  assert.equal(worker.provider, "worker");
+
+  const scribeOnly = routeLiveTranscription({ available: { groq: false, scribe: true } });
+  assert.equal(scribeOnly.provider, "elevenlabs");
+  assert.equal(scribeOnly.diarize, false);
+  assert.deepEqual(scribeOnly.keyterms, []);
+
+  const demo = routeLiveTranscription({ available: { groq: false, scribe: false, demo: true } });
+  assert.equal(demo.provider, "demo");
+
+  const none = routeLiveTranscription({ available: { groq: false, scribe: false } });
+  assert.equal(none.provider, "none");
 });
 
 test("cost estimates follow the public hourly prices", () => {

@@ -128,7 +128,7 @@ test("partner invite carries both links and the commission share", async () => {
 test("renewal reminder names the date, the charge and the period key", async () => {
   const result = await sendRenewalReminderEmail(
     { id: "user-1", email: "ada@example.com", name: "Ada Lovelace" },
-    { amount: 800_000, currency: "NGN", nextPaymentAt: "2026-12-01T10:00:00.000Z" },
+    { amount: 980_000, currency: "NGN", nextPaymentAt: "2026-12-01T10:00:00.000Z" },
   );
 
   assert.equal(result.delivered, true);
@@ -136,7 +136,7 @@ test("renewal reminder names the date, the charge and the period key", async () 
   assert.equal(init.headers["Idempotency-Key"], `renewal-user-1-${new Date("2026-12-01T10:00:00.000Z").getTime()}`);
   assert.match(body.subject, /Ada Lovelace, JotBox Pro renews on 1 December 2026/);
   assert.match(body.text, /Hi Ada Lovelace/);
-  assert.match(body.text, /8,000/);
+  assert.match(body.text, /9,800/);
   assert.match(body.text, /cancel before 1 December 2026/);
   assert.match(body.html, /Manage your plan/);
 });

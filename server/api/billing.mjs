@@ -18,7 +18,7 @@ import {
  *
  * Pro is priced in US dollars on the site but charged in Naira, because a
  * Paystack plan is tied to one currency. The Naira amount is set with
- * PAYSTACK_PRO_AMOUNT_NGN, or converted from $5 with JOTBOX_USD_TO_NGN.
+ * PAYSTACK_PRO_AMOUNT_NGN, or converted from $7 with JOTBOX_USD_TO_NGN.
  *
  * Money is only trusted after Paystack confirms it. The browser return and the
  * webhook both write through the same reference-first ledger, so a retry or a
@@ -27,8 +27,8 @@ import {
  */
 
 const PAYSTACK_API = "https://api.paystack.co";
-const PRO_PRICE_USD = 5;
-const DEFAULT_NGN_PER_USD = 1600;
+const PRO_PRICE_USD = 7;
+const DEFAULT_NGN_PER_USD = 1400;
 const PRO_PLAN_KEY = "pro";
 const ENTERPRISE_PLAN_KEY = "enterprise";
 const PAYSTACK_TIMEOUT_MS = 20_000;

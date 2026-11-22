@@ -250,8 +250,9 @@ export function routeTranscription({
 }
 
 /**
- * Live captions are a disposable preview and always stay on the cheapest
- * reader, never diarised and never keyterm-tuned.
+ * Live captions are a disposable preview and always stay on a reader that can
+ * turn a short chunk around quickly. Batch Scribe is the slowest option here,
+ * so it is used only when no faster reader is configured.
  */
 export function routeLiveTranscription({ available = {} } = {}) {
   if (available.groq !== false) {
@@ -267,6 +268,32 @@ export function routeLiveTranscription({ available = {} } = {}) {
       requestedProvider: "groq",
     };
   }
+  if (available.xai === true) {
+    return {
+      provider: "xai",
+      model: "grok-voice-transcribe-2.0",
+      diarize: false,
+      prompt: "none",
+      keyterms: [],
+      costPerHour: 0,
+      costKey: "xai",
+      fallback: true,
+      requestedProvider: "groq",
+    };
+  }
+  if (available.worker === true) {
+    return {
+      provider: "worker",
+      model: "self-hosted",
+      diarize: false,
+      prompt: "none",
+      keyterms: [],
+      costPerHour: 0,
+      costKey: "self-hosted",
+      fallback: true,
+      requestedProvider: "groq",
+    };
+  }
   if (available.scribe !== false) {
     return {
       provider: "elevenlabs",
@@ -276,6 +303,19 @@ export function routeLiveTranscription({ available = {} } = {}) {
       keyterms: [],
       costPerHour: STT_PRICES.scribe,
       costKey: "scribe",
+      fallback: true,
+      requestedProvider: "groq",
+    };
+  }
+  if (available.demo === true) {
+    return {
+      provider: "demo",
+      model: "demo",
+      diarize: false,
+      prompt: "none",
+      keyterms: [],
+      costPerHour: 0,
+      costKey: "demo",
       fallback: true,
       requestedProvider: "groq",
     };

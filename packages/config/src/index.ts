@@ -9,8 +9,8 @@ export const APP_CONFIG = {
 } as const;
 
 export const BILLING_CONFIG = {
-  proUsd: 5,
-  usdToNgn: 1600,
+  proUsd: 7,
+  usdToNgn: 1400,
 } as const;
 
 export const SESSION_KINDS = ['meeting', 'seminar', 'lecture', 'voice'] as const;
