@@ -26,6 +26,7 @@ import {
   Upload,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/auth/AuthProvider";
@@ -44,6 +45,8 @@ import {
   type OrgAuditEvent,
   type OrgDetail,
   type OrgDocument,
+  type OrgGlossaryTerm,
+  type OrgInsight,
   type OrgMember,
   type OrgRole,
   type Organisation,
@@ -453,6 +456,7 @@ function AskPanel({
   const [turns, setTurns] = useState<ChatEntry[]>([]);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState("");
+  const [openItems, setOpenItems] = useState<OrgInsight[]>([]);
   const { pro, loaded: planLoaded } = usePlan();
   const [voice, setVoice] = useState<"idle" | "listening" | "writing">("idle");
   const [canRecord] = useState(
@@ -479,6 +483,20 @@ function AskPanel({
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
+
+  useEffect(() => {
+    if (!planLoaded || !pro) return;
+    let alive = true;
+    void api
+      .listOrgInsights(org.org.id)
+      .then((rows) => {
+        if (alive) setOpenItems(rows.slice(0, 4));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [org.org.id, planLoaded, pro]);
 
   const transcribeVoice = async (blob: Blob, run: number) => {
     try {
@@ -592,6 +610,7 @@ function AskPanel({
     try {
       const result = await api.queryMemory(org.org.id, clean, history);
       setTurns((current) => current.map((turn) => (turn.id === id ? { ...turn, answer: result } : turn)));
+      if (result.suggestions) setOpenItems(result.suggestions.slice(0, 4));
     } catch (err) {
       setTurns((current) => current.map((turn) => (turn.id === id ? { ...turn, error: messageFor(err) } : turn)));
     } finally {
@@ -608,6 +627,11 @@ function AskPanel({
     setTurns([]);
     setDraft("");
     setError("");
+  };
+
+  const followUp = (item: OrgInsight) => {
+    const text = item.text.length > 90 ? `${item.text.slice(0, 87).trimEnd()}…` : item.text;
+    void ask(`What happened with "${text}" since ${format(new Date(item.date), "d MMM")}?`);
   };
 
   const lastTurnId = turns[turns.length - 1]?.id;
@@ -651,6 +675,28 @@ function AskPanel({
             </button>
           )}
         </header>
+
+        {openItems.length > 0 && (
+          <div className="border-b border-line bg-raised-2 px-4 py-2.5 sm:px-5">
+            <p className="text-[11.5px] font-medium uppercase tracking-[0.08em] text-faint">Open follow-ups</p>
+            <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
+              {openItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="flex flex-none items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-left text-[12.5px] font-medium text-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
+                  disabled={asking}
+                  onClick={() => followUp(item)}
+                  title={`${item.title} · ${format(new Date(item.date), "d MMM")}`}
+                >
+                  <Clock className="h-3 w-3 flex-none text-accent" />
+                  <span className="max-w-[26ch] truncate">{item.text}</span>
+                  {item.owner && <span className="flex-none text-faint">{item.owner}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5" aria-live="polite">
           {turns.length === 0 ? (
@@ -1646,6 +1692,54 @@ function WorkspacePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => P
   const [retention, setRetention] = useState(String(org.org.retentionDays));
   const [savingOrg, setSavingOrg] = useState(false);
   const [orgError, setOrgError] = useState("");
+  const [glossary, setGlossary] = useState<OrgGlossaryTerm[]>([]);
+  const [canManageGlossary, setCanManageGlossary] = useState(admin);
+  const [glossaryTerm, setGlossaryTerm] = useState("");
+  const [savingTerm, setSavingTerm] = useState(false);
+  const [glossaryError, setGlossaryError] = useState("");
+
+  const loadGlossary = useCallback(async () => {
+    try {
+      const data = await api.listOrgGlossary(org.org.id);
+      setGlossary(data.terms);
+      setCanManageGlossary(data.canManage);
+    } catch {
+      setGlossary([]);
+    }
+  }, [org.org.id]);
+
+  useEffect(() => {
+    void loadGlossary();
+  }, [loadGlossary]);
+
+  const addTerm = async () => {
+    const term = glossaryTerm.trim();
+    if (term.length < 2) {
+      setGlossaryError("Add at least two letters.");
+      return;
+    }
+    setSavingTerm(true);
+    setGlossaryError("");
+    try {
+      await api.addOrgGlossaryTerm(org.org.id, term);
+      setGlossaryTerm("");
+      await loadGlossary();
+      toast.success("Term added");
+    } catch (err) {
+      setGlossaryError(messageFor(err));
+    } finally {
+      setSavingTerm(false);
+    }
+  };
+
+  const removeTerm = async (term: OrgGlossaryTerm) => {
+    try {
+      await api.deleteOrgGlossaryTerm(org.org.id, term.id);
+      setGlossary((current) => current.filter((row) => row.id !== term.id));
+    } catch (err) {
+      toast.error(messageFor(err));
+    }
+  };
 
   useEffect(() => {
     setName(org.org.name);
@@ -1730,6 +1824,65 @@ function WorkspacePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => P
             </button>
           </div>
         )}
+      </Section>
+
+      <Section
+        title="Glossary"
+        description="Names, acronyms and local words the transcription should hear exactly. The strongest terms become keyterms on enterprise meetings."
+        aside={<Chip>{glossary.length}</Chip>}
+      >
+        {glossary.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-line-strong bg-raised-2 px-3.5 py-3 text-[14px] text-muted">
+            No terms yet. Add the names and acronyms your team says every day.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {glossary.map((term) => (
+              <span key={term.id} className="chip">
+                {term.term}
+                <span className="text-faint">{term.weight}</span>
+                {canManageGlossary && (
+                  <button
+                    type="button"
+                    className="-mr-1 grid h-5 w-5 place-items-center rounded-full text-faint transition-colors hover:bg-raised-2 hover:text-rec"
+                    onClick={() => void removeTerm(term)}
+                    aria-label={`Remove ${term.term}`}
+                    title={`Remove ${term.term}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+        {canManageGlossary && (
+          <div className="mt-3 flex gap-2">
+            <input
+              className="field flex-1"
+              placeholder="e.g. PTI, Chinedu, Ọ̀rẹ́"
+              maxLength={50}
+              value={glossaryTerm}
+              onChange={(event) => setGlossaryTerm(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void addTerm();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-line"
+              onClick={() => void addTerm()}
+              disabled={savingTerm || glossaryTerm.trim().length < 2}
+            >
+              {savingTerm ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Add
+            </button>
+          </div>
+        )}
+        {glossaryError && <p className="mt-2 text-[13px] leading-4 text-rec">{glossaryError}</p>}
       </Section>
 
       <Section

@@ -294,6 +294,24 @@ export interface OrgDocument {
   ownerId: string;
 }
 
+export interface OrgGlossaryTerm {
+  id: string;
+  term: string;
+  weight: number;
+  createdAt: string;
+}
+
+export interface OrgInsight {
+  id: string;
+  captureId: string;
+  text: string;
+  owner: string;
+  dueDate: string | null;
+  title: string;
+  date: string;
+  department: string | null;
+}
+
 export interface QuotaReservation {
   plan: Plan;
   reservedSeconds: number;
@@ -321,11 +339,27 @@ export interface TranscribeJobTimings {
   totalMs?: number;
 }
 
+export interface SttRouting {
+  tier: "free" | "pro" | "enterprise";
+  mode: "lecture" | "group";
+  provider: string;
+  model: string;
+  intendedProvider?: string;
+  intendedModel?: string;
+  diarize: boolean;
+  prompt: "none" | "language" | "glossary";
+  keyterms: string[];
+  costPerHour: number;
+  fallback: boolean;
+  reason: string;
+}
+
 export interface TranscribeJobResult {
   title: string;
   lines: TranscriptLine[];
   notes: NonNullable<Session["notes"]> | null;
   language: string | null;
+  routing?: SttRouting | null;
   stage: TranscribeJobStage;
   timings?: TranscribeJobTimings;
 }
@@ -363,6 +397,7 @@ export interface MemoryAnswer {
   reasonNote: string;
   sources: MemorySource[];
   citations?: MemoryCitation[];
+  suggestions?: OrgInsight[];
   scope: {
     role: OrgRole;
     retentionDays: number;
@@ -651,6 +686,23 @@ export const api = {
       `/api/orgs/${encodeURIComponent(orgId)}/documents/${encodeURIComponent(documentId)}`,
       { method: "DELETE" },
     ),
+  listOrgGlossary: (orgId: string) =>
+    request<{ terms: OrgGlossaryTerm[]; canManage: boolean }>(
+      `/api/orgs/${encodeURIComponent(orgId)}/glossary`,
+    ),
+  addOrgGlossaryTerm: async (orgId: string, term: string) =>
+    (
+      await request<{ term: OrgGlossaryTerm }>(`/api/orgs/${encodeURIComponent(orgId)}/glossary`, {
+        method: "POST",
+        body: JSON.stringify({ term }),
+      })
+    ).term,
+  deleteOrgGlossaryTerm: (orgId: string, termId: string) =>
+    request<void>(`/api/orgs/${encodeURIComponent(orgId)}/glossary/${encodeURIComponent(termId)}`, {
+      method: "DELETE",
+    }),
+  listOrgInsights: async (orgId: string) =>
+    (await request<{ insights: OrgInsight[] }>(`/api/orgs/${encodeURIComponent(orgId)}/insights`)).insights,
   getAudit: async (orgId: string) =>
     (await request<{ audit: OrgAuditEvent[] }>(`/api/orgs/${encodeURIComponent(orgId)}/audit`)).audit,
   queryMemory: (orgId: string, question: string, history: MemoryChatTurn[] = []) =>

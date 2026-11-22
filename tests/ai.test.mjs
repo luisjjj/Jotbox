@@ -109,6 +109,7 @@ test("speech prompt follows the chosen language and keeps Pidgin on its own regi
   assert.deepEqual(ai.sanitizeSttContext({ title: "", names: [], language: "yo" }), {
     title: "",
     kind: "",
+    mode: "",
     names: [],
     focus: "balanced",
     language: "yo",
@@ -171,6 +172,7 @@ test("Scribe reads the full recording with speaker ids and keyterms", async () =
     buffer: Buffer.from("audio"),
     contentType: "audio/webm",
     filename: "sample.webm",
+    plan: "enterprise",
     context: { title: "Friday payout review", kind: "meeting", names: ["Ada", "Chinedu"], focus: "balanced", language: "pcm" },
   });
 
@@ -387,7 +389,8 @@ test("transcription removes noise segments and keeps the room's words", async ()
     buffer: Buffer.from("audio"),
     contentType: "audio/webm",
     filename: "sample.webm",
-    context: { title: "Quarterly earnings review", kind: "meeting", names: ["Ada"], focus: "balanced" },
+    plan: "pro",
+    context: { title: "Quarterly earnings review", kind: "meeting", mode: "lecture", names: ["Ada"], focus: "balanced" },
   });
 
   assert.equal(result.provider, "groq");

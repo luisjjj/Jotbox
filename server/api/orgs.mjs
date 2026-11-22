@@ -5,6 +5,8 @@ import { requireSession } from "./auth.mjs";
 import { isProUser } from "./billing.mjs";
 import { answerOrganisationMemory } from "./memory-ai.mjs";
 import { citationsFrom, indexCapture, retrieveChunks, scheduleChunkEmbedding } from "./memory-index.mjs";
+import { openInsights } from "./meeting-insights.mjs";
+import { cleanGlossaryTerm, listGlossary } from "./org-glossary.mjs";
 import {
   documentMimeType,
   documentParagraphs,
@@ -1039,6 +1041,81 @@ async function deleteDocument(req, res) {
   res.end();
 }
 
+async function getGlossary(req, res) {
+  requireMethod(req, ["GET"]);
+  const member = await requireOrgMember(req, orgIdFrom(req));
+  sendJson(res, 200, {
+    terms: await listGlossary(member.orgId),
+    canManage: adminRole(member.role),
+  });
+}
+
+const glossaryInput = z.object({
+  term: z.string().trim().min(2, "Add at least two letters.").max(50, "Keep the term under 50 characters."),
+});
+
+async function addGlossaryTerm(req, res) {
+  requireMethod(req, ["POST"]);
+  assertSameOrigin(req);
+  const member = await requireOrgMember(req, orgIdFrom(req));
+  requireAdmin(member);
+  const input = parse(glossaryInput, await readJson(req, 2_000));
+  const term = cleanGlossaryTerm(input.term);
+  if (term.length < 2) throw new HttpError(400, "Add at least two letters.");
+
+  const result = await query(
+    `insert into org_glossary (org_id, term, created_by, weight)
+     values ($1, $2, $3, 1)
+     on conflict (org_id, lower(term)) do update
+       set weight = org_glossary.weight + 1
+     returning id, term, weight, created_at`,
+    [member.orgId, term, member.user.id],
+  );
+  const row = result.rows[0];
+  await audit({
+    req,
+    orgId: member.orgId,
+    actorId: member.user.id,
+    action: "glossary.add",
+    metadata: { term },
+  });
+  sendJson(res, 201, {
+    term: { id: row.id, term: row.term, weight: Number(row.weight) || 0, createdAt: new Date(row.created_at).toISOString() },
+  });
+}
+
+async function deleteGlossaryTerm(req, res) {
+  requireMethod(req, ["DELETE"]);
+  assertSameOrigin(req);
+  const member = await requireOrgMember(req, orgIdFrom(req));
+  requireAdmin(member);
+  const termId = parse(uuid, partsOf(req)[4]);
+  const removed = await query("delete from org_glossary where id = $1 and org_id = $2 returning term", [
+    termId,
+    member.orgId,
+  ]);
+  if (!removed.rows[0]) throw new HttpError(404, "That glossary term was not found.");
+  await audit({
+    req,
+    orgId: member.orgId,
+    actorId: member.user.id,
+    action: "glossary.remove",
+    metadata: { term: removed.rows[0].term },
+  });
+  res.statusCode = 204;
+  res.end();
+}
+
+async function getInsights(req, res) {
+  requireMethod(req, ["GET"]);
+  const member = await requireOrgMember(req, orgIdFrom(req));
+  const insights = await openInsights(member.user.id, member.orgId, { days: 30, limit: 8 }).catch((error) => {
+    console.warn("[jotbox-orgs] insights skipped", error instanceof Error ? error.message : error);
+    return [];
+  });
+  sendJson(res, 200, { insights });
+}
+
 function parseHistory(value) {
   if (!Array.isArray(value)) return [];
   const turns = [];
@@ -1122,6 +1199,7 @@ async function queryMemory(req, res) {
       reasonNote: "",
       sources: [],
       citations: [],
+      suggestions: [],
       scope: {
         role: member.role,
         retentionDays: member.retentionDays,
@@ -1134,6 +1212,10 @@ async function queryMemory(req, res) {
     return;
   }
 
+  const suggestions = await openInsights(member.user.id, member.orgId, { days: 30, limit: 8 }).catch((error) => {
+    console.warn("[jotbox-orgs] insight suggestions skipped", error instanceof Error ? error.message : error);
+    return [];
+  });
   const captureIds = accessible.rows.map((row) => row.id);
   const chunks = await retrieveChunks({ query }, { question: searchQuestion, captureIds, limit: 32 });
   const momentsByCapture = new Map();
@@ -1251,6 +1333,7 @@ async function queryMemory(req, res) {
       reasonNote: answer.reasonNote,
       sources,
       citations,
+      suggestions,
       scope: {
         role: member.role,
         retentionDays: member.retentionDays,
@@ -1307,6 +1390,12 @@ export async function handleOrgs(req, res) {
     if (tail[0] === "captures") return shareCapture(req, res);
     if (tail[0] === "audit") return getAudit(req, res);
     if (tail[0] === "memory") return queryMemory(req, res);
+    if (tail[0] === "insights") return getInsights(req, res);
+    if (tail[0] === "glossary") {
+      if (req.method === "GET") return getGlossary(req, res);
+      if (req.method === "POST") return addGlossaryTerm(req, res);
+      requireMethod(req, ["GET", "POST"]);
+    }
     if (tail[0] === "documents") {
       if (req.method === "GET") return listDocuments(req, res);
       if (req.method === "POST") return uploadDocument(req, res);
@@ -1327,6 +1416,10 @@ export async function handleOrgs(req, res) {
     }
     if (tail[0] === "documents") {
       if (req.method === "DELETE") return deleteDocument(req, res);
+      requireMethod(req, ["DELETE"]);
+    }
+    if (tail[0] === "glossary") {
+      if (req.method === "DELETE") return deleteGlossaryTerm(req, res);
       requireMethod(req, ["DELETE"]);
     }
   }

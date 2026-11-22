@@ -626,6 +626,44 @@ insert into schema_migrations (version)
 values ('013_async_rag_storage')
 on conflict (version) do nothing;
 
+-- Names, acronyms and project words that readers keep getting wrong. Only the
+-- enterprise router sends these to Scribe as keyterms.
+create table if not exists org_glossary (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organisations(id) on delete cascade,
+  term text not null check (char_length(term) between 2 and 50),
+  weight integer not null default 0,
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists org_glossary_term_idx on org_glossary (org_id, lower(term));
+create index if not exists org_glossary_org_idx on org_glossary (org_id, weight desc, created_at desc);
+
+-- Decisions and actions pulled from finished notes. Open actions feed the
+-- follow-up suggestions in the memory chat and the next meeting setup.
+create table if not exists meeting_insights (
+  id uuid primary key default gen_random_uuid(),
+  capture_id uuid not null references captures(id) on delete cascade,
+  org_id uuid not null references organisations(id) on delete cascade,
+  owner_id uuid not null references users(id) on delete cascade,
+  kind text not null check (kind in ('decision', 'action')),
+  text text not null check (char_length(text) > 0),
+  owner_label text not null default '',
+  due_date date,
+  status text not null default 'open' check (status in ('open', 'completed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists meeting_insights_org_idx
+  on meeting_insights (org_id, status, due_date nulls last, created_at desc);
+create index if not exists meeting_insights_capture_idx on meeting_insights (capture_id);
+
 insert into schema_migrations (version)
 values ('014_org_documents')
+on conflict (version) do nothing;
+
+insert into schema_migrations (version)
+values ('015_stt_routing_insights')
 on conflict (version) do nothing;

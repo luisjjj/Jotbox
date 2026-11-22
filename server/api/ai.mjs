@@ -1,7 +1,9 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { z } from "zod";
-import { requireSession } from "./auth.mjs";
-import { isProUser } from "./billing.mjs";
+import { currentSession, requireSession } from "./auth.mjs";
+import { isProUser, planForUser } from "./billing.mjs";
+import { glossaryForUser } from "./org-glossary.mjs";
+import { routeLiveTranscription, routeTranscription } from "./stt-router.mjs";
 import { HttpError, assertSameOrigin, clientIp, readJson, requireMethod, sendJson } from "./http.mjs";
 
 /**
@@ -268,11 +270,12 @@ export function sanitizeSttContext(input) {
     : [];
   const title = plainText(input.title, 120);
   const kind = ["meeting", "seminar", "lecture", "voice"].includes(input.kind) ? input.kind : "";
+  const mode = ["lecture", "group"].includes(input.mode) ? input.mode : "";
   const focus = ["off", "balanced", "strict"].includes(input.focus) ? input.focus : "balanced";
   const asked = plainText(input.language, 8).toLowerCase();
   const language = STT_CODES[asked] ? asked : "";
-  if (!title && !names.length && !language) return null;
-  return { title, kind, names, focus, language };
+  if (!title && !names.length && !language && !mode) return null;
+  return { title, kind, mode, names, focus, language };
 }
 
 export function sttPrompt(context, options = {}) {
@@ -280,17 +283,22 @@ export function sttPrompt(context, options = {}) {
   // silent live chunk it reads the instructions back as captions. Live previews
   // go without a prompt; the full recording still gets the tuned one.
   if (options?.live === true) return "";
+  if (options?.promptMode === "none") return "";
 
   const language = sanitizeSttContext(context)?.language || sttLanguage();
   const base = (key("JOTBOX_STT_PROMPT") || STT_PROMPTS[language] || STT_PROMPT_EN).slice(0, STT_BASE_LIMIT);
-  const vocab = sttVocabulary();
   const room = sanitizeSttContext(context);
   const kind = room?.kind && KIND_LABEL[room.kind] ? KIND_LABEL[room.kind] : "session";
   const topic = room?.title ? `This ${kind} is called "${room.title}".` : "";
   const focus =
     room?.focus === "off" ? "" : "Keep every word you can hear, even in a noisy room.";
-  const terms = [...new Set([...(room?.names ?? []), ...vocab.split(", ").filter(Boolean)])];
   const lead = [base, topic, focus].filter(Boolean).join(" ");
+
+  // The free reader gets the language and room shape, but no glossary terms.
+  if (options?.promptMode === "language") return lead.slice(0, STT_PROMPT_LIMIT).trim();
+
+  const vocab = sttVocabulary();
+  const terms = [...new Set([...(room?.names ?? []), ...vocab.split(", ").filter(Boolean)])];
 
   // Groq rejects speech prompts longer than 896 characters, so the room
   // vocabulary is added term by term until the budget is full.
@@ -750,7 +758,7 @@ function scribeBody(buffer, contentType, filename, context, options, language, t
   // the same bytes twice.
   if (options.sourceUrl) body.sourceUrl = options.sourceUrl;
   else body.file = { data: buffer, filename, contentType };
-  if (options.live !== true) {
+  if (options.live !== true && options.diarize !== false) {
     // Diarising a two second live chunk produces speaker ids that do not line
     // up with the next chunk, so only the full recording asks for speakers.
     body.diarize = true;
@@ -759,7 +767,11 @@ function scribeBody(buffer, contentType, filename, context, options, language, t
   if (!tuned) return body;
   const code = elevenLabsCode(language);
   if (code) body.languageCode = code;
-  const terms = sttKeyterms(context);
+  // The router decides whether paid keyterms are part of this plan. An empty
+  // list is deliberate on Pro group calls, not a missing context.
+  const terms = Array.isArray(options.keyterms)
+    ? options.keyterms.map((term) => plainText(term, 50)).filter((term) => term.length >= 2).slice(0, ELEVENLABS_KEYTERM_LIMIT)
+    : sttKeyterms(context);
   if (terms.length) body.keyterms = terms;
   return body;
 }
@@ -827,17 +839,72 @@ function mockTranscription() {
   };
 }
 
-export async function transcribeAudio({ buffer = null, contentType, filename, context, live = false, sourceUrl = null }) {
-  const options = { live, sourceUrl };
+function sttAvailability() {
+  return {
+    groq: Boolean(groqKey()),
+    scribe: Boolean(elevenLabsKey()),
+    worker: Boolean(whisperBase()),
+    xai: Boolean(xaiKey()),
+    demo: mockEnabled(),
+  };
+}
+
+export function routingForCapture({ plan = "free", context, live = false, glossary = [] }) {
+  const available = sttAvailability();
+  if (live) return routeLiveTranscription({ available });
+  const terms = [...(context?.names ?? []), ...(Array.isArray(glossary) ? glossary : [])];
+  return routeTranscription({
+    plan,
+    mode: context?.mode,
+    kind: context?.kind || "meeting",
+    language: sttLanguage(context?.language),
+    // Enterprise pays for keyterms, so deployment-level tuning (names, room
+    // vocabulary, configured terms) still rides along with the org glossary.
+    glossary: plan === "enterprise" ? [...terms, ...sttKeyterms(context)] : terms,
+    available,
+  });
+}
+
+function providerName(provider) {
+  if (provider === "self-hosted") return "worker";
+  return provider;
+}
+
+export async function transcribeAudio({
+  buffer = null,
+  contentType,
+  filename,
+  context,
+  live = false,
+  sourceUrl = null,
+  plan = "free",
+  glossary = [],
+}) {
+  const route = routingForCapture({ plan, context, live, glossary });
+  const options = {
+    live,
+    sourceUrl,
+    promptMode: route.prompt,
+    keyterms: route.keyterms,
+    diarize: route.diarize,
+  };
   const language = sttLanguage(context?.language);
   // Scribe covers Igbo, so the worker-only rule applies only when Scribe is absent.
   const workerOnly = STT_WORKER_ONLY.has(language) && !elevenLabsKey();
   const attempts = [];
-  const providers = configuredSttProviders({ live }).filter((provider) => {
-    if (provider === "groq") return (buffer ? buffer.length <= GROQ_FREE_MAX : true) && !workerOnly;
-    if (workerOnly) return provider === "worker" || provider === "demo";
-    return true;
-  });
+  const configured = configuredSttProviders({ live });
+  const primary = route.provider;
+  const providers = [...configured]
+    .sort((left, right) => {
+      if (left === primary) return -1;
+      if (right === primary) return 1;
+      return 0;
+    })
+    .filter((provider) => {
+      if (provider === "groq") return (buffer ? buffer.length <= GROQ_FREE_MAX : true) && !workerOnly;
+      if (workerOnly) return provider === "worker" || provider === "demo";
+      return true;
+    });
 
   if (!providers.some((provider) => provider !== "demo")) {
     if (workerOnly) {
@@ -858,22 +925,51 @@ export async function transcribeAudio({ buffer = null, contentType, filename, co
     return audio;
   };
 
+  const withRouting = (result, provider) => ({
+    ...result,
+    routing: {
+      ...route,
+      intendedProvider: route.provider,
+      intendedModel: route.model,
+      provider: providerName(provider),
+      fallback: provider !== route.provider,
+    },
+  });
+
   for (const provider of providers) {
     try {
       if (provider === "elevenlabs") {
-        return await transcribeWithElevenLabs(
-          sourceUrl ? null : await loadAudio(),
-          contentType,
-          filename,
-          context,
-          options,
-          language,
+        return withRouting(
+          await transcribeWithElevenLabs(
+            sourceUrl ? null : await loadAudio(),
+            contentType,
+            filename,
+            context,
+            options,
+            language,
+          ),
+          provider,
         );
       }
-      if (provider === "groq") return await transcribeWithGroq(await loadAudio(), contentType, filename, context, options, language);
-      if (provider === "worker") return await transcribeWithWorker(await loadAudio(), contentType, filename, context, options, language);
-      if (provider === "xai") return await transcribeWithXai(await loadAudio(), contentType, filename, context, options, language);
-      if (provider === "demo") return mockTranscription();
+      if (provider === "groq") {
+        return withRouting(
+          await transcribeWithGroq(await loadAudio(), contentType, filename, context, options, language),
+          provider,
+        );
+      }
+      if (provider === "worker") {
+        return withRouting(
+          await transcribeWithWorker(await loadAudio(), contentType, filename, context, options, language),
+          provider,
+        );
+      }
+      if (provider === "xai") {
+        return withRouting(
+          await transcribeWithXai(await loadAudio(), contentType, filename, context, options, language),
+          provider,
+        );
+      }
+      if (provider === "demo") return withRouting(mockTranscription(), provider);
     } catch (error) {
       attempts.push({ provider, message: error instanceof Error ? error.message : "failed" });
     }
@@ -1999,6 +2095,14 @@ function sttContextFromRequest(req) {
   }
 }
 
+async function routingContext(req) {
+  const session = await currentSession(req).catch(() => null);
+  if (!session) return { plan: "free", glossary: [] };
+  const plan = await planForUser(session.user.id).catch(() => "free");
+  const glossary = plan === "enterprise" ? await glossaryForUser(session.user.id).catch(() => []) : [];
+  return { plan, glossary };
+}
+
 export async function handleTranscribe(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
@@ -2008,7 +2112,8 @@ export async function handleTranscribe(req, res) {
   const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
   const filename = `session.${extensionFor(contentType)}`;
   const context = sttContextFromRequest(req);
-  sendJson(res, 200, await transcribeAudio({ buffer: body, contentType, filename, context }));
+  const { plan, glossary } = await routingContext(req);
+  sendJson(res, 200, await transcribeAudio({ buffer: body, contentType, filename, context, plan, glossary }));
 }
 
 // Small chunks from the desktop live captions. Higher request count, lower

@@ -61,6 +61,17 @@ import { NoticeDialog } from "@/components/NoticeDialog";
 
 const KINDS: SessionKind[] = ["meeting", "seminar", "lecture", "voice"];
 
+function routingHint(kind: SessionKind, plan: "free" | "pro" | "enterprise") {
+  const group = kind === "meeting" || kind === "seminar";
+  if (plan === "free") return "Free plan reads with Groq turbo. Fast words, no speaker labels.";
+  if (plan === "enterprise") {
+    return "Enterprise reads with ElevenLabs Scribe, speaker labels and your organisation glossary.";
+  }
+  return group
+    ? "Pro reads group sessions with ElevenLabs Scribe and keeps speaker labels."
+    : "Pro reads lectures and voice notes with Groq large-v3 for speed and lower cost.";
+}
+
 function KindSelector({ kind, onChange }: { kind: SessionKind; onChange: (kind: SessionKind) => void }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -332,6 +343,10 @@ function Setup() {
         <div>
           <p className="label">Session type</p>
           <KindSelector kind={kind} onChange={setKind} />
+          <p className="mt-2 flex items-start gap-1.5 text-[12.5px] leading-4 text-faint">
+            <AudioLines className="mt-px h-3.5 w-3.5 flex-none text-accent" />
+            {routingHint(kind, usage.plan)}
+          </p>
         </div>
 
         <div>

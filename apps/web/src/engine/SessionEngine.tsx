@@ -22,7 +22,9 @@ import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
 import { transcribeChunk } from "@/lib/liveTranscribe";
 import {
   focusContext,
+  getFocusMode,
   getPickupMode,
+  getSessionLanguage,
   isNoiseLine,
   isOffTopic,
   pickupConstraints,
@@ -711,6 +713,13 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             kind: session.kind,
             scratch: session.scratch,
             participants: (session.participants ?? []).map((person) => person.name),
+            context: {
+              title: session.title,
+              kind: session.kind,
+              names: (session.participants ?? []).map((person) => person.name),
+              focus: getFocusMode(),
+              language: getSessionLanguage(),
+            },
             contentType: blob.type || "audio/webm",
             audioKey: stored.key,
             titleIsDefault,
