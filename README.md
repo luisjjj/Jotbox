@@ -141,12 +141,12 @@ npm run eval:check   # fails on a release gate regression
 
 ### Payments (Paystack)
 
-Pro is $5 a month on the site and is charged in Naira at checkout, because a Paystack plan is tied to one currency. JotBox creates and caches the monthly NGN plan on the first upgrade. Add the live secret key on the server (the public key is not used, because checkout is a server-created redirect):
+Pro is $7 a month on the site and is charged in Naira at checkout, because a Paystack plan is tied to one currency. JotBox creates and caches the monthly NGN plan on the first upgrade. Add the live secret key on the server (the public key is not used, because checkout is a server-created redirect):
 
 ```env
 PAYSTACK_SECRET_KEY=sk_live_...
-PAYSTACK_PRO_AMOUNT_NGN=8000
-JOTBOX_USD_TO_NGN=1600
+PAYSTACK_PRO_AMOUNT_NGN=9800
+JOTBOX_USD_TO_NGN=1400
 ```
 
 Set the Paystack webhook to `https://your-domain/api/billing`, then run `npm run db:migrate`. Checkout, verification, cancellation, and webhook handling live in [`server/api/billing.mjs`](server/api/billing.mjs); the account card is on `/account`. The full setup and test checklist is in [docs/billing.md](docs/billing.md).

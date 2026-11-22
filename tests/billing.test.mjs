@@ -15,12 +15,12 @@ import { PRO_SHARE_DAYS, PRO_SHARE_LINKS, FREE_SHARE_DAYS, FREE_SHARE_LINKS, sha
 
 const DAY = 24 * 60 * 60 * 1000;
 
-test("Pro defaults to $5 converted into Naira kobo", () => {
+test("Pro defaults to $7 converted into Naira kobo", () => {
   const config = billingConfig({});
-  assert.equal(config.usd, 5);
-  assert.equal(config.ngnPerUsd, 1600);
-  assert.equal(config.naira, 8_000);
-  assert.equal(config.amountKobo, 800_000);
+  assert.equal(config.usd, 7);
+  assert.equal(config.ngnPerUsd, 1400);
+  assert.equal(config.naira, 9_800);
+  assert.equal(config.amountKobo, 980_000);
   assert.equal(config.currency, "NGN");
   assert.equal(config.interval, "monthly");
   assert.equal(config.configured, false);
@@ -52,8 +52,8 @@ test("blank or broken pricing env falls back instead of charging zero", () => {
     PAYSTACK_PRO_AMOUNT_NGN: "",
     JOTBOX_USD_TO_NGN: "not-a-number",
   });
-  assert.equal(config.naira, 8_000);
-  assert.equal(config.amountKobo, 800_000);
+  assert.equal(config.naira, 9_800);
+  assert.equal(config.amountKobo, 980_000);
 });
 
 test("webhook signatures use the raw body and reject tampering", () => {

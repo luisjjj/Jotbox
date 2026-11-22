@@ -18,9 +18,9 @@ Windows is the first target. The installer is an NSIS setup in `apps/desktop/rel
 
 ## Live words
 
-Electron exposes `webkitSpeechRecognition`, but the constructor has no speech service behind it, so the browser live-caption path fails immediately inside the shell. The engine checks for the desktop bridge and routes live words to a second recorder that produces 10 second standalone segments. Each segment goes to `POST /api/transcribe?live=1`, which uses the same speech provider as the final pass with a smaller body cap and its own hourly bucket. Words land in the transcript panel about 10 to 14 seconds behind the room. After two failed chunks the panel falls back to "Live words are off" and the capture keeps recording.
+Electron exposes `webkitSpeechRecognition`, but the constructor has no speech service behind it, so the browser live-caption path fails immediately inside the shell. The engine checks for the desktop bridge and routes live words to a second recorder that produces 5 second standalone segments. Each segment goes to `POST /api/transcribe?live=1`, which stays on the fastest configured speech reader with a smaller body cap and its own hourly bucket. Words land in the transcript panel a few seconds behind the room. After two failed chunks the panel falls back to "Live words are off" and the capture keeps recording.
 
-The live path runs only in the desktop shell. In a normal browser the Web Speech API is still preferred, because it is closer to real time and does not spend server transcription budget.
+The live path has two layers. The server reader writes the committed lines, and in a normal browser the Web Speech API also runs as an instant preview, so words keep writing while the next chunk is read. If the server reader fails twice, Web Speech takes over as the only source. Scribe is a batch reader, so it is never chosen for live previews while a faster reader is configured.
 
 ## The island
 

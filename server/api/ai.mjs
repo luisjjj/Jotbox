@@ -2121,7 +2121,7 @@ export async function handleTranscribe(req, res) {
 export async function handleLiveTranscribe(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
-  rateLimit(req, 400, "live");
+  rateLimit(req, 900, "live");
   const body = await readBody(req, MAX_LIVE_AUDIO);
   if (!body.length) throw new HttpError(400, "No audio was sent.");
   const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
