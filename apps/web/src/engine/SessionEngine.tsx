@@ -19,6 +19,7 @@ import { desktopBridge } from "@/lib/desktop";
 import { defaultTitle, formatClock } from "@/lib/format";
 import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/lib/insights";
 import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
+import { chunkHasSpeech, createLevelWindow, noteLevel, type LiveLevelWindow } from "@/lib/liveGate";
 import { transcribeChunk } from "@/lib/liveTranscribe";
 import {
   focusContext,
@@ -208,6 +209,7 @@ interface ServerLive {
   queue: Blob[];
   sending: boolean;
   failures: number;
+  level: LiveLevelWindow;
 }
 
 function copyStyles(target: Document) {
@@ -268,6 +270,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     queue: [],
     sending: false,
     failures: 0,
+    level: createLevelWindow(),
   });
   const speechRef = useRef<SpeechRec | null>(null);
   const previewRef = useRef<SpeechRec | null>(null);
@@ -628,12 +631,15 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       return;
     }
     const generation = live.generation;
+    live.level = createLevelWindow();
     const parts: Blob[] = [];
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) parts.push(event.data);
     };
     recorder.onstop = () => {
-      if (live.generation === generation && parts.length) {
+      // A silent segment would still bill the live pass, so only loud segments
+      // go to the queue. The final pass still reads the whole recording.
+      if (live.generation === generation && parts.length && chunkHasSpeech(live.level)) {
         live.queue.push(new Blob(parts, { type: recorder.mimeType || mime || "audio/webm" }));
         if (live.queue.length > LIVE_QUEUE_LIMIT) live.queue.shift();
         void pumpServerLive(generation);
@@ -1454,7 +1460,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           const centered = (value - 128) / 128;
           sum += centered * centered;
         }
-        levelRef.current = Math.min(1, Math.sqrt(sum / data.length) * 3.4);
+        const rms = Math.sqrt(sum / data.length);
+        levelRef.current = Math.min(1, rms * 3.4);
+        const live = serverLiveRef.current;
+        if (live.active && live.recorder) noteLevel(live.level, rms);
       } else {
         levelRef.current *= 0.85;
       }

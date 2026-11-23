@@ -139,7 +139,7 @@ Activation writes a manual subscription row with `plan_key = enterprise` and `pr
 
 ## What listening costs
 
-Scribe v3 reads every plan and both passes: the five-second live captions and the final full-recording pass. Scribe bills by audio duration at $0.22 per audio hour, so an hour of listening costs about $0.44 because the same audio is sent twice. Enterprise keyterms add $0.05 an hour on the final pass.
+Scribe v3 reads every plan and both passes: the five-second live captions and the final full-recording pass. Scribe bills by audio duration at $0.22 per audio hour, so an hour of listening costs about $0.44 because the same audio is sent twice. A live segment that never rises above the speech gate is not sent, so a room with normal pauses costs less than this ceiling; the final pass still reads the whole file. Enterprise keyterms add $0.05 an hour on the final pass.
 
 Speaker labels are requested only on Pro and Enterprise meetings. Labels do not change the per-hour price; they only add speaker ids to the final pass. Free captures, and every lecture, seminar and voice note, are read without labels.
 
@@ -180,7 +180,7 @@ Scribe is the only path while `ELEVENLABS_API_KEY` is set. The fallbacks exist f
 ### Levers that move the number further
 
 - **Live chunk size.** 5-second chunks keep captions close to the room and make the live pass the second full read of the same audio. Longer chunks cut request count but make lines arrive later; the final pass still rebuilds the transcript from the full audio.
-- **Silence gate.** The capture already computes an RMS level for the meter. Skipping silent chunks would cut both audio seconds and requests.
+- **Silence gate.** Each live segment is sampled from the same analyser that drives the level meter. If the loudest sample in the segment stays below `LIVE_SPEECH_RMS` (0.012 of full scale), the segment is dropped before it reaches Scribe, which saves both audio seconds and a request. Peak level decides, not the average, so one soft word in five quiet seconds still goes through. The final pass is unaffected and still reads the full recording.
 - **Retries.** A failed notes build retries with a fresh full-audio pass, which costs another final transcription. Note rewrites do not re-transcribe.
 - **Self-hosted worker.** `WHISPER_BASE_URL` can carry long or heavy recordings at flat cost, but the router currently prefers Scribe whenever it is configured.
 - **Pro cap.** 20 hours a month is hard, reserved before a recording starts and settled on save, so a heavy user cannot erode the margin beyond the planned subsidy. `JOTBOX_PRO_MONTH_HOURS` can raise or lower it.

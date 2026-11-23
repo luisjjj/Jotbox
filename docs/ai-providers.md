@@ -339,8 +339,10 @@ Routing:
    then the Speaches worker. If a fallback provider is not configured or fails,
    the gateway tries the next one, then xAI.
 2. Live captions → Scribe in five-second chunks, revealed a word at a time on
-   screen. The browser speech service still runs as a web preview, and Groq
-   turbo is the live fallback when Scribe is not configured.
+   screen. A chunk whose loudest sample never rises above the speech gate is
+   not sent, so silence costs nothing on the live pass. The browser speech
+   service still runs as a web preview, and Groq turbo is the live fallback
+   when Scribe is not configured.
 3. Reports, notes, session asks, naming and the pre-meeting brief → Groq
    GPT-OSS `openai/gpt-oss-120b`, then `openai/gpt-oss-20b`, then OpenRouter
    free `google/gemma-4-31b-it:free` and the `openrouter/free` router, then xAI.
