@@ -132,7 +132,7 @@ export default function SharedPage() {
             <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
               {preset.summaryLabel}
             </h2>
-            <p className="mt-2.5 max-w-[70ch] text-[20px] leading-[1.6] text-soft sm:text-[22px]">
+            <p className="mt-2.5 max-w-[70ch] whitespace-pre-line text-[20px] leading-[1.6] text-soft sm:text-[22px]">
               {notes.summary}
             </p>
 

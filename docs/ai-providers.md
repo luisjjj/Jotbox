@@ -9,16 +9,25 @@ This guide covers the provider chain already wired into `/api/transcribe` and
 | Browser Web Speech + on-device notes | Live words and notes with no provider | Free | Mic only, no upload transcription, no speaker separation |
 | Groq Whisper | Live captions and short recordings | Free tier, then paid | 25 MB per file on the free tier |
 | Speaches + faster-whisper | Long lectures, offline/low-bandwidth setups | Your compute | Model size and CPU/GPU decide speed |
-| OpenRouter (Qwen3 Next 80B, GPT-OSS 120B) | Reports, notes and organisation memory | About $0.10/$1.10 and $0.05/$0.25 per million tokens | Needs credits; a key is required |
+| Groq GPT-OSS 120B | Reports, notes and organisation memory | Groq free tier, then paid | Model deprecation and Groq rate limits |
+| OpenRouter free models (Gemma 4 31B, free router) | Reports, notes and organisation memory | $0 | 20 requests a minute, 50 a day until $10 lifetime credits, then 1,000 a day |
 | xAI | One-key premium speech and notes | Paid | Provider pricing and rate limits |
 
 When `ELEVENLABS_API_KEY` is set, Scribe reads the full recording first and
 returns a diarised transcript. Live captions stay on Groq turbo because a
 two second chunk cannot be diarised reliably and Scribe bills by audio hour.
 Without Scribe, routing is Groq for speech and the self-hosted worker for
-long audio. Notes, reports and organisation memory go to OpenRouter first
-(Qwen3 Next 80B, then GPT-OSS 120B), then Groq GPT-OSS, then xAI. With no keys
-the app still records, keeps live browser words, and writes notes on the device.
+long audio. Notes, reports and organisation memory go to Groq GPT-OSS first
+(free tier), then OpenRouter's free models (Gemma 4 31B, then the free
+router), then xAI. With no keys the app still records, keeps live browser
+words, and writes notes on the device.
+
+Reports are written at three levels of detail. The summary is two or three
+short paragraphs, highlights run from 5 to 10 full sentences, and sections run
+from 3 to 6 with concrete bullets that carry names, amounts, dates and Pidgin
+quotes. Detail follows the material: a short clip stays tight and a voice note
+stays to a line or two. The writer is told never to invent names, numbers,
+dates or quotes to fill the page.
 
 The prompts preserve Nigerian Pidgin and tone: Pidgin lines stay as they were said
 and are quoted inside otherwise clear English notes; names, amounts, dates, and
@@ -210,9 +219,10 @@ OpenRouter carries reports, notes and organisation memory.
    `JotBox server`.
 3. Copy the value that starts with `sk-or-v1-`. It is shown once. Store it in a
    password manager; if you lose it, create a new key.
-4. Open **Settings**, then **Credits** and add a small balance. The models below
-   cost fractions of a cent per report, so $5 lasts a long time. Requests fail
-   with a 402 once the balance is empty, and JotBox then falls back to Groq.
+4. Free models cost $0. No balance is needed for the first 50 requests a day.
+   Adding $10 of credits once raises the free limit to 1,000 requests a day, and
+   that balance is not spent on free models. Paid models are only used if you
+   pin one with `OPENROUTER_NOTES_MODEL` or `OPENROUTER_MEMORY_MODEL`.
 5. Set the key in Vercel for **Production**, **Preview** and **Development**, and
    in your local `.env`:
 
@@ -224,16 +234,48 @@ OpenRouter carries reports, notes and organisation memory.
 
 Model chain, first to last:
 
-| Attempt | Model | Price per million tokens (prompt / completion) |
+| Attempt | Model | Cost |
 | --- | --- | --- |
-| 1 | `qwen/qwen3-next-80b-a3b-instruct` | $0.10 / $1.10 |
-| 2 | `openai/gpt-oss-120b` | $0.05 / $0.25 |
-| 3 | Groq `openai/gpt-oss-120b` | Groq pricing |
-| 4 | xAI `grok-4.7` | xAI pricing |
+| 1 | Groq `openai/gpt-oss-120b` | Groq free tier, then paid |
+| 2 | Groq `openai/gpt-oss-20b` | Groq free tier, then paid |
+| 3 | `google/gemma-4-31b-it:free` | $0 |
+| 4 | `openrouter/free` (picks a live free model) | $0 |
+| 5 | xAI `grok-4.7` | xAI pricing |
+
+Groq is first because its GPT-OSS 120B writer passed the plant-and-check probe:
+6 of 6 report facts, correct owner and deadline, Pidgin kept, no invented names,
+and 3 of 3 on organisation memory. The OpenRouter free models are the fallback
+for when Groq is rate limited. Free models are shared capacity and can be busy
+or rate limited; when that happens JotBox tries the next model, then xAI, so a
+report still lands.
 
 `OPENROUTER_NOTES_MODEL` and `OPENROUTER_MEMORY_MODEL` are optional overrides.
-Leave them unset to use the chain above. Never prefix the key with `VITE_`, and
+Setting one replaces the free chain. Never prefix the key with `VITE_`, and
 never commit it: a prefixed key is bundled into the browser app.
+
+### Pinning a paid writer
+
+The free chain is the default. If a paid writer is ever needed, add
+`JOTBOX_NOTES_PROVIDER=openrouter` so OpenRouter runs ahead of Groq, then pin a
+model:
+
+```env
+JOTBOX_NOTES_PROVIDER=openrouter
+OPENROUTER_NOTES_MODEL=openai/gpt-4o
+```
+
+Live OpenRouter prices on 23 November 2026:
+
+| Model | Input | Output | Context | Rough cost per one hour report |
+| --- | --- | --- | --- | --- |
+| `openai/gpt-4o` | $2.50 / M tokens | $10.00 / M tokens | 128k | about $0.05 to $0.08 |
+| `openai/gpt-4o-mini` | $0.15 / M tokens | $0.60 / M tokens | 128k | under $0.01 |
+| `openai/gpt-5-nano` | $0.05 / M tokens | $0.40 / M tokens | 400k | under $0.01 |
+
+GPT-4o is not free. It is a sound writer, but it is not needed for the quality
+floor: the free Groq writer already produced the full report in the probe. Pay
+for it only when a session needs its longer reasoning, and remember that Groq
+stays the speech provider, so the change is billed per report and nothing else.
 
 Confirm the key works:
 
@@ -241,8 +283,8 @@ Confirm the key works:
 npm run ai:check
 ```
 
-The notes status should read `openrouter`. A report response also carries
-`provider: "openrouter"` and the model that answered.
+The notes status should read `groq`. A report response also carries
+`provider: "groq"` and the model that answered.
 
 ---
 
@@ -263,9 +305,9 @@ WHISPER_MODEL=Systran/faster-whisper-small
 
 # Optional fallbacks
 OPENROUTER_API_KEY=sk-or-v1-...
-# Optional: pin the first model. Both settings default to the chain below.
-OPENROUTER_NOTES_MODEL=qwen/qwen3-next-80b-a3b-instruct
-OPENROUTER_MEMORY_MODEL=qwen/qwen3-next-80b-a3b-instruct
+# Optional: pin a specific model instead of the free chain.
+# OPENROUTER_NOTES_MODEL=google/gemma-4-31b-it:free
+# OPENROUTER_MEMORY_MODEL=google/gemma-4-31b-it:free
 XAI_API_KEY=...
 XAI_STT_MODEL=grok-voice-transcribe-2.0
 XAI_NOTES_MODEL=grok-4.7
@@ -279,11 +321,13 @@ Routing:
    configured or fails, the gateway tries the next one, then xAI.
 2. Live captions → Groq turbo. Scribe is used for live chunks only when it is the
    only speech provider configured.
-3. Reports, notes, session asks, naming and the pre-meeting brief → OpenRouter
-   `qwen/qwen3-next-80b-a3b-instruct`, then OpenRouter `openai/gpt-oss-120b`,
-   then Groq GPT-OSS, then xAI. Organisation memory answers follow the same
-   order. If none are configured, the app writes notes on the device from the
-   spoken words and jottings.
+3. Reports, notes, session asks, naming and the pre-meeting brief → Groq
+   GPT-OSS `openai/gpt-oss-120b`, then `openai/gpt-oss-20b`, then OpenRouter
+   free `google/gemma-4-31b-it:free` and the `openrouter/free` router, then xAI.
+   Organisation memory answers follow the same order. Set
+   `JOTBOX_NOTES_PROVIDER` to force one provider ahead of the rest.
+   If none are configured, the app writes notes on the device from the spoken
+   words and jottings.
 4. `JOTBOX_AI_MOCK=1` runs the deterministic demo provider locally. It is ignored
    on Vercel so demo content cannot reach production.
 

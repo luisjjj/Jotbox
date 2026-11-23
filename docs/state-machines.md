@@ -576,7 +576,7 @@ is filtered out on read.
 ## 20. Org memory ask
 
 **States:** idle, asking, answered, error per turn (`Memory.tsx:479`). Provider
-chain is OpenRouter Qwen3, OpenRouter GPT-OSS, Groq, xAI, demo
+chain is Groq GPT-OSS, OpenRouter free Gemma, the free router, xAI, demo
 (`memory-ai.mjs`).
 
 | From | Event | To | Effects |

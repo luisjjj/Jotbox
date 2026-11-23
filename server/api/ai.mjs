@@ -11,7 +11,11 @@ import { HttpError, assertSameOrigin, clientIp, readJson, requireMethod, sendJso
  *
  * Free-first provider chain:
  *   speech: ElevenLabs Scribe v3 (diarised) -> Groq Whisper -> self-hosted -> xAI
- *   notes:  OpenRouter Qwen3 -> OpenRouter GPT-OSS -> Groq GPT-OSS -> xAI
+ *   notes:  Groq GPT-OSS 120B (free tier) -> OpenRouter free (Gemma 4 31B -> free router) -> xAI
+ *
+ * Pin any writer with GROQ_NOTES_MODEL or OPENROUTER_NOTES_MODEL. The free
+ * models are the default because they passed the plant-and-check probe; a paid
+ * model such as OpenRouter openai/gpt-4o is opt-in, never a silent default.
  *
  * `JOTBOX_AI_MOCK=1` adds a deterministic demo provider for local UI tests.
  * It is never selected when a real provider is configured.
@@ -35,10 +39,11 @@ const MAX_SCRATCH = 12_000;
 
 const DEFAULT_LANGUAGE = "en";
 const DEFAULT_TONE = "warm-direct";
-const GROQ_NOTES_FALLBACKS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
-// OpenRouter carries the quality pass: Qwen first, then GPT-OSS as the second
-// attempt before the cheaper Groq chain takes over.
-const OPENROUTER_MODEL_FALLBACKS = ["qwen/qwen3-next-80b-a3b-instruct", "openai/gpt-oss-120b"];
+const GROQ_NOTES_FALLBACKS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
+// OpenRouter free models carry the quality pass. Gemma 4 31B is the steady
+// default; the free router picks whichever free model is live if Gemma is
+// busy. A paid model can be pinned with OPENROUTER_NOTES_MODEL.
+const OPENROUTER_MODEL_FALLBACKS = ["google/gemma-4-31b-it:free", "openrouter/free"];
 
 const KIND_LABEL = {
   meeting: "meeting",
@@ -109,6 +114,7 @@ Language and tone:
 - Pidgin is the room's voice, not a problem to fix. Never rewrite or "correct" it. Quote the Pidgin phrase that carries a decision, objection, warning or joke.
 - Read idioms, proverbs, sarcasm and understatement for their real intent. A dry "no wahala" can hide a blocker; write the blocker, not just the joke.
 - Write the notes in clear, simple English. State each decision plainly, then keep the Pidgin words that carry it in quotation marks.
+- Keep names, amounts, dates, places and figures exactly as they were said. Write currencies the way the room said them, for example "2.4 million naira" or "N2.4m".
 - Use plain punctuation: commas, colons and full stops. Never use em dashes.
 - Never invent names, numbers, decisions, quotes, owners or assignments.
 - When words are faint or only partly heard, do not fill the gap with a guess. Write only what is clear.
@@ -118,13 +124,14 @@ Language and tone:
 
 Shape:
 - Title: specific, under 8 words, no quotation marks.
-- Summary: one short paragraph a person could send to someone who missed the session.
-- Highlights: the points worth keeping. Each one is a full sentence.
+- Summary: two or three short paragraphs for someone who missed the session, separated by a blank line. The first says what the session was about and what changed. The next carry the main argument, the tension, and what happens next. Write 3 to 6 sentences for a short session and up to 10 for an hour or more. Every sentence must carry information from the transcript, so do not pad, repeat or summarise the summary.
+- Highlights: 5 to 10 points, each a full sentence. Each one names the person, number, date or phrase that makes it specific.
 - Decisions: choices the room actually settled, in the words that carry the decision. Use an empty list when no decision was made.
 - Blockers: what is stopping progress or still unresolved, in the words that carry it. Use an empty list when nothing is blocked.
 - Actions: only real commitments and next steps. Owner is the person named, "You" when the listener took it, or "Unassigned". Due is YYYY-MM-DD when the room gave a deadline, resolved against the date in the request, otherwise an empty string. Never guess a deadline. Use an empty list when there is nothing to do.
 - FollowUps: messages the listener still needs to send, at most three. To is a person named in the transcript or room list, or an empty string when no one was named. Subject is under 8 words. Body is 2 to 4 short sentences in clear English, keeping any Pidgin quote that carries the point. Use an empty list when nothing needs sending.
-- Sections follow the shape of the session.
+- Sections: 3 to 6 sections that follow the shape of the session, each with 3 to 6 bullets. A heading is a few words. A bullet is one or two full sentences and carries the concrete detail: who said it, the amount, the date, the example or the Pidgin phrase. Do not write one word bullets or repeat the highlights word for word.
+- Detail follows the material. A short clip gets a tight note; a long meeting gets a fuller report. Nothing is added to reach a length.
 - If the transcript is thin, write only from what is there.
 
 Return only a JSON object with this exact shape:
@@ -144,7 +151,7 @@ const KIND_SHAPE = {
   lecture:
     "This is a lecture. Lead with the concepts, definitions, worked examples, and what a student should revise. Decisions are key definitions or settled interpretations. Actions are study tasks only when the lecturer set them.",
   voice:
-    "This is a voice note. Keep it short. Lead with the point the speaker was making and the next move. Do not invent structure that was not there.",
+    "This is a voice note. Keep the summary to one or two sentences and the highlights to 2 to 4. Lead with the point the speaker was making and the next move. Use sections only when the note covers more than one thread, and never invent structure that was not there.",
 };
 
 function key(name) {
@@ -347,15 +354,7 @@ export function aiStatus() {
   const finalProvider = configuredSttProviders()[0] ?? null;
   const liveProvider = configuredSttProviders({ live: true })[0] ?? null;
   const transcribe = finalProvider === "worker" ? "self-hosted" : finalProvider;
-  const notes = mockEnabled()
-    ? "demo"
-    : openrouterKey()
-      ? "openrouter"
-      : groqKey()
-        ? "groq"
-        : xaiKey()
-          ? "xai"
-          : null;
+  const notes = orderedNotesProviders()[0] ?? null;
   const vocabulary = sttVocabulary();
   return {
     ai: Boolean(transcribe || notes),
@@ -1080,7 +1079,7 @@ async function chatCompletion({ url, headers, model, messages, extra = {} }) {
     body: JSON.stringify({
       model,
       temperature: Number(key("JOTBOX_NOTES_TEMPERATURE") || 0.25),
-      max_tokens: Number(key("JOTBOX_NOTES_MAX_TOKENS") || 2_500),
+      max_tokens: Number(key("JOTBOX_NOTES_MAX_TOKENS") || 4_000),
       messages,
       response_format: { type: "json_object" },
       ...extra,
@@ -1299,13 +1298,33 @@ async function cleanTranscriptWithProvider(provider, text, participants = []) {
 
 async function cleanTranscriptForNotes({ transcript, participants = [] }) {
   const raw = tidyTranscript(transcript);
-  const provider = openrouterKey() ? "openrouter" : groqKey() ? "groq" : null;
+  const provider = groqKey() ? "groq" : openrouterKey() ? "openrouter" : null;
   if (raw.length < 300 || !provider) return raw;
   try {
     return tidyTranscript(await cleanTranscriptWithProvider(provider, raw, participants)) || raw;
   } catch {
     return raw;
   }
+}
+
+function orderedNotesProviders() {
+  const providers = [];
+  if (groqKey()) providers.push("groq");
+  if (openrouterKey()) providers.push("openrouter");
+  if (xaiKey()) providers.push("xai");
+  if (mockEnabled()) providers.push("demo");
+  // JOTBOX_NOTES_PROVIDER=openrouter pins an OpenRouter writer (free or paid)
+  // while still keeping Groq for speech.
+  const preference = key("JOTBOX_NOTES_PROVIDER")
+    .split(",")
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+  if (!preference.length) return providers;
+  return [...providers].sort((a, b) => {
+    const left = preference.indexOf(a);
+    const right = preference.indexOf(b);
+    return (left === -1 ? preference.length : left) - (right === -1 ? preference.length : right);
+  });
 }
 
 export async function enhanceSession({ kind, title, scratch, transcript, tone, participants = [] }) {
@@ -1322,11 +1341,7 @@ export async function enhanceSession({ kind, title, scratch, transcript, tone, p
     today: new Date().toISOString().slice(0, 10),
   };
 
-  const providers = [];
-  if (openrouterKey()) providers.push("openrouter");
-  if (groqKey()) providers.push("groq");
-  if (xaiKey()) providers.push("xai");
-  if (mockEnabled()) providers.push("demo");
+  const providers = orderedNotesProviders();
 
   for (const provider of providers) {
     try {
@@ -1612,8 +1627,8 @@ export async function buildPreMeetingBrief({ title, kind, previous }) {
 
 function assistantProviders() {
   const providers = [];
-  if (openrouterKey()) providers.push("openrouter");
   if (groqKey()) providers.push("groq");
+  if (openrouterKey()) providers.push("openrouter");
   if (xaiKey()) providers.push("xai");
   return providers;
 }
