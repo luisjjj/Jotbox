@@ -10,8 +10,8 @@
 export const STT_PRICES = {
   "groq-turbo": 0.04,
   "groq-large": 0.111,
-  scribe: 0.22,
-  "scribe-keyterms": 0.27,
+  scribe: 0.2,
+  "scribe-keyterms": 0.25,
 };
 
 export const GROUP_KINDS = new Set(["meeting", "seminar"]);

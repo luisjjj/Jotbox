@@ -139,31 +139,33 @@ Activation writes a manual subscription row with `plan_key = enterprise` and `pr
 
 ## What listening costs
 
-Scribe v3 reads every plan and both passes: the five-second live captions and the final full-recording pass. Scribe bills by audio duration at $0.22 per audio hour, so an hour of listening costs about $0.44 because the same audio is sent twice. A live segment that never rises above the speech gate is not sent, so a room with normal pauses costs less than this ceiling; the final pass still reads the whole file. Enterprise keyterms add $0.05 an hour on the final pass.
+Scribe v3 reads every plan and both passes: the five-second live captions and the final full-recording pass. Scribe bills by audio duration at $0.20 per audio hour, so an hour of listening costs about $0.40 because the same audio is sent twice. A live segment that never rises above the speech gate is not sent, so a room with normal pauses costs less than this ceiling; the final pass still reads the whole file. Enterprise keyterms add $0.05 an hour on the final pass.
 
 Speaker labels are requested only on Pro and Enterprise meetings. Labels do not change the per-hour price; they only add speaker ids to the final pass. Free captures, and every lecture, seminar and voice note, are read without labels.
 
 | Session | Live plus final |
 | --- | --- |
-| 15 min | $0.11 |
-| 30 min | $0.22 |
-| 60 min | $0.44 |
-| 90 min | $0.66 |
-| 120 min | $0.88 |
+| 15 min | $0.10 |
+| 30 min | $0.20 |
+| 60 min | $0.40 |
+| 90 min | $0.60 |
+| 120 min | $0.80 |
 
 | Monthly listening | Scribe cost |
 | --- | --- |
-| 5 h | $2.20 |
-| 10 h | $4.40 |
-| 20 h | $8.80 |
+| 5 h | $2.00 |
+| 10 h | $4.00 |
+| 20 h | $8.00 |
 
-On a $7 Pro plan, speech alone breaks even at about 15.9 hours. The 20-hour cap is deliberately set past that line: a Pro user who fills the cap costs about $8.80 in speech, against about $6.82 left after Paystack fees, so the heaviest month loses about $2. That is the trade for accuracy on the free plan and for giving Pro a real ceiling. Most Pro users listen for far less than 20 hours, and a heavy user is refused before the spend passes the cap.
+On a $7 Pro plan, speech alone breaks even at about 17.0 hours. The 20-hour cap is deliberately set past that line: a Pro user who fills the cap costs about $8.00 in speech, against about $6.82 left after Paystack fees, so the heaviest month loses about $1.18. That is the trade for accuracy on the free plan and for giving Pro a real ceiling. Most Pro users listen for far less than 20 hours, and a heavy user is refused before the spend passes the cap.
+
+A realistic mix is far below the cap. Take 40% of Pro users listening 2 hours, 35% at 5 hours, 18% at 10 hours and 7% at the full 20 hours. That averages about 5.75 hours a month, or about $2.30 in speech, leaving about $4.52 of the $6.82 after fees. The cap sets the worst case, not the expected cost.
 
 Prices are public list prices at the time of writing; confirm them in the ElevenLabs console before relying on them.
 
 ### Free tier carries the cost of the demo
 
-Free gets the same Scribe reader because the free experience is the pitch. At 100 minutes a month, a free user who uses all of it costs at most about $0.73. That spend is accepted as acquisition cost. A short first session costs a few cents, which is the point: the person hears the real accuracy before deciding to pay.
+Free gets the same Scribe reader because the free experience is the pitch. At 100 minutes a month, a free user who uses all of it costs at most about $0.67. That spend is accepted as acquisition cost. A short first session costs a few cents, which is the point: the person hears the real accuracy before deciding to pay.
 
 The free cap is enforced by the app and the server, not by the provider, so clearing local data does not move a free user onto a paid plan.
 
@@ -181,7 +183,7 @@ Scribe is the only path while `ELEVENLABS_API_KEY` is set. The fallbacks exist f
 
 - **Live chunk size.** 5-second chunks keep captions close to the room and make the live pass the second full read of the same audio. Longer chunks cut request count but make lines arrive later; the final pass still rebuilds the transcript from the full audio.
 - **Silence gate.** Each live segment is sampled from the same analyser that drives the level meter. If the loudest sample in the segment stays below `LIVE_SPEECH_RMS` (0.012 of full scale), the segment is dropped before it reaches Scribe, which saves both audio seconds and a request. Peak level decides, not the average, so one soft word in five quiet seconds still goes through. The final pass is unaffected and still reads the full recording.
-- **Retries.** A failed notes build retries with a fresh full-audio pass, which costs another final transcription. Note rewrites do not re-transcribe.
+- **Retries.** A retry on a session that already has words rebuilds the notes only, with no new audio read. Only a retry with no words at all sends the saved file through the final pass again.
 - **Self-hosted worker.** `WHISPER_BASE_URL` can carry long or heavy recordings at flat cost, but the router currently prefers Scribe whenever it is configured.
 - **Pro cap.** 20 hours a month is hard, reserved before a recording starts and settled on save, so a heavy user cannot erode the margin beyond the planned subsidy. `JOTBOX_PRO_MONTH_HOURS` can raise or lower it.
 

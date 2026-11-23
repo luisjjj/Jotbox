@@ -170,7 +170,7 @@ test("live captions use Scribe first and never ask for speakers", () => {
 });
 
 test("cost estimates follow the public hourly prices", () => {
-  assert.equal(estimatedCost(3600, STT_PRICES.scribe), 0.22);
+  assert.equal(estimatedCost(3600, STT_PRICES.scribe), 0.2);
   assert.equal(estimatedCost(1500, STT_PRICES["groq-turbo"]), 0.0167);
   assert.equal(estimatedCost(25 * 3600, STT_PRICES["groq-large"]), 2.775);
   assert.equal(estimatedCost(-30, STT_PRICES.scribe), 0);
