@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  decodeHeaderFilename,
+  documentBytes,
   documentMimeType,
   documentParagraphs,
   documentTitle,
@@ -27,6 +29,21 @@ test("documentMimeType trusts a supported type and guesses otherwise", () => {
   assert.equal(documentMimeType("notes.md", ""), "text/markdown");
   assert.equal(documentMimeType("plan.docx", "application/octet-stream"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
   assert.equal(documentMimeType("archive.zip", "application/zip"), "application/zip");
+});
+
+test("documentBytes recovers bodies the platform already parsed", () => {
+  assert.equal(documentBytes(Buffer.from("abc")).toString("utf8"), "abc");
+  assert.equal(documentBytes("policy text").toString("utf8"), "policy text");
+  assert.equal(documentBytes({ plan: "ok" }).toString("utf8"), '{"plan":"ok"}');
+  assert.equal(documentBytes(undefined), null);
+  assert.equal(documentBytes(null), null);
+});
+
+test("decodeHeaderFilename accepts encoded and raw names", () => {
+  assert.equal(decodeHeaderFilename(encodeURIComponent("Board Pack Q3.pdf")), "Board Pack Q3.pdf");
+  assert.equal(decodeHeaderFilename("plain.txt"), "plain.txt");
+  assert.equal(decodeHeaderFilename("100%.pdf"), "100%.pdf");
+  assert.equal(decodeHeaderFilename(""), "");
 });
 
 test("documentParagraphs become transcript lines the chunker already understands", () => {
