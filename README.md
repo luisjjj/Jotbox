@@ -242,6 +242,28 @@ Handoffs are idempotent: `integration_handoffs` is unique on `(user_id, provider
 
 Run `npm run db:migrate` to create the `integration_oauth_states`, `integration_connections`, and `integration_handoffs` tables (migration 009). The server code lives in [`server/api/integrations.mjs`](server/api/integrations.mjs).
 
+### Product analytics (PostHog)
+
+The browser app is already instrumented in [`apps/web/src/lib/posthog.ts`](apps/web/src/lib/posthog.ts). Events cover capture start and finish, audio imports, regenerated notes, deleted sessions, action toggles, share links, follow-up drafts and sends, and Jira handoffs. [`AuthProvider`](apps/web/src/auth/AuthProvider.tsx) identifies the signed-in user and resets on sign-out, and unhandled errors and rejections are captured. Analytics stays off until both variables below exist.
+
+```bash
+# Root .env. Public values, compiled into the bundle.
+VITE_POSTHOG_KEY=phc_your_project_key
+VITE_POSTHOG_HOST=https://us.i.posthog.com
+```
+
+Vite reads the root `.env` for these because [`vite.config.ts`](apps/web/vite.config.ts) sets `envDir`. Restart `npm run dev:web` after a change. On Vercel, add both to Production, Preview, and Development, then redeploy. Vite bakes `VITE_` values in at build time, so an existing deployment will not pick them up without a new build.
+
+```bash
+vercel env add VITE_POSTHOG_KEY production
+vercel env add VITE_POSTHOG_HOST production
+vercel --prod
+```
+
+To verify, open the app, record a short capture, then look for `capture_started` and `capture_completed` under Activity, and a deliberate thrown error under Error tracking.
+
+The setup wizard is optional now that the code is wired. In an interactive terminal, `npx -y @posthog/wizard@latest` inspects the repo and fills gaps. Headless use needs a personal API key: `npx @posthog/wizard --ci --region us --api-key phx_...`. Do not use the `warehouse` subcommand for this; it connects data warehouse sources and does not instrument the app. Keep the `phx_` key out of the repo, `.env`, and chat.
+
 ### Production build
 
 ```bash
