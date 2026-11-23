@@ -11,7 +11,7 @@ import { HttpError, assertSameOrigin, clientIp, readJson, requireMethod, sendJso
  *
  * Free-first provider chain:
  *   speech: ElevenLabs Scribe v3 (diarised) -> Groq Whisper -> self-hosted -> xAI
- *   notes:  Groq GPT-OSS (free tier) -> OpenRouter free model       -> xAI
+ *   notes:  OpenRouter Qwen3 -> OpenRouter GPT-OSS -> Groq GPT-OSS -> xAI
  *
  * `JOTBOX_AI_MOCK=1` adds a deterministic demo provider for local UI tests.
  * It is never selected when a real provider is configured.
@@ -36,6 +36,9 @@ const MAX_SCRATCH = 12_000;
 const DEFAULT_LANGUAGE = "en";
 const DEFAULT_TONE = "warm-direct";
 const GROQ_NOTES_FALLBACKS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+// OpenRouter carries the quality pass: Qwen first, then GPT-OSS as the second
+// attempt before the cheaper Groq chain takes over.
+const OPENROUTER_MODEL_FALLBACKS = ["qwen/qwen3-next-80b-a3b-instruct", "openai/gpt-oss-120b"];
 
 const KIND_LABEL = {
   meeting: "meeting",
@@ -346,10 +349,10 @@ export function aiStatus() {
   const transcribe = finalProvider === "worker" ? "self-hosted" : finalProvider;
   const notes = mockEnabled()
     ? "demo"
-    : groqKey()
-      ? "groq"
-      : openrouterKey()
-        ? "openrouter"
+    : openrouterKey()
+      ? "openrouter"
+      : groqKey()
+        ? "groq"
         : xaiKey()
           ? "xai"
           : null;
@@ -1120,17 +1123,34 @@ async function notesWithGroq(payload) {
   throw lastError ?? new HttpError(502, "JotBox could not finish the notes.");
 }
 
+function openrouterModels(configured) {
+  return [...new Set([configured, ...OPENROUTER_MODEL_FALLBACKS].filter(Boolean))];
+}
+
 async function notesWithOpenrouter(payload) {
-  return chatCompletion({
-    url: OPENROUTER_URL,
-    headers: {
-      Authorization: `Bearer ${openrouterKey()}`,
-      "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox.online",
-      "X-Title": "JotBox",
-    },
-    model: key("OPENROUTER_NOTES_MODEL") || "meta-llama/llama-3.3-70b-instruct:free",
-    messages: notesMessages(payload),
-  });
+  const models = openrouterModels(key("OPENROUTER_NOTES_MODEL"));
+  let lastError;
+  for (const model of models) {
+    try {
+      return await chatCompletion({
+        url: OPENROUTER_URL,
+        headers: {
+          Authorization: `Bearer ${openrouterKey()}`,
+          "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox.online",
+          "X-Title": "JotBox",
+        },
+        model,
+        messages: notesMessages(payload),
+      });
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `[jotbox-ai] openrouter notes model ${model} failed`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+  throw lastError ?? new HttpError(502, "JotBox could not finish the notes.");
 }
 
 async function notesWithXai(payload) {
@@ -1205,8 +1225,21 @@ Rules:
 - Never add new words, names, numbers, or facts.
 Return only a JSON object with this exact shape: {"transcript":"string"}`;
 
-async function cleanTranscriptWithGroq(text, participants = []) {
-  const models = [...new Set([key("GROQ_NOTES_MODEL"), ...GROQ_NOTES_FALLBACKS].filter(Boolean))];
+async function cleanTranscriptWithProvider(provider, text, participants = []) {
+  const models =
+    provider === "openrouter"
+      ? openrouterModels(key("OPENROUTER_NOTES_MODEL"))
+      : [...new Set([key("GROQ_NOTES_MODEL"), ...GROQ_NOTES_FALLBACKS].filter(Boolean))];
+  const url = provider === "openrouter" ? OPENROUTER_URL : `${GROQ_BASE}/chat/completions`;
+  const headers =
+    provider === "openrouter"
+      ? {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openrouterKey()}`,
+          "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox.online",
+          "X-Title": "JotBox",
+        }
+      : { "Content-Type": "application/json", Authorization: `Bearer ${groqKey()}` };
   const people = participants
     .map((person) => (typeof person === "string" ? person : person?.name))
     .map((name) => plainText(name, 80))
@@ -1216,9 +1249,9 @@ async function cleanTranscriptWithGroq(text, participants = []) {
 
   for (const model of models) {
     try {
-      const response = await fetch(`${GROQ_BASE}/chat/completions`, {
+      const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey()}` },
+        headers,
         body: JSON.stringify({
           model,
           temperature: 0,
@@ -1239,7 +1272,7 @@ async function cleanTranscriptWithGroq(text, participants = []) {
         }),
         signal: AbortSignal.timeout(60_000),
       });
-      if (!response.ok) throw new Error(`cleanup ${response.status}`);
+      if (!response.ok) throw new Error(`${provider} cleanup ${response.status}`);
       const data = await response.json();
       const content = data?.choices?.[0]?.message?.content;
       const parsed = JSON.parse(
@@ -1256,7 +1289,7 @@ async function cleanTranscriptWithGroq(text, participants = []) {
     } catch (error) {
       lastError = error;
       console.error(
-        `[jotbox-ai] transcript cleanup model ${model} failed`,
+        `[jotbox-ai] ${provider} cleanup model ${model} failed`,
         error instanceof Error ? error.message : error,
       );
     }
@@ -1266,9 +1299,10 @@ async function cleanTranscriptWithGroq(text, participants = []) {
 
 async function cleanTranscriptForNotes({ transcript, participants = [] }) {
   const raw = tidyTranscript(transcript);
-  if (raw.length < 300 || !groqKey()) return raw;
+  const provider = openrouterKey() ? "openrouter" : groqKey() ? "groq" : null;
+  if (raw.length < 300 || !provider) return raw;
   try {
-    return tidyTranscript(await cleanTranscriptWithGroq(raw, participants)) || raw;
+    return tidyTranscript(await cleanTranscriptWithProvider(provider, raw, participants)) || raw;
   } catch {
     return raw;
   }
@@ -1289,8 +1323,8 @@ export async function enhanceSession({ kind, title, scratch, transcript, tone, p
   };
 
   const providers = [];
-  if (groqKey()) providers.push("groq");
   if (openrouterKey()) providers.push("openrouter");
+  if (groqKey()) providers.push("groq");
   if (xaiKey()) providers.push("xai");
   if (mockEnabled()) providers.push("demo");
 
@@ -1578,8 +1612,8 @@ export async function buildPreMeetingBrief({ title, kind, previous }) {
 
 function assistantProviders() {
   const providers = [];
-  if (groqKey()) providers.push("groq");
   if (openrouterKey()) providers.push("openrouter");
+  if (groqKey()) providers.push("groq");
   if (xaiKey()) providers.push("xai");
   return providers;
 }
@@ -1618,19 +1652,44 @@ async function chatJson({ messages, maxTokens = 900, temperature = 0.2 }) {
         }
         continue;
       }
-      const url = provider === "openrouter" ? OPENROUTER_URL : XAI_CHAT_URL;
-      const model =
-        provider === "openrouter"
-          ? key("OPENROUTER_NOTES_MODEL") || "meta-llama/llama-3.3-70b-instruct:free"
-          : key("XAI_NOTES_MODEL") || "grok-4.7";
-      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${provider === "openrouter" ? openrouterKey() : xaiKey()}` };
       if (provider === "openrouter") {
-        headers["HTTP-Referer"] = key("JOTBOX_PUBLIC_URL") || "https://jotbox.online";
-        headers["X-Title"] = "JotBox";
+        const models = openrouterModels(key("OPENROUTER_NOTES_MODEL"));
+        for (const model of models) {
+          try {
+            const response = await fetch(OPENROUTER_URL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${openrouterKey()}`,
+                "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox.online",
+                "X-Title": "JotBox",
+              },
+              body: JSON.stringify({
+                model,
+                temperature,
+                max_tokens: maxTokens,
+                messages,
+                response_format: { type: "json_object" },
+              }),
+              signal: AbortSignal.timeout(60_000),
+            });
+            if (!response.ok) throw new Error(`openrouter ${response.status}`);
+            const data = await response.json();
+            return { value: jsonObject(data?.choices?.[0]?.message?.content), provider, model };
+          } catch (error) {
+            lastError = error;
+            console.error(
+              `[jotbox-ai] openrouter assist model ${model} failed`,
+              error instanceof Error ? error.message : error,
+            );
+          }
+        }
+        continue;
       }
-      const response = await fetch(url, {
+      const model = key("XAI_NOTES_MODEL") || "grok-4.7";
+      const response = await fetch(XAI_CHAT_URL, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${xaiKey()}` },
         body: JSON.stringify({
           model,
           temperature,

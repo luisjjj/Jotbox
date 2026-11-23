@@ -4,6 +4,7 @@ import { afterEach, beforeEach, test } from "node:test";
 const MANAGED = [
   "GROQ_API_KEY",
   "OPENROUTER_API_KEY",
+  "OPENROUTER_NOTES_MODEL",
   "XAI_API_KEY",
   "ELEVENLABS_API_KEY",
   "ELEVENLABS_STT_MODEL",
@@ -660,6 +661,45 @@ test("notes parse fenced JSON, drop empty items and fail over between models", a
     { to: "Ada", subject: "Merchant note", body: "Send it before four." },
   ]);
   assert.deepEqual(result.sections, [{ heading: "Decisions", bullets: ["Pause the promise"] }]);
+});
+
+test("OpenRouter reports try Qwen3 first, then GPT-OSS, before Groq", async () => {
+  process.env.OPENROUTER_API_KEY = "test-openrouter";
+  process.env.GROQ_API_KEY = "test-groq";
+  const calls = [];
+
+  const payload = {
+    title: "Bank window slipped",
+    summary: "The bank received the file late, so the promise moved.",
+    highlights: ["The window moved"],
+    blockers: [],
+    actions: [],
+    followUps: [],
+    sections: [],
+  };
+
+  globalThis.fetch = async (url, init = {}) => {
+    const body = JSON.parse(String(init.body));
+    calls.push({ url: String(url), model: body.model, headers: init.headers });
+    if (body.model === "qwen/qwen3-next-80b-a3b-instruct") return new Response("rate limited", { status: 429 });
+    return Response.json({ choices: [{ message: { content: JSON.stringify(payload) } }] });
+  };
+
+  const result = await ai.enhanceSession({
+    kind: "meeting",
+    title: "Friday payout review",
+    scratch: "",
+    transcript: "Speaker 1: The bank acknowledged the file late.",
+    tone: "warm-direct",
+  });
+
+  assert.equal(result.provider, "openrouter");
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /openrouter\.ai/);
+  assert.equal(calls[0].model, "qwen/qwen3-next-80b-a3b-instruct");
+  assert.equal(calls[1].model, "openai/gpt-oss-120b");
+  assert.equal(calls[0].headers.Authorization, "Bearer test-openrouter");
+  assert.equal(calls[0].headers["X-Title"], "JotBox");
 });
 
 const briefPrevious = {
