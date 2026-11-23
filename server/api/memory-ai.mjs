@@ -13,6 +13,7 @@ const GROQ_BASE = "https://api.groq.com/openai/v1";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const XAI_CHAT_URL = "https://api.x.ai/v1/chat/completions";
 const GROQ_MEMORY_FALLBACKS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+const OPENROUTER_MEMORY_FALLBACKS = ["qwen/qwen3-next-80b-a3b-instruct", "openai/gpt-oss-120b"];
 
 const MEMORY_SYSTEM = `You are JotBox Organisational Memory. You reconstruct the history of decisions across the meeting records supplied with this request.
 
@@ -272,8 +273,8 @@ export async function answerOrganisationMemory({ question, records, history }) {
   const attempts = [];
 
   const providers = [];
-  if (key("GROQ_API_KEY")) providers.push("groq");
   if (key("OPENROUTER_API_KEY")) providers.push("openrouter");
+  if (key("GROQ_API_KEY")) providers.push("groq");
   if (key("XAI_API_KEY")) providers.push("xai");
   if (mockEnabled()) providers.push("demo");
 
@@ -301,18 +302,30 @@ export async function answerOrganisationMemory({ question, records, history }) {
       }
 
       if (provider === "openrouter") {
-        const model = key("OPENROUTER_MEMORY_MODEL") || key("OPENROUTER_NOTES_MODEL") || "meta-llama/llama-3.3-70b-instruct:free";
-        const content = await chat({
-          url: OPENROUTER_URL,
-          headers: {
-            Authorization: `Bearer ${key("OPENROUTER_API_KEY")}`,
-            "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox.online",
-            "X-Title": "JotBox",
-          },
-          model,
-          messages,
-        });
-        return { ...normaliseAnswer(parseJson(content), allowedIds), provider, model };
+        const configured = key("OPENROUTER_MEMORY_MODEL") || key("OPENROUTER_NOTES_MODEL");
+        const models = [...new Set([configured, ...OPENROUTER_MEMORY_FALLBACKS].filter(Boolean))];
+        for (const model of models) {
+          try {
+            const content = await chat({
+              url: OPENROUTER_URL,
+              headers: {
+                Authorization: `Bearer ${key("OPENROUTER_API_KEY")}`,
+                "HTTP-Referer": key("JOTBOX_PUBLIC_URL") || "https://jotbox.online",
+                "X-Title": "JotBox",
+              },
+              model,
+              messages,
+            });
+            return { ...normaliseAnswer(parseJson(content), allowedIds), provider, model };
+          } catch (error) {
+            attempts.push(error);
+            console.error(
+              `[jotbox-memory] openrouter model ${model} failed`,
+              error instanceof Error ? error.message : error,
+            );
+          }
+        }
+        continue;
       }
 
       if (provider === "xai") {

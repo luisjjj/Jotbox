@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 
-const MANAGED = ["GROQ_API_KEY", "OPENROUTER_API_KEY", "XAI_API_KEY", "VERCEL", "JOTBOX_AI_MOCK"];
+const MANAGED = [
+  "GROQ_API_KEY",
+  "OPENROUTER_API_KEY",
+  "OPENROUTER_MEMORY_MODEL",
+  "OPENROUTER_NOTES_MODEL",
+  "XAI_API_KEY",
+  "VERCEL",
+  "JOTBOX_AI_MOCK",
+];
 const original = new Map(MANAGED.map((name) => [name, process.env[name]]));
 const originalFetch = globalThis.fetch;
 
@@ -83,6 +91,44 @@ test("a stated reason is not flagged as missing", async () => {
   });
   assert.equal(answer.reasonMissing, false);
   assert.equal(answer.reasonNote, "");
+});
+
+test("memory answers go to OpenRouter Qwen3 before Groq", async () => {
+  process.env.OPENROUTER_API_KEY = "test-openrouter";
+  process.env.GROQ_API_KEY = "test-groq";
+  const calls = [];
+
+  globalThis.fetch = async (url, init = {}) => {
+    const body = JSON.parse(String(init.body));
+    calls.push({ url: String(url), model: body.model });
+    return Response.json({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              answer: "The record says hiring paused.",
+              timeline: [],
+              recorded: [],
+              inferences: [],
+              reasonMissing: false,
+              reasonNote: "",
+            }),
+          },
+        },
+      ],
+    });
+  };
+
+  const answer = await answerOrganisationMemory({
+    question: "What changed?",
+    records: [record()],
+    history: [],
+  });
+
+  assert.equal(answer.provider, "openrouter");
+  assert.equal(answer.model, "qwen/qwen3-next-80b-a3b-instruct");
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /openrouter\.ai/);
 });
 
 test("provider citations outside the permitted record set are stripped", async () => {

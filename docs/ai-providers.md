@@ -9,14 +9,15 @@ This guide covers the provider chain already wired into `/api/transcribe` and
 | Browser Web Speech + on-device notes | Live words and notes with no provider | Free | Mic only, no upload transcription, no speaker separation |
 | Groq Whisper | Live captions and short recordings | Free tier, then paid | 25 MB per file on the free tier |
 | Speaches + faster-whisper | Long lectures, offline/low-bandwidth setups | Your compute | Model size and CPU/GPU decide speed |
-| OpenRouter free model | Notes when Groq is unavailable | Free tier, rate-limited | Shared capacity and model availability |
+| OpenRouter (Qwen3 Next 80B, GPT-OSS 120B) | Reports, notes and organisation memory | About $0.10/$1.10 and $0.05/$0.25 per million tokens | Needs credits; a key is required |
 | xAI | One-key premium speech and notes | Paid | Provider pricing and rate limits |
 
 When `ELEVENLABS_API_KEY` is set, Scribe reads the full recording first and
 returns a diarised transcript. Live captions stay on Groq turbo because a
 two second chunk cannot be diarised reliably and Scribe bills by audio hour.
-Without Scribe, routing is Groq for speech and notes, the self-hosted worker for
-long audio, an OpenRouter free model for notes fallback, then xAI. With no keys
+Without Scribe, routing is Groq for speech and the self-hosted worker for
+long audio. Notes, reports and organisation memory go to OpenRouter first
+(Qwen3 Next 80B, then GPT-OSS 120B), then Groq GPT-OSS, then xAI. With no keys
 the app still records, keeps live browser words, and writes notes on the device.
 
 The prompts preserve Nigerian Pidgin and tone: Pidgin lines stay as they were said
@@ -199,7 +200,53 @@ is on the same host.
 
 ---
 
-## 5. Environment and routing
+## 5. Get an OpenRouter key
+
+OpenRouter carries reports, notes and organisation memory.
+
+1. Sign in at **[openrouter.ai](https://openrouter.ai)** with email, Google or
+   GitHub.
+2. Open **Settings**, then **API Keys**, and click **Create Key**. Name it
+   `JotBox server`.
+3. Copy the value that starts with `sk-or-v1-`. It is shown once. Store it in a
+   password manager; if you lose it, create a new key.
+4. Open **Settings**, then **Credits** and add a small balance. The models below
+   cost fractions of a cent per report, so $5 lasts a long time. Requests fail
+   with a 402 once the balance is empty, and JotBox then falls back to Groq.
+5. Set the key in Vercel for **Production**, **Preview** and **Development**, and
+   in your local `.env`:
+
+   ```env
+   OPENROUTER_API_KEY=sk-or-v1-...
+   ```
+
+6. Redeploy so the new variable is picked up.
+
+Model chain, first to last:
+
+| Attempt | Model | Price per million tokens (prompt / completion) |
+| --- | --- | --- |
+| 1 | `qwen/qwen3-next-80b-a3b-instruct` | $0.10 / $1.10 |
+| 2 | `openai/gpt-oss-120b` | $0.05 / $0.25 |
+| 3 | Groq `openai/gpt-oss-120b` | Groq pricing |
+| 4 | xAI `grok-4.7` | xAI pricing |
+
+`OPENROUTER_NOTES_MODEL` and `OPENROUTER_MEMORY_MODEL` are optional overrides.
+Leave them unset to use the chain above. Never prefix the key with `VITE_`, and
+never commit it: a prefixed key is bundled into the browser app.
+
+Confirm the key works:
+
+```bash
+npm run ai:check
+```
+
+The notes status should read `openrouter`. A report response also carries
+`provider: "openrouter"` and the model that answered.
+
+---
+
+## 6. Environment and routing
 
 The gateway reads this environment shape:
 
@@ -215,8 +262,10 @@ WHISPER_API_KEY=choose-a-long-random-token
 WHISPER_MODEL=Systran/faster-whisper-small
 
 # Optional fallbacks
-OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_NOTES_MODEL=meta-llama/llama-3.3-70b-instruct:free
+OPENROUTER_API_KEY=sk-or-v1-...
+# Optional: pin the first model. Both settings default to the chain below.
+OPENROUTER_NOTES_MODEL=qwen/qwen3-next-80b-a3b-instruct
+OPENROUTER_MEMORY_MODEL=qwen/qwen3-next-80b-a3b-instruct
 XAI_API_KEY=...
 XAI_STT_MODEL=grok-voice-transcribe-2.0
 XAI_NOTES_MODEL=grok-4.7
@@ -230,9 +279,11 @@ Routing:
    configured or fails, the gateway tries the next one, then xAI.
 2. Live captions → Groq turbo. Scribe is used for live chunks only when it is the
    only speech provider configured.
-3. Notes → Groq chat completions, then an OpenRouter free model, then xAI. If none
-   are configured, the app writes notes on the device from the spoken words and
-   jottings.
+3. Reports, notes, session asks, naming and the pre-meeting brief → OpenRouter
+   `qwen/qwen3-next-80b-a3b-instruct`, then OpenRouter `openai/gpt-oss-120b`,
+   then Groq GPT-OSS, then xAI. Organisation memory answers follow the same
+   order. If none are configured, the app writes notes on the device from the
+   spoken words and jottings.
 4. `JOTBOX_AI_MOCK=1` runs the deterministic demo provider locally. It is ignored
    on Vercel so demo content cannot reach production.
 
@@ -260,7 +311,7 @@ hosts both the JotBox API and the Whisper worker, with Vercel serving the PWA.
 
 ---
 
-## 6. Tuning speech for English and Pidgin
+## 7. Tuning speech for English and Pidgin
 
 There are two different jobs here, and only one of them is fine-tuning.
 
@@ -395,7 +446,7 @@ stays the same: model, language, prompt, temperature `0`.
 
 ---
 
-## 7. Security checklist
+## 8. Security checklist
 
 - `API_KEY` is set on the worker; never ship it in the browser bundle.
 - Worker is HTTPS-only; port 8000 is not publicly exposed when a reverse proxy is
