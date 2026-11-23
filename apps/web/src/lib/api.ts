@@ -506,13 +506,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-async function upload<T>(path: string, blob: Blob, fallback = "The file could not be uploaded."): Promise<T> {
+async function upload<T>(
+  path: string,
+  blob: Blob,
+  fallback = "The file could not be uploaded.",
+  options: { contentType?: string; headers?: Record<string, string> } = {},
+): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": blob.type || "application/octet-stream" },
+      headers: {
+        "Content-Type": options.contentType || blob.type || "application/octet-stream",
+        ...(options.headers ?? {}),
+      },
       body: blob,
     });
   } catch {
@@ -679,6 +687,15 @@ export const api = {
         `/api/orgs/${encodeURIComponent(orgId)}/documents?filename=${encodeURIComponent(file.name)}`,
         file,
         "That document could not be uploaded.",
+        {
+          // Raw bytes keep Vercel from parsing text bodies into strings, which
+          // left the server with an empty stream. The type rides in a header.
+          contentType: "application/octet-stream",
+          headers: {
+            "x-file-name": encodeURIComponent(file.name),
+            ...(file.type ? { "x-file-type": file.type } : {}),
+          },
+        },
       )
     ).document,
   deleteOrgDocument: (orgId: string, documentId: string) =>

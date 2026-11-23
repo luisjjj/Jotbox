@@ -8,6 +8,8 @@ import { citationsFrom, indexCapture, retrieveChunks, scheduleChunkEmbedding } f
 import { openInsights } from "./meeting-insights.mjs";
 import { cleanGlossaryTerm, listGlossary } from "./org-glossary.mjs";
 import {
+  decodeHeaderFilename,
+  documentBytes,
   documentMimeType,
   documentParagraphs,
   documentTitle,
@@ -81,10 +83,11 @@ async function audit({ req, orgId, actorId, action, captureId = null, metadata =
 
 const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
-async function readFileBody(req, limit) {
-  if (Buffer.isBuffer(req.body)) {
-    if (req.body.length > limit) throw new HttpError(413, "That file is larger than 4 MB.");
-    return req.body;
+export async function readFileBody(req, limit) {
+  const parsed = documentBytes(req.body);
+  if (parsed) {
+    if (parsed.length > limit) throw new HttpError(413, "That file is larger than 4 MB.");
+    return parsed;
   }
   const chunks = [];
   let size = 0;
@@ -946,9 +949,12 @@ async function uploadDocument(req, res) {
   }
 
   const url = new URL(req.url || "/", "http://localhost");
-  const filename = safeFilename(url.searchParams.get("filename") || req.headers["x-file-name"] || "Document");
+  const filename = safeFilename(
+    url.searchParams.get("filename") || decodeHeaderFilename(req.headers["x-file-name"]) || "Document",
+  );
   const buffer = await readFileBody(req, MAX_DOCUMENT_BYTES);
-  const mimeType = documentMimeType(filename, req.headers["content-type"] || "");
+  const declaredType = String(req.headers["x-file-type"] || "") || String(req.headers["content-type"] || "");
+  const mimeType = documentMimeType(filename, declaredType);
   const extracted = await extractDocumentText({ buffer, filename, mimeType });
   const lines = documentParagraphs(extracted.text);
   if (!lines.length) throw new HttpError(422, "No readable text was found in that document.");

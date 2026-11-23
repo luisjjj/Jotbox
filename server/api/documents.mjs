@@ -42,6 +42,35 @@ export function safeFilename(value) {
   return name.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 180) || "Document";
 }
 
+/**
+ * Vercel parses text/plain and application/json bodies before the function runs,
+ * so the raw stream is already consumed for those. Turn whatever the runtime
+ * gives us back into bytes. Returns null when the body still has to be read
+ * from the stream.
+ */
+export function documentBytes(body) {
+  if (Buffer.isBuffer(body)) return body;
+  if (typeof body === "string") return Buffer.from(body, "utf8");
+  if (body && typeof body === "object") {
+    try {
+      return Buffer.from(JSON.stringify(body), "utf8");
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function decodeHeaderFilename(value) {
+  const raw = String(value || "");
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 export function documentMimeType(filename, declared) {
   const clean = String(declared || "").split(";")[0].trim().toLowerCase();
   if (DOCUMENT_MIME_TYPES.has(clean)) return clean;
