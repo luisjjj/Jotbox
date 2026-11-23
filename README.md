@@ -86,24 +86,27 @@ JotBox ships with a provider chain that prefers free infrastructure and falls ba
 
 | Step | Provider | Env |
 | --- | --- | --- |
-| Short recordings | Groq `whisper-large-v3` | `GROQ_API_KEY` |
-| Long recordings | Self-hosted Speaches / faster-whisper | `WHISPER_BASE_URL`, `WHISPER_API_KEY` |
+| Every recording and live captions | ElevenLabs Scribe v3 | `ELEVENLABS_API_KEY` |
+| Fallback reader | Groq `whisper-large-v3`, then self-hosted Speaches / faster-whisper | `GROQ_API_KEY`, `WHISPER_BASE_URL` |
 | Notes (free, first) | Groq `openai/gpt-oss-120b`, then `openai/gpt-oss-20b` | `GROQ_API_KEY` |
 | Notes (free fallback) | OpenRouter free `google/gemma-4-31b-it:free`, then `openrouter/free` | `OPENROUTER_API_KEY` |
 | Notes (premium fallback) | xAI | `XAI_API_KEY` |
 | No keys at all | On-device notes from the spoken words and jottings | None |
 
-The prompts are written for Nigerian Pidgin and code-switching: Pidgin lines survive as they were said, quoted inside otherwise clear English notes, and names, amounts, dates, and decisions stay exact. A report carries a two or three paragraph summary, 5 to 10 highlights, and 3 to 6 sections with specific bullets; a short voice note stays short. Whisper is given Pidgin context through its prompt because it has no Nigerian Pidgin language token, so the request uses `language=en` with that context.
+The prompts are written for Nigerian Pidgin and code-switching: Pidgin lines survive as they were said, quoted inside otherwise clear English notes, and names, amounts, dates, and decisions stay exact. A report carries a two or three paragraph summary, 5 to 10 highlights, and 3 to 6 sections with specific bullets; a short voice note stays short. Scribe has no Nigerian Pidgin language token, so Pidgin requests keep auto-detect and Pidgin lines are protected by the note prompts. The Groq fallback gets Pidgin context through its prompt, using `language=en`.
 
 Capture setup and Settings also expose two listening controls. **Session focus** (`Off`, `Balanced`, `Strict`) drops clear side talk such as wifi or lunch before the notes are written; `Strict` also drops lines that never touch the session title or the roster. **Pickup** (`Balanced`, `Far voices`) runs the recorded stream through a high-pass filter, compressor and makeup gain so close and distant speakers arrive at a similar level; `Far voices` also relaxes browser noise suppression and lifts quiet voices further. Roster names are sent with both the transcription request and the notes prompt, so JotBox spells people the way the room does.
 
 ```env
+ELEVENLABS_API_KEY=...
+
+# Fallback reader when Scribe is not configured
 GROQ_API_KEY=gsk_...
 GROQ_STT_MODEL=whisper-large-v3
 GROQ_LIVE_STT_MODEL=whisper-large-v3-turbo
 GROQ_NOTES_MODEL=openai/gpt-oss-120b
 
-# Optional: long recordings
+# Optional: self-hosted fallback reader
 WHISPER_BASE_URL=https://your-worker.example.com/v1
 WHISPER_API_KEY=choose-a-long-random-token
 WHISPER_MODEL=Systran/faster-whisper-small
@@ -286,11 +289,11 @@ vercel --prod
 
 Repeat the same three `vercel env add` commands with `preview` and `development`. `EMAIL_FROM` must stay on the verified `jotbox.online` domain; `/api/health` returns `"email": false` until `SENDLY_API_KEY` is present.
 
-Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `logout`, `me`), `billing`, `captures`, `transcribe`, `enhance`, `assist`, `share`, and `orgs` (organisations, members, departments, sharing, audit, and memory; `/api/orgs/*` is rewritten to one shared handler to stay under the Hobby plan's 12-function limit). The smaller routes, health, Windows download, password recovery, and enterprise onboarding, share [`api/utility.mjs`](api/utility.mjs) and are reached through rewrites in [`vercel.json`](vercel.json). Set `DATABASE_URL` to the **app role** URL in Vercel Production, Preview, and Development. Never add `DATABASE_URL_OWNER` to Vercel. Add the provider keys you intend to use (`GROQ_API_KEY`, `WHISPER_BASE_URL`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `PAYSTACK_SECRET_KEY`, `SENDLY_API_KEY`, `EMAIL_FROM`) as sensitive environment variables.
+Deployed serverless routes live in [`api/`](api): auth (`register`, `login`, `logout`, `me`), `billing`, `captures`, `transcribe`, `enhance`, `assist`, `share`, and `orgs` (organisations, members, departments, sharing, audit, and memory; `/api/orgs/*` is rewritten to one shared handler to stay under the Hobby plan's 12-function limit). The smaller routes, health, Windows download, password recovery, and enterprise onboarding, share [`api/utility.mjs`](api/utility.mjs) and are reached through rewrites in [`vercel.json`](vercel.json). Set `DATABASE_URL` to the **app role** URL in Vercel Production, Preview, and Development. Never add `DATABASE_URL_OWNER` to Vercel. Add the provider keys you intend to use (`ELEVENLABS_API_KEY`, `GROQ_API_KEY`, `WHISPER_BASE_URL`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, `PAYSTACK_SECRET_KEY`, `SENDLY_API_KEY`, `EMAIL_FROM`) as sensitive environment variables.
 
 **Request size:** Vercel Functions cap a request body at roughly **4.5 MB**, so long recordings must go through the self-hosted worker directly or through object storage. Short clips work through `/api/transcribe` as-is. See [docs/ai-providers.md](docs/ai-providers.md) for the options. The bucket setup, CORS rule, and a round-trip check live in [docs/storage.md](docs/storage.md); `npm run storage:check` verifies the credentials before a deployment depends on them.
 
-For the recommended low-cost path (Groq for short clips and a self-hosted Whisper worker for long lectures), see **[docs/ai-providers.md](docs/ai-providers.md)**. It includes the Groq key steps, a ready-to-run [`worker/docker-compose.yml`](worker/docker-compose.yml), deployment notes, and the Vercel size-limit caveat.
+For the provider setup (Scribe for every recording and live captions, with Groq and a self-hosted Whisper worker as fallbacks), see **[docs/ai-providers.md](docs/ai-providers.md)**. It includes the Scribe and Groq key steps, a ready-to-run [`worker/docker-compose.yml`](worker/docker-compose.yml), deployment notes, and the Vercel size-limit caveat.
 
 ### Desktop app (Windows)
 
@@ -341,7 +344,7 @@ microphone / tab audio / upload
         │
         ├─ Web Speech API ──> live words
         │
-        └─ on stop ──> /api/transcribe (Groq → self-hosted worker → xAI)
+        └─ on stop ──> /api/transcribe (Scribe → Groq → self-hosted worker → xAI)
                         │
                         └─ /api/enhance (Groq GPT-OSS → OpenRouter free → xAI)
                               summary + key points + actions + sections
@@ -390,7 +393,7 @@ Client types:
 - Neon Postgres + `pg` (app role; server-side only)
 - Vercel Functions for auth, captures, health, transcription, and notes
 - Electron + electron-builder for the Windows desktop island
-- Groq Whisper, self-hosted Speaches/faster-whisper, Groq GPT-OSS then free OpenRouter models for reports and memory, xAI fallback
+- ElevenLabs Scribe v3 for every recording and live caption, Groq Whisper and self-hosted Speaches/faster-whisper as fallbacks, Groq GPT-OSS then free OpenRouter models for reports and memory, xAI fallback
 - `vite-plugin-pwa` (Workbox)
 - Self-hosted SF Pro Display for the interface
 

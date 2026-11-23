@@ -252,15 +252,14 @@ function orderSttProviders(providers) {
   });
 }
 
-function configuredSttProviders({ live = false } = {}) {
+function configuredSttProviders() {
   const providers = [];
-  if (!live && elevenLabsKey()) providers.push("elevenlabs");
+  // Scribe is the reader everywhere, live chunks included, so a free listener
+  // hears the same accuracy they are deciding to pay for.
+  if (elevenLabsKey()) providers.push("elevenlabs");
   if (groqKey()) providers.push("groq");
   if (whisperBase()) providers.push("worker");
   if (xaiKey()) providers.push("xai");
-  // Live captions stay on Groq turbo by default. The only time Scribe previews
-  // live audio is when it is the only provider configured.
-  if (live && elevenLabsKey()) providers.push("elevenlabs");
   if (mockEnabled()) providers.push("demo");
   return orderSttProviders(providers);
 }
@@ -352,7 +351,7 @@ function sttModelFor(provider, { live = false } = {}) {
 
 export function aiStatus() {
   const finalProvider = configuredSttProviders()[0] ?? null;
-  const liveProvider = configuredSttProviders({ live: true })[0] ?? null;
+  const liveProvider = configuredSttProviders()[0] ?? null;
   const transcribe = finalProvider === "worker" ? "self-hosted" : finalProvider;
   const notes = orderedNotesProviders()[0] ?? null;
   const vocabulary = sttVocabulary();
@@ -716,7 +715,9 @@ async function transcribeWithXai(buffer, contentType, filename, context, options
   const code = sttCode(language);
   if (code) form.append("language", code);
   form.append("format", "true");
-  form.append("diarize", "true");
+  // Speaker labels are a paid meeting feature, so a free fallback must not
+  // ask xAI for them.
+  form.append("diarize", options.diarize === false ? "false" : "true");
   const prompt = sttPrompt(context, options);
   if (prompt) form.append("prompt", prompt);
   form.append("file", new Blob([buffer], { type: contentType }), filename);
@@ -894,10 +895,14 @@ export async function transcribeAudio({
   // Scribe covers Igbo, so the worker-only rule applies only when Scribe is absent.
   const workerOnly = STT_WORKER_ONLY.has(language) && !elevenLabsKey();
   const attempts = [];
-  const configured = configuredSttProviders({ live });
+  const configured = configuredSttProviders();
   const primary = route.provider;
+  // JOTBOX_STT_PROVIDER is the operator benchmark lever: when it names an
+  // order, that order wins. Otherwise the routed reader goes first.
+  const pinned = sttPreference().length > 0;
   const providers = [...configured]
     .sort((left, right) => {
+      if (pinned) return 0;
       if (left === primary) return -1;
       if (right === primary) return 1;
       return 0;

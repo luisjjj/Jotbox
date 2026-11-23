@@ -1,7 +1,7 @@
 import { query } from "./pg.mjs";
 
 const DEFAULT_FREE_MINUTES = 100;
-const DEFAULT_PRO_HOURS = 25;
+const DEFAULT_PRO_HOURS = 20;
 const DEFAULT_ENTERPRISE_HOURS = 1000;
 const MAX_MONTH_MINUTES = 24 * 60 * 31;
 // The hidden enterprise ceiling is larger than any calendar month, so it is

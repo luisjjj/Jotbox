@@ -19,6 +19,7 @@ import { desktopBridge } from "@/lib/desktop";
 import { defaultTitle, formatClock } from "@/lib/format";
 import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/lib/insights";
 import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
+import { chunkHasSpeech, createLevelWindow, noteLevel, type LiveLevelWindow } from "@/lib/liveGate";
 import { transcribeChunk } from "@/lib/liveTranscribe";
 import {
   focusContext,
@@ -196,6 +197,9 @@ function audioDuration(file: File) {
 // that the reader loses accuracy.
 const LIVE_SEGMENT_MS = 5_000;
 const LIVE_QUEUE_LIMIT = 3;
+// Server chunks arrive as a whole sentence. Reveal them a word at a time so
+// the transcript keeps the rhythm of the room instead of jumping.
+const LIVE_REVEAL_MS = 55;
 
 interface ServerLive {
   active: boolean;
@@ -205,6 +209,7 @@ interface ServerLive {
   queue: Blob[];
   sending: boolean;
   failures: number;
+  level: LiveLevelWindow;
 }
 
 function copyStyles(target: Document) {
@@ -265,9 +270,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     queue: [],
     sending: false,
     failures: 0,
+    level: createLevelWindow(),
   });
   const speechRef = useRef<SpeechRec | null>(null);
   const previewRef = useRef<SpeechRec | null>(null);
+  const revealRef = useRef({ timer: 0, queue: [] as string[], active: false, text: "" });
   const listenRef = useRef(false);
   const liveFallbackRef = useRef<(() => void) | null>(null);
   const stopStreamRef = useRef<() => void>(() => {});
@@ -331,6 +338,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     tickStart.current = null;
     chunks.current = [];
     setAllowanceBoth(null);
+    clearReveal();
     setSessionId(null);
     setTitleState("");
     setScratchState("");
@@ -472,22 +480,84 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     return tabStream;
   };
 
-  const appendLiveText = (raw: string) => {
+  const liveLineText = (raw: string) => {
     const text = raw.replace(/\s+/g, " ").trim();
-    if (!text) return;
+    if (!text) return "";
     const context = focusContext({
       title: titleRef.current,
       kind: kindRef.current,
       participants: participantsRef.current,
       scratch: scratchRef.current,
     });
-    if (isOffTopic(text, context) || isNoiseLine(text)) return;
+    if (isOffTopic(text, context) || isNoiseLine(text)) return "";
     const last = linesRef.current[linesRef.current.length - 1];
-    if (last && last.text.trim().toLowerCase() === text.toLowerCase()) return;
+    if (last && last.text.trim().toLowerCase() === text.toLowerCase()) return "";
+    return text;
+  };
+
+  const appendLiveText = (raw: string) => {
+    const text = liveLineText(raw);
+    if (!text) return;
     linesRef.current = [...linesRef.current, { id: crypto.randomUUID(), text, at: currentElapsed() }];
     setLines(linesRef.current);
     setInterim("");
     persistLive();
+  };
+
+  const clearReveal = () => {
+    const reveal = revealRef.current;
+    if (reveal.timer) window.clearTimeout(reveal.timer);
+    reveal.timer = 0;
+    reveal.queue = [];
+    reveal.active = false;
+    reveal.text = "";
+  };
+
+  const flushReveal = () => {
+    const reveal = revealRef.current;
+    const partial = reveal.text;
+    const pending = [...reveal.queue];
+    clearReveal();
+    if (partial) appendLiveText(partial);
+    for (const text of pending) appendLiveText(text);
+    setInterim("");
+  };
+
+  const revealNext = () => {
+    const reveal = revealRef.current;
+    const next = reveal.queue.shift();
+    if (next === undefined) {
+      reveal.active = false;
+      setInterim("");
+      return;
+    }
+    reveal.active = true;
+    const words = next.split(" ");
+    let shown = 0;
+    const step = () => {
+      if (!reveal.active) return;
+      shown += 1;
+      if (shown < words.length) {
+        reveal.text = words.slice(0, shown).join(" ");
+        setInterim(reveal.text);
+        reveal.timer = window.setTimeout(step, LIVE_REVEAL_MS);
+        return;
+      }
+      reveal.timer = 0;
+      reveal.text = "";
+      appendLiveText(next);
+      revealNext();
+    };
+    step();
+  };
+
+  // Server chunks land as a finished sentence. Queue them so each one writes
+  // itself out instead of appearing all at once.
+  const queueLiveText = (raw: string) => {
+    const text = liveLineText(raw);
+    if (!text) return;
+    revealRef.current.queue.push(text);
+    if (!revealRef.current.active) revealNext();
   };
 
   const stopServerLive = () => {
@@ -525,12 +595,13 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           });
           if (!live.active || live.generation !== generation) break;
           live.failures = 0;
-          appendLiveText(text);
+          queueLiveText(text);
         } catch {
           live.failures += 1;
           if (live.failures >= 2) {
             const fallback = liveFallbackRef.current;
             stopServerLive();
+            flushReveal();
             if (fallback) fallback();
             else setCaptions(false);
             break;
@@ -560,12 +631,15 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       return;
     }
     const generation = live.generation;
+    live.level = createLevelWindow();
     const parts: Blob[] = [];
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) parts.push(event.data);
     };
     recorder.onstop = () => {
-      if (live.generation === generation && parts.length) {
+      // A silent segment would still bill the live pass, so only loud segments
+      // go to the queue. The final pass still reads the whole recording.
+      if (live.generation === generation && parts.length && chunkHasSpeech(live.level)) {
         live.queue.push(new Blob(parts, { type: recorder.mimeType || mime || "audio/webm" }));
         if (live.queue.length > LIVE_QUEUE_LIMIT) live.queue.shift();
         void pumpServerLive(generation);
@@ -634,6 +708,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           pending += `${text} `;
         }
       }
+      // A paced server line owns the interim slot while it writes itself out.
+      if (!commit && revealRef.current.active) return;
       setInterim(pending.trim());
     };
     rec.onerror = (event) => {
@@ -691,6 +767,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     stopServerLive();
     stopSpeech(previewRef);
     stopSpeech(speechRef);
+    flushReveal();
     setInterim("");
     const recorder = recorderRef.current;
     const blob = new Promise<Blob>((resolve) => {
@@ -815,7 +892,6 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     const kindNow = kindRef.current;
     const titleNow = titleRef.current || defaultTitle(kindNow);
     const scratchNow = scratchRef.current;
-    const linesNow = linesRef.current;
     const createdAt = createdRef.current;
     const titleIsDefault = !titleTouched.current;
     let blob: Blob | null = null;
@@ -826,6 +902,9 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     } catch {
       blob = null;
     }
+    // finishRecorder flushes any line still writing itself out, so read the
+    // transcript after it runs.
+    const linesNow = linesRef.current;
     const base: Session = {
       id,
       title: titleNow,
@@ -987,6 +1066,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         setSource(options.source);
         setTitleState(nextTitle);
         setLines([]);
+        clearReveal();
         setInterim("");
         setElapsed(0);
         setAllowanceBoth(nextAllowance);
@@ -1039,7 +1119,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     stopServerLive();
     stopSpeech(previewRef);
     stopSpeech(speechRef);
-    setInterim("");
+    flushReveal();
     setStatusBoth("paused");
     persistLive();
   }, [persistLive]);
@@ -1380,7 +1460,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           const centered = (value - 128) / 128;
           sum += centered * centered;
         }
-        levelRef.current = Math.min(1, Math.sqrt(sum / data.length) * 3.4);
+        const rms = Math.sqrt(sum / data.length);
+        levelRef.current = Math.min(1, rms * 3.4);
+        const live = serverLiveRef.current;
+        if (live.active && live.recorder) noteLevel(live.level, rms);
       } else {
         levelRef.current *= 0.85;
       }

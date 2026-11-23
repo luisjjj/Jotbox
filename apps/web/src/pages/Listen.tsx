@@ -319,7 +319,7 @@ function Setup() {
                     ? limitReachedMessage(usage.plan, usage.limitSeconds)
                     : usage.plan === "pro"
                       ? `${formatAllowance(timeLeft)} left on Pro this month. It resets at the start of next month.`
-                      : `${formatMinutes(timeLeft)} left on the free plan this month. Pro keeps you listening without a cap.`}
+                      : `${formatMinutes(timeLeft)} left on the free plan this month. Pro gives you 20 hours a month.`}
                 </p>
               </div>
               <Link to="/account" className="btn btn-line btn-sm w-full justify-center sm:w-auto sm:flex-none">
