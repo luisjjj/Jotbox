@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { Modal } from "./Modal";
 import { PaywallDialog } from "./Paywall";
 import { api, ApiError, type ShareLink } from "@/lib/api";
+import posthog, { posthogEnabled } from "@/lib/posthog";
 import { isSample } from "@/lib/seed";
 import { usePlan } from "@/lib/usageStore";
 import type { Session } from "@/lib/types";
@@ -54,6 +55,7 @@ export function ShareDialog({
       const result = await api.createShareLink(session.id, pro ? days : 7);
       setCreated(`${window.location.origin}/s/${result.token}`);
       setLinks((current) => [result.link, ...current]);
+      if (posthogEnabled) posthog.capture("share_link_created", { expiration_days: pro ? days : 7 });
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 402) {
         setPaywall(true);
@@ -71,6 +73,7 @@ export function ShareDialog({
       setLinks((current) =>
         current.map((link) => (link.id === id ? { ...link, revokedAt: Date.now() } : link)),
       );
+      if (posthogEnabled) posthog.capture("share_link_revoked");
       toast.success("Link turned off");
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : "The link could not be turned off.");

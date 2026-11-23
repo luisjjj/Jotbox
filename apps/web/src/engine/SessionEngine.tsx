@@ -34,6 +34,7 @@ import { useTheme } from "@/lib/theme";
 import { ensureUsage, refreshUsage, useUsage } from "@/lib/usageStore";
 import { limitReachedMessage, uploadTooLongMessage } from "@/lib/planLimitCopy";
 import { withProcessingTimeout } from "@/lib/processing";
+import posthog, { posthogEnabled } from "@/lib/posthog";
 import type { CaptureSource, LiveInsights, Participant, Session, SessionKind, TranscriptLine } from "@/lib/types";
 
 type EngineStatus = "idle" | "recording" | "paused" | "processing";
@@ -900,6 +901,12 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         transcript: result.lines,
         notes: result.notes,
       });
+      if (posthogEnabled) {
+        posthog.capture("capture_completed", {
+          capture_kind: kindNow,
+          duration_sec: Math.round(duration),
+        });
+      }
     } catch (caught) {
       useSessions.getState().upsert({
         ...base,
@@ -1000,6 +1007,12 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           live: { decisions: [], actions: [] },
           participants: options.participants ?? [],
         });
+        if (posthogEnabled) {
+          posthog.capture("capture_started", {
+            capture_kind: options.kind,
+            capture_source: options.source,
+          });
+        }
         armSpeech();
       } catch (caught) {
         stopStreamRef.current();
@@ -1171,6 +1184,12 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           notes: wrote ? result.notes : null,
           error: wrote ? undefined : "No words came back from that recording.",
         });
+        if (wrote && posthogEnabled) {
+          posthog.capture("audio_import_completed", {
+            capture_kind: nextKind,
+            duration_sec: Math.round(duration),
+          });
+        }
       } catch (caught) {
         useSessions.getState().upsert({
           ...base,
