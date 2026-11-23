@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { Readable } from "node:stream";
 import { test } from "node:test";
 
+import { readFileBody } from "../server/api/orgs.mjs";
 import {
   decodeHeaderFilename,
   documentBytes,
@@ -44,6 +46,17 @@ test("decodeHeaderFilename accepts encoded and raw names", () => {
   assert.equal(decodeHeaderFilename("plain.txt"), "plain.txt");
   assert.equal(decodeHeaderFilename("100%.pdf"), "100%.pdf");
   assert.equal(decodeHeaderFilename(""), "");
+});
+
+test("readFileBody keeps parsed bodies and streams the rest", async () => {
+  assert.equal((await readFileBody({ body: "policy text" }, 20)).toString("utf8"), "policy text");
+  assert.equal((await readFileBody({ body: Buffer.from("bytes") }, 20)).toString("utf8"), "bytes");
+  assert.equal((await readFileBody({ body: { plan: "ok" } }, 20)).toString("utf8"), '{"plan":"ok"}');
+
+  const stream = Readable.from([Buffer.from("streamed ")]);
+  assert.equal((await readFileBody(stream, 20)).toString("utf8"), "streamed ");
+
+  await assert.rejects(readFileBody({ body: "too big" }, 3), (error) => error.status === 413);
 });
 
 test("documentParagraphs become transcript lines the chunker already understands", () => {

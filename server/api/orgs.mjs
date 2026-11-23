@@ -83,7 +83,7 @@ async function audit({ req, orgId, actorId, action, captureId = null, metadata =
 
 const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
-async function readFileBody(req, limit) {
+export async function readFileBody(req, limit) {
   const parsed = documentBytes(req.body);
   if (parsed) {
     if (parsed.length > limit) throw new HttpError(413, "That file is larger than 4 MB.");
