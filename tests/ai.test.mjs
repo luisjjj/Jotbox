@@ -244,14 +244,14 @@ test("Scribe retries without options the account rejects", async () => {
   assert.deepEqual(forms[1].keyterms, []);
 });
 
-test("live captions stay on Groq turbo when Scribe is configured", async () => {
+test("live captions use Scribe too when it is configured", async () => {
   process.env.ELEVENLABS_API_KEY = "test-scribe";
   process.env.GROQ_API_KEY = "test-groq";
   const calls = [];
 
   globalThis.fetch = async (url, init = {}) => {
-    calls.push({ url: String(url), model: init.body.get("model") });
-    return Response.json({ text: "make we pause", words: [], segments: [] });
+    calls.push({ url: String(url), model: init.body.get("model_id"), diarize: init.body.get("diarize") });
+    return Response.json({ text: "make we pause", language_code: "en", language_probability: 0.9, words: [] });
   };
 
   await ai.transcribeAudio({
@@ -262,8 +262,9 @@ test("live captions stay on Groq turbo when Scribe is configured", async () => {
   });
 
   assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /api\.groq\.com/);
-  assert.equal(calls[0].model, "whisper-large-v3-turbo");
+  assert.match(calls[0].url, /api\.elevenlabs\.io/);
+  assert.equal(calls[0].model, "scribe_v3");
+  assert.equal(calls[0].diarize, null);
 });
 
 test("JOTBOX_STT_PROVIDER pins the order for a provider benchmark", async () => {
@@ -295,8 +296,8 @@ test("status reports Scribe and diarization when its key is set", () => {
   assert.equal(status.transcribe, "elevenlabs");
   assert.equal(status.diarization, true);
   assert.equal(status.sttModel, "scribe_v3");
-  // Live previews still report the Groq turbo model.
-  assert.equal(status.sttLiveModel, "whisper-large-v3-turbo");
+  // Live previews report the same Scribe reader.
+  assert.equal(status.sttLiveModel, "scribe_v3");
 });
 
 test("demo transcription keeps Pidgin words and speaker turns", async () => {

@@ -255,13 +255,13 @@ export async function sendReceiptEmail(user, { amount, currency, reference, inte
   return sendEmail({
     to: user.email,
     subject: `Your JotBox Pro receipt: ${paid}`,
-    text: `Hi ${name},\n\nThank you. We received ${paid} for JotBox Pro (${interval}).\n\nReference: ${reference}\n\nYour Pro features are switched on now: 25 hours of listening each month, branded PDF export, longer share links, AI follow-up drafts, and the Pre-Meeting Brief.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
+    text: `Hi ${name},\n\nThank you. We received ${paid} for JotBox Pro (${interval}).\n\nReference: ${reference}\n\nYour Pro features are switched on now: 20 hours of listening each month, branded PDF export, longer share links, AI follow-up drafts, and the Pre-Meeting Brief.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
     html: layout({
       heading: `Payment received: ${paid}`,
       body:
         paragraph(`Thank you. We received ${paid} for JotBox Pro (${interval}).`) +
         paragraph(`Reference: ${reference}`) +
-        paragraph("Your Pro features are switched on now: 25 hours of listening each month, branded PDF export, longer share links, AI follow-up drafts, and the Pre-Meeting Brief."),
+        paragraph("Your Pro features are switched on now: 20 hours of listening each month, branded PDF export, longer share links, AI follow-up drafts, and the Pre-Meeting Brief."),
       action: "Manage your plan",
       actionUrl: `${publicAppUrl()}/account`,
       footnote: "This receipt is for your records. Billing questions? Reply to this email.",
@@ -278,12 +278,12 @@ export async function sendRenewalReminderEmail(user, { amount, currency, nextPay
   return sendEmail({
     to: user.email,
     subject: `${name}, JotBox Pro renews on ${when}`,
-    text: `Hi ${name},\n\nYour JotBox Pro plan renews on ${when}. We will charge ${paid} then.\n\nNothing to do if you want to keep Pro: your 25 hours of listening and every Pro feature stay on.\n\nIf you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 100 minutes of listening each month.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
+    text: `Hi ${name},\n\nYour JotBox Pro plan renews on ${when}. We will charge ${paid} then.\n\nNothing to do if you want to keep Pro: your 20 hours of listening and every Pro feature stay on.\n\nIf you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 100 minutes of listening each month.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
     html: layout({
       heading: `Pro renews on ${when}`,
       body:
         paragraph(`Your JotBox Pro plan renews on ${when}. We will charge ${paid} then.`) +
-        paragraph("Nothing to do if you want to keep Pro: your 25 hours of listening and every Pro feature stay on.") +
+        paragraph("Nothing to do if you want to keep Pro: your 20 hours of listening and every Pro feature stay on.") +
         paragraph(`If you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 100 minutes of listening each month.`),
       action: "Manage your plan",
       actionUrl: `${publicAppUrl()}/account`,

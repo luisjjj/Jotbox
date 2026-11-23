@@ -87,9 +87,14 @@ function workerRoute({ fallback = false, requestedProvider = "worker" }) {
 }
 
 /**
- * Decide the provider for one full recording. `available` is filled from the
- * server keys; a rule is still returned when its first choice is missing so
- * the caller can see what was intended and which fallback ran.
+ * Decide the provider for one full recording. Scribe is the reader on every
+ * plan because the free tier is the demo that has to earn the upgrade. Groq
+ * and the self-hosted worker stay as fallbacks. Speaker labels are a paid
+ * meeting feature: meeting kind only, and never on free.
+ *
+ * `available` is filled from the server keys; a rule is still returned when
+ * its first choice is missing so the caller can see what was intended and
+ * which fallback ran.
  */
 export function routeTranscription({
   plan = "free",
@@ -107,6 +112,7 @@ export function routeTranscription({
   const hasXai = available.xai === true;
   const hasDemo = available.demo === true;
   const terms = cleanTerms(glossary);
+  const diarize = tier !== "free" && kind === "meeting";
 
   const finish = (rule, reason) => ({
     tier,
@@ -115,91 +121,59 @@ export function routeTranscription({
     ...rule,
   });
 
-  // Igbo is not on Whisper's hosted language list. A self-hosted Igbo reader
-  // wins; otherwise Scribe is the only provider that can read it.
-  if (language === "ig") {
-    if (hasWorker) return finish(workerRoute({}), "Igbo needs the self-hosted reader.");
-    if (hasScribe) {
-      const price = tier === "enterprise" ? STT_PRICES["scribe-keyterms"] : STT_PRICES.scribe;
-      return finish(
-        scribeRoute({
-          keyterms: tier === "enterprise" ? terms : [],
-          diarize: tier === "enterprise" || selectedMode === "group",
-          price,
-        }),
-        "Igbo is not on Groq, so Scribe reads it.",
-      );
-    }
-    if (hasGroq) {
-      return finish(
-        groqRoute({ model: "whisper-large-v3", price: STT_PRICES["groq-large"], fallback: true }),
-        "The Igbo reader is not configured; Groq is the only reader left.",
-      );
-    }
+  const scribeForPlan = () =>
+    scribeRoute({
+      keyterms: tier === "enterprise" ? terms : [],
+      diarize,
+      price: tier === "enterprise" ? STT_PRICES["scribe-keyterms"] : STT_PRICES.scribe,
+    });
+
+  // Igbo is not on Whisper's hosted language list, and Scribe reads it. The
+  // worker is the fallback only when Scribe is not configured.
+  if (language === "ig" && hasScribe) {
+    return finish(scribeForPlan(), "Scribe reads Igbo on every plan.");
   }
 
-  if (tier === "enterprise") {
-    const rule = hasScribe
-      ? scribeRoute({ keyterms: terms, diarize: true, price: STT_PRICES["scribe-keyterms"] })
-      : groqRoute({
-          model: "whisper-large-v3",
-          price: STT_PRICES["groq-large"],
-          fallback: true,
-          requestedProvider: "elevenlabs",
-        });
-    return finish(rule, "Enterprise keeps speaker labels and the organisation glossary.");
+  if (hasScribe) {
+    return finish(
+      scribeForPlan(),
+      tier === "enterprise"
+        ? "Scribe reads with the organisation glossary and labels speakers in meetings."
+        : diarize
+          ? "Scribe reads the meeting and labels speakers."
+          : "Scribe reads with the best accuracy. Speaker labels are a Pro meeting feature.",
+    );
   }
 
-  if (tier === "pro") {
-    if (selectedMode === "group") {
-      const rule = hasScribe
-        ? scribeRoute({ keyterms: [], diarize: true, price: STT_PRICES.scribe })
-        : groqRoute({
-            model: "whisper-large-v3",
-            price: STT_PRICES["groq-large"],
-            fallback: true,
-            requestedProvider: "elevenlabs",
-          });
-      return finish(rule, "Group meetings keep speaker labels on Scribe without paid keyterms.");
-    }
-    const rule = hasGroq
-      ? {
-          ...groqRoute({ model: "whisper-large-v3", price: STT_PRICES["groq-large"] }),
-          prompt: "glossary",
-        }
-      : scribeRoute({
-          keyterms: [],
-          diarize: false,
-          price: STT_PRICES.scribe,
-          fallback: true,
-          requestedProvider: "groq",
-        });
-    return finish(rule, "Lecture and solo notes use Groq large with the personal glossary.");
+  if (hasWorker && language === "ig") {
+    return finish(
+      workerRoute({ fallback: true, requestedProvider: "elevenlabs" }),
+      "Scribe is not configured, so the self-hosted reader runs Igbo.",
+    );
   }
 
   if (hasGroq) {
     return finish(
       {
-        ...groqRoute({ model: "whisper-large-v3-turbo", price: STT_PRICES["groq-turbo"] }),
-        prompt: "language",
+        ...groqRoute({
+          model: "whisper-large-v3",
+          price: STT_PRICES["groq-large"],
+          fallback: true,
+          requestedProvider: "elevenlabs",
+        }),
+        prompt: "glossary",
       },
-      "Free captures stay on Groq turbo with no glossary keyterms or speaker labels.",
+      "Scribe is not configured, so Groq reads the recording.",
     );
   }
 
-  if (hasScribe) {
+  if (hasWorker) {
     return finish(
-      scribeRoute({
-        keyterms: [],
-        diarize: false,
-        price: STT_PRICES.scribe,
-        fallback: true,
-        requestedProvider: "groq",
-      }),
-      "Groq is not configured, so the free capture falls back to Scribe.",
+      workerRoute({ fallback: true, requestedProvider: "elevenlabs" }),
+      "Scribe is not configured, so the self-hosted reader runs.",
     );
   }
-  if (hasWorker) return finish(workerRoute({ fallback: true, requestedProvider: "groq" }), "Groq is not configured.");
+
   if (hasXai) {
     return finish(
       {
@@ -211,23 +185,24 @@ export function routeTranscription({
         costPerHour: 0,
         costKey: "xai",
         fallback: true,
-        requestedProvider: "groq",
+        requestedProvider: "elevenlabs",
       },
-      "Groq is not configured.",
+      "Neither Scribe nor Groq is configured, so xAI reads the recording.",
     );
   }
+
   if (hasDemo) {
     return finish(
       {
         provider: "demo",
         model: "demo",
-        diarize: true,
+        diarize: false,
         prompt: "none",
         keyterms: [],
         costPerHour: 0,
         costKey: "demo",
         fallback: true,
-        requestedProvider: "groq",
+        requestedProvider: "elevenlabs",
       },
       "No speech provider is configured, so the demo reader is used.",
     );
@@ -243,18 +218,32 @@ export function routeTranscription({
       costPerHour: 0,
       costKey: "none",
       fallback: true,
-      requestedProvider: "groq",
+      requestedProvider: "elevenlabs",
     },
     "No speech provider is configured.",
   );
 }
 
 /**
- * Live captions are a disposable preview and always stay on a reader that can
- * turn a short chunk around quickly. Batch Scribe is the slowest option here,
- * so it is used only when no faster reader is configured.
+ * Live captions use the same Scribe reader as the final pass so a free
+ * listener hears the accuracy they are deciding to pay for. Scribe bills the
+ * same audio again for the live pass. Groq turbo and the worker are fallbacks
+ * only, used when Scribe is not configured.
  */
 export function routeLiveTranscription({ available = {} } = {}) {
+  if (available.scribe !== false) {
+    return {
+      provider: "elevenlabs",
+      model: "scribe_v3",
+      diarize: false,
+      prompt: "none",
+      keyterms: [],
+      costPerHour: STT_PRICES.scribe,
+      costKey: "scribe",
+      fallback: false,
+      requestedProvider: "elevenlabs",
+    };
+  }
   if (available.groq !== false) {
     return {
       provider: "groq",
@@ -264,21 +253,8 @@ export function routeLiveTranscription({ available = {} } = {}) {
       keyterms: [],
       costPerHour: STT_PRICES["groq-turbo"],
       costKey: "groq-turbo",
-      fallback: false,
-      requestedProvider: "groq",
-    };
-  }
-  if (available.xai === true) {
-    return {
-      provider: "xai",
-      model: "grok-voice-transcribe-2.0",
-      diarize: false,
-      prompt: "none",
-      keyterms: [],
-      costPerHour: 0,
-      costKey: "xai",
       fallback: true,
-      requestedProvider: "groq",
+      requestedProvider: "elevenlabs",
     };
   }
   if (available.worker === true) {
@@ -291,20 +267,20 @@ export function routeLiveTranscription({ available = {} } = {}) {
       costPerHour: 0,
       costKey: "self-hosted",
       fallback: true,
-      requestedProvider: "groq",
+      requestedProvider: "elevenlabs",
     };
   }
-  if (available.scribe !== false) {
+  if (available.xai === true) {
     return {
-      provider: "elevenlabs",
-      model: "scribe_v3",
+      provider: "xai",
+      model: "grok-voice-transcribe-2.0",
       diarize: false,
       prompt: "none",
       keyterms: [],
-      costPerHour: STT_PRICES.scribe,
-      costKey: "scribe",
+      costPerHour: 0,
+      costKey: "xai",
       fallback: true,
-      requestedProvider: "groq",
+      requestedProvider: "elevenlabs",
     };
   }
   if (available.demo === true) {
@@ -317,7 +293,7 @@ export function routeLiveTranscription({ available = {} } = {}) {
       costPerHour: 0,
       costKey: "demo",
       fallback: true,
-      requestedProvider: "groq",
+      requestedProvider: "elevenlabs",
     };
   }
   return {
@@ -329,7 +305,7 @@ export function routeLiveTranscription({ available = {} } = {}) {
     costPerHour: 0,
     costKey: "none",
     fallback: true,
-    requestedProvider: "groq",
+    requestedProvider: "elevenlabs",
   };
 }
 

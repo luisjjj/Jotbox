@@ -5,19 +5,23 @@ This guide covers the provider chain already wired into `/api/transcribe` and
 
 | Path | Use it for | Cost | Limits |
 | --- | --- | --- | --- |
-| ElevenLabs Scribe v3 | Full recordings, speaker-separated notes | Paid by audio hour | No Pidgin language code, so Pidgin runs on auto-detect |
+| ElevenLabs Scribe v3 | Every recording and live caption; speaker labels on paid meetings | Paid by audio hour | No Pidgin language code, so Pidgin runs on auto-detect |
 | Browser Web Speech + on-device notes | Live words and notes with no provider | Free | Mic only, no upload transcription, no speaker separation |
-| Groq Whisper | Live captions and short recordings | Free tier, then paid | 25 MB per file on the free tier |
+| Groq Whisper | Fallback reader when Scribe is not configured | Free tier, then paid | 25 MB per file on the free tier |
 | Speaches + faster-whisper | Long lectures, offline/low-bandwidth setups | Your compute | Model size and CPU/GPU decide speed |
 | Groq GPT-OSS 120B | Reports, notes and organisation memory | Groq free tier, then paid | Model deprecation and Groq rate limits |
 | OpenRouter free models (Gemma 4 31B, free router) | Reports, notes and organisation memory | $0 | 20 requests a minute, 50 a day until $10 lifetime credits, then 1,000 a day |
 | xAI | One-key premium speech and notes | Paid | Provider pricing and rate limits |
 
-When `ELEVENLABS_API_KEY` is set, Scribe reads the full recording first and
-returns a diarised transcript. Live captions stay on Groq turbo because a
-two second chunk cannot be diarised reliably and Scribe bills by audio hour.
-Without Scribe, routing is Groq for speech and the self-hosted worker for
-long audio. Notes, reports and organisation memory go to Groq GPT-OSS first
+Scribe reads every plan, every session shape, and both passes: the five-second
+live captions and the final full recording. Speaker labels are requested only on
+Pro and Enterprise meetings; free captures and every lecture, seminar and voice
+note are read without labels. Live chunks never ask for labels because a short
+chunk cannot carry speaker ids that line up with the next one.
+
+Without Scribe, routing falls back to Groq for speech, then the self-hosted
+worker; Igbo goes straight to the worker because Whisper does not list it.
+Notes, reports and organisation memory go to Groq GPT-OSS first
 (free tier), then OpenRouter's free models (Gemma 4 31B, then the free
 router), then xAI. With no keys the app still records, keeps live browser
 words, and writes notes on the device.
@@ -33,11 +37,15 @@ The prompts preserve Nigerian Pidgin and tone: Pidgin lines stay as they were sa
 and are quoted inside otherwise clear English notes; names, amounts, dates, and
 decisions stay exact. Scribe does not list Nigerian Pidgin as a language, so
 Pidgin requests are sent without a language code and the model auto-detects the
-English/Pidgin mix. Name and acronym accuracy comes from Scribe keyterms instead
-of Whisper's context prompt.
+English/Pidgin mix. Name accuracy on free and Pro comes from the transcript and
+the naming pass, not from a prompt. Enterprise meetings also send the
+organisation glossary to Scribe as keyterms.
 
-Set `JOTBOX_STT_PROVIDER` to pin the order, for example `elevenlabs` or
-`groq,elevenlabs`, when comparing providers on the same recording.
+Set `JOTBOX_STT_PROVIDER` to pin the provider order, for example `groq,elevenlabs`,
+when comparing providers on the same recording. A pinned order is tried as
+written; without the pin Scribe goes first and everything else is a fallback.
+The pin does not change the plan rules, so free still runs without speaker
+labels and keyterms stay an Enterprise feature.
 
 ---
 
@@ -61,11 +69,14 @@ Set `JOTBOX_STT_PROVIDER` to pin the order, for example `elevenlabs` or
 
 Notes:
 
-- `model_id=scribe_v3` is requested with `diarize=true` and word timestamps.
-  The app maps Scribe speaker ids to `Speaker 1`, `Speaker 2`, then the existing
-  naming pass assigns real names.
-- `keyterms` are built from the participant roster, `JOTBOX_STT_VOCAB` and
-  `JOTBOX_STT_KEYTERMS`, capped at 100 terms.
+- `model_id=scribe_v3` is requested with word timestamps. Meetings on Pro and
+  Enterprise add `diarize=true`; free captures and every lecture, seminar and
+  voice note are read without labels. The app maps Scribe speaker ids to
+  `Speaker 1`, `Speaker 2`, then the existing naming pass assigns real names.
+- `keyterms` are sent only on Enterprise, built from the organisation glossary,
+  the participant roster, `JOTBOX_STT_VOCAB` and `JOTBOX_STT_KEYTERMS`, capped
+  at 100 terms. Free and Pro send none, because keyterms bill Scribe at the
+  higher rate.
 - If the account rejects a language code or the keyterm list, the adapter retries
   once with auto-detect and no keyterms so the recording is not lost.
 
@@ -109,12 +120,13 @@ curl.exe https://api.groq.com/openai/v1/audio/transcriptions ^
 
 Models:
 
-- `whisper-large-v3`: the default. More accurate on accented, faint, fast and
-  noisy rooms, which is why JotBox prefers it over the cheaper turbo model.
-- `whisper-large-v3-turbo`: faster and cheaper; use it only when latency
-  matters more than accuracy on a clear English room.
+- `whisper-large-v3`: the fallback default. More accurate on accented, faint,
+  fast and noisy rooms than the cheaper turbo model.
+- `whisper-large-v3-turbo`: faster and cheaper; used for fallback live chunks
+  when latency matters more than accuracy on a clear English room.
 - Groq's free tier caps uploads at **25 MB** and does **not** provide speaker
-  diarisation. Long lectures need the worker below or audio chunking.
+  diarisation. Groq is a fallback reader only, so a meeting read by Groq keeps no
+  speaker ids. Long lectures need the worker below or audio chunking.
 
 ---
 
@@ -274,7 +286,7 @@ Live OpenRouter prices on 23 November 2026:
 
 GPT-4o is not free. It is a sound writer, but it is not needed for the quality
 floor: the free Groq writer already produced the full report in the probe. Pay
-for it only when a session needs its longer reasoning, and remember that Groq
+for it only when a session needs its longer reasoning, and remember that Scribe
 stays the speech provider, so the change is billed per report and nothing else.
 
 Confirm the key works:
@@ -293,10 +305,16 @@ The notes status should read `groq`. A report response also carries
 The gateway reads this environment shape:
 
 ```env
-# Short clips and free notes
+# Speech on every plan, live and final
+ELEVENLABS_API_KEY=...
+ELEVENLABS_STT_MODEL=scribe_v3
+
+# Reports, notes and naming
 GROQ_API_KEY=gsk_...
-GROQ_STT_MODEL=whisper-large-v3
 GROQ_NOTES_MODEL=openai/gpt-oss-120b
+
+# Speech fallbacks, used only when Scribe is not configured
+GROQ_STT_MODEL=whisper-large-v3
 
 # Long recordings
 WHISPER_BASE_URL=https://your-worker.example.com/v1
@@ -315,12 +333,14 @@ XAI_NOTES_MODEL=grok-4.7
 
 Routing:
 
-1. Speech → ElevenLabs Scribe v3 for the full recording when its key is set.
-   Otherwise Groq (`/openai/v1/audio/transcriptions`) for clips within the free
-   limit, with the Speaches worker for larger files. If a provider is not
-   configured or fails, the gateway tries the next one, then xAI.
-2. Live captions → Groq turbo. Scribe is used for live chunks only when it is the
-   only speech provider configured.
+1. Speech → ElevenLabs Scribe v3 for live chunks and the full recording when its
+   key is set. Speaker labels are asked for only on Pro and Enterprise meetings.
+   Without Scribe, Groq (`/openai/v1/audio/transcriptions`) reads the audio,
+   then the Speaches worker. If a fallback provider is not configured or fails,
+   the gateway tries the next one, then xAI.
+2. Live captions → Scribe in five-second chunks, revealed a word at a time on
+   screen. The browser speech service still runs as a web preview, and Groq
+   turbo is the live fallback when Scribe is not configured.
 3. Reports, notes, session asks, naming and the pre-meeting brief → Groq
    GPT-OSS `openai/gpt-oss-120b`, then `openai/gpt-oss-20b`, then OpenRouter
    free `google/gemma-4-31b-it:free` and the `openrouter/free` router, then xAI.
@@ -359,32 +379,32 @@ hosts both the JotBox API and the Whisper worker, with Vercel serving the PWA.
 
 There are two different jobs here, and only one of them is fine-tuning.
 
-**Hosted speech (Groq, xAI) cannot be fine-tuned.** Use decoding controls
-instead. They are already wired into `/api/transcribe`:
+**Hosted speech (Scribe, Groq, xAI) cannot be fine-tuned.** Use decoding and
+context controls instead. They are already wired into `/api/transcribe`:
 
 | Control | Environment | What it does |
 | --- | --- | --- |
 | Model | `GROQ_STT_MODEL`, `XAI_STT_MODEL` | `whisper-large-v3` is more accurate than `turbo` on accented, noisy rooms; `turbo` is faster and cheaper |
-| Live model | `GROQ_LIVE_STT_MODEL` | The model used for live caption chunks. Defaults to `whisper-large-v3-turbo` because live text is a throwaway preview: the kept transcript is always rebuilt from the full recording with `GROQ_STT_MODEL`. This roughly halves the audio-seconds live previews burn |
+| Live model | `GROQ_LIVE_STT_MODEL` | The Groq model used for live chunks only when Scribe is not configured. Defaults to `whisper-large-v3-turbo` because it trades accuracy for latency. Scribe reads live chunks otherwise |
 | Language | `JOTBOX_STT_LANGUAGE` | `en` is correct for English **and** Nigerian Pidgin, because Pidgin is English-lexified. `auto` omits the language token and lets the model guess; use it only for genuinely other-language meetings |
-| Vocabulary | `JOTBOX_STT_VOCAB` | Comma, semicolon, or newline separated names, places, products and Pidgin spellings. The gateway adds them to the decoding prompt, which biases spelling without changing the audio |
-| Prompt | `JOTBOX_STT_PROMPT` | Replaces the built-in verbatim/Pidgin prompt. Leave unset unless you have a specific reason |
+| Vocabulary | `JOTBOX_STT_VOCAB` | Comma, semicolon, or newline separated names, places, products and Pidgin spellings. On Groq and the worker the gateway adds them to the speech prompt, which biases spelling without changing the audio. Scribe receives them only on Enterprise meetings, as keyterms; free and Pro send none |
+| Prompt | `JOTBOX_STT_PROMPT` | Replaces the built-in verbatim/Pidgin prompt sent to Groq and the worker. Scribe takes no prompt, so this does not affect it. Leave unset unless you have a specific reason |
 | Temperature | fixed at `0` | Keeps transcription deterministic and discourages the model from "tidying" Pidgin |
-| Noise cut | `JOTBOX_STT_NO_SPEECH`, `JOTBOX_STT_LOGPROB`, `JOTBOX_STT_COMPRESSION` | Segment-level confidence thresholds. Segments above the no-speech cut, below the log-probability cut, or with an unusually high compression ratio are dropped before the words reach the notes. Defaults are `0.65`, `-1` and `2.4` |
+| Noise cut | `JOTBOX_STT_NO_SPEECH`, `JOTBOX_STT_LOGPROB`, `JOTBOX_STT_COMPRESSION` | Segment-level confidence thresholds on Groq and the worker. Segments above the no-speech cut, below the log-probability cut, or with an unusually high compression ratio are dropped before the words reach the notes. Defaults are `0.65`, `-1` and `2.4` |
 | Worker VAD | `JOTBOX_STT_WORKER_TUNING` | On by default. Sends faster-whisper VAD and `condition_on_previous_text=false` to the self-hosted worker, which stops long recordings from drifting into repeated or invented text. Set to `off` only for a worker that rejects those fields |
 
 Every capture also sends a short per-session context header (`x-jotbox-stt-context`)
-with the session title, roster names and focus mode. The gateway appends it to
-the speech prompt, so names are spelled the way the room spells them and the
-model is told to leave out side conversations. The browser's **Session focus**
-(`off`, `balanced`, `strict`) then drops clear asides before the notes are
-written.
+with the session title, roster names and focus mode. Groq and the worker receive
+it as speech-prompt context; Scribe uses the roster in the naming pass after
+transcription and receives keyterms only on Enterprise. The browser's **Session
+focus** (`off`, `balanced`, `strict`) then drops clear asides before the notes
+are written.
 
 **Pickup** (`balanced`, `far voices`) changes both the microphone constraints and
 the audio conditioning. In both modes the recorded stream passes through a
 high-pass filter (removes desk rumble and generator hum), a dynamics compressor
 and a makeup gain, so a person across the table and a person beside the laptop
-reach Whisper at a similar level. `balanced` keeps browser noise suppression on
+reach Scribe at a similar level. `balanced` keeps browser noise suppression on
 and uses a gentler profile. `far voices` turns noise suppression off, lowers the
 compressor threshold and adds more makeup gain, because aggressive noise
 suppression can swallow a soft, distant speaker.
@@ -398,6 +418,7 @@ Example:
 ```env
 JOTBOX_STT_LANGUAGE=en
 JOTBOX_STT_VOCAB=JotBox, Ibadan, Abuja, GTBank, NIPOST, wetin dey, no wahala, make we
+# Groq fallback models, used only when Scribe is not configured
 GROQ_STT_MODEL=whisper-large-v3
 GROQ_LIVE_STT_MODEL=whisper-large-v3-turbo
 # Keep more faint speech: raise the no-speech cut toward 0.75.
@@ -405,16 +426,19 @@ GROQ_LIVE_STT_MODEL=whisper-large-v3-turbo
 # JOTBOX_STT_NO_SPEECH=0.65
 ```
 
-Keep the vocabulary under about 60 terms. Whisper's prompt is a short context
-hint, not a dictionary; a long list crowds out the actual audio context. It is
-also the right place for Nigerian names, towns and workplace acronyms that the
-room shortens in speech.
+Keep the vocabulary under about 60 terms when Scribe is absent. Groq's prompt
+is a short context hint, not a dictionary; a long list crowds out the actual
+audio context. It is also the right place for Nigerian names, towns and
+workplace acronyms that the room shortens in speech. With Scribe configured,
+free and Pro input does not use this list; Enterprise meetings send the same
+names as keyterms, capped at 100.
 
 Groq rejects a speech prompt longer than **896 characters** with
 `invalid_prompt`, and that rejection happens before the audio is decoded. The
 gateway keeps the full prompt inside that budget: the instruction text is capped,
 then names and vocabulary are added one term at a time until the space is full.
 A request that is too long fails the whole recording, so do not raise the cap.
+This limit applies only when Groq is reading the recording.
 
 ### Audio before the model
 
@@ -429,12 +453,13 @@ The order is deliberate: condition the room, then transcribe, then edit.
 3. **Voice activity detection.** The self-hosted Speaches / `faster-whisper`
    worker receives `vad_filter=true` with a 0.35 threshold, 350 ms silence and
    400 ms speech padding. This removes dead air and stops the model inventing
-   words during silence. Vercel cannot run an ffmpeg binary, so the hosted Groq
-   path relies on Whisper's own no-speech handling plus the segment filters in
+   words during silence. Vercel cannot run an ffmpeg binary, so the hosted paths
+   rely on provider-side no-speech handling, plus the Groq segment filters in
    the gateway.
-4. **Prompt conditioning.** The speech prompt names Pidgin, code-switching,
-   soft, fast and distant speech, and asks for local names and acronyms to keep
-   their spelling.
+4. **Prompt conditioning (Groq and the worker).** The speech prompt names Pidgin,
+   code-switching, soft, fast and distant speech, and asks for local names and
+   acronyms to keep their spelling. Scribe takes no prompt; it auto-detects the
+   English/Pidgin mix.
 5. **The editor.** The notes model reads idioms, proverbs, sarcasm and
    understatement for their intent, keeps Pidgin quotes, and drops greetings,
    football, lunch orders and side jokes unless they change a decision.

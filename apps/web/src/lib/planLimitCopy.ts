@@ -5,7 +5,7 @@ export function limitReachedMessage(plan: Plan, limitSeconds?: number | null): s
     return "This workspace has used its listening time for this month. Your notes are still saved on this device.";
   }
   if (plan === "pro") {
-    const hours = limitSeconds && limitSeconds > 0 ? Math.max(1, Math.round(limitSeconds / 3600)) : 30;
+    const hours = limitSeconds && limitSeconds > 0 ? Math.max(1, Math.round(limitSeconds / 3600)) : 20;
     return `You have used the ${hours} hours included with Pro this month. It resets at the start of next month.`;
   }
   return "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening.";

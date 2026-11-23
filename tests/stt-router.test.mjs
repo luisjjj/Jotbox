@@ -21,84 +21,93 @@ test("unknown plans fall back to free and kinds map to a recording mode", () => 
   assert.equal(modeForKind("voice"), "lecture");
 });
 
-test("free captures always run on Groq turbo without keyterms or speakers", () => {
-  const route = routeTranscription({
-    plan: "free",
-    kind: "meeting",
-    glossary: ["Chinedu", "PTI"],
-  });
-  assert.equal(route.tier, "free");
-  assert.equal(route.provider, "groq");
-  assert.equal(route.model, "whisper-large-v3-turbo");
-  assert.equal(route.prompt, "language");
-  assert.equal(route.diarize, false);
-  assert.deepEqual(route.keyterms, []);
-  assert.equal(route.costPerHour, STT_PRICES["groq-turbo"]);
-  assert.equal(route.fallback, false);
-});
-
-test("pro lectures use Groq large with the personal glossary prompt", () => {
-  const route = routeTranscription({ plan: "pro", kind: "lecture" });
-  assert.equal(route.mode, "lecture");
-  assert.equal(route.provider, "groq");
-  assert.equal(route.model, "whisper-large-v3");
-  assert.equal(route.prompt, "glossary");
-  assert.equal(route.diarize, false);
-  assert.deepEqual(route.keyterms, []);
-  assert.equal(route.costPerHour, STT_PRICES["groq-large"]);
-});
-
-test("pro voice notes stay in the lecture lane", () => {
-  const route = routeTranscription({ plan: "pro", kind: "voice" });
-  assert.equal(route.mode, "lecture");
-  assert.equal(route.provider, "groq");
-  assert.equal(route.model, "whisper-large-v3");
-});
-
-test("pro group meetings use Scribe with speakers and no paid keyterms", () => {
-  for (const kind of ["meeting", "seminar"]) {
-    const route = routeTranscription({ plan: "pro", kind, glossary: ["Chinedu"] });
-    assert.equal(route.mode, "group");
+test("free captures use Scribe with no speakers and no paid keyterms", () => {
+  for (const kind of ["meeting", "seminar", "lecture", "voice"]) {
+    const route = routeTranscription({
+      plan: "free",
+      kind,
+      glossary: ["Chinedu", "PTI"],
+    });
+    assert.equal(route.tier, "free");
     assert.equal(route.provider, "elevenlabs");
     assert.equal(route.model, "scribe_v3");
-    assert.equal(route.diarize, true);
+    assert.equal(route.diarize, false);
     assert.deepEqual(route.keyterms, []);
     assert.equal(route.costPerHour, STT_PRICES.scribe);
+    assert.equal(route.fallback, false);
   }
 });
 
-test("an explicit mode wins over the kind", () => {
+test("pro lectures and voice notes use Scribe without speakers", () => {
+  for (const kind of ["lecture", "voice"]) {
+    const route = routeTranscription({ plan: "pro", kind });
+    assert.equal(route.mode, "lecture");
+    assert.equal(route.provider, "elevenlabs");
+    assert.equal(route.model, "scribe_v3");
+    assert.equal(route.diarize, false);
+    assert.deepEqual(route.keyterms, []);
+    assert.equal(route.costPerHour, STT_PRICES.scribe);
+    assert.equal(route.fallback, false);
+  }
+});
+
+test("pro meetings and seminars use Scribe, and only meetings get speakers", () => {
+  const meeting = routeTranscription({ plan: "pro", kind: "meeting", glossary: ["Chinedu"] });
+  assert.equal(meeting.mode, "group");
+  assert.equal(meeting.provider, "elevenlabs");
+  assert.equal(meeting.model, "scribe_v3");
+  assert.equal(meeting.diarize, true);
+  assert.deepEqual(meeting.keyterms, []);
+  assert.equal(meeting.costPerHour, STT_PRICES.scribe);
+
+  const seminar = routeTranscription({ plan: "pro", kind: "seminar", glossary: ["Chinedu"] });
+  assert.equal(seminar.mode, "group");
+  assert.equal(seminar.provider, "elevenlabs");
+  assert.equal(seminar.diarize, false);
+  assert.deepEqual(seminar.keyterms, []);
+});
+
+test("an explicit mode wins over the kind without moving off Scribe", () => {
   const route = routeTranscription({ plan: "pro", kind: "meeting", mode: "lecture" });
   assert.equal(route.mode, "lecture");
-  assert.equal(route.provider, "groq");
-  assert.equal(route.model, "whisper-large-v3");
+  assert.equal(route.provider, "elevenlabs");
+  assert.equal(route.model, "scribe_v3");
 
   const bad = routeTranscription({ plan: "pro", kind: "lecture", mode: "anything" });
   assert.equal(bad.mode, "lecture");
 });
 
-test("enterprise uses Scribe with speakers and cleaned glossary keyterms", () => {
-  const route = routeTranscription({
+test("enterprise adds glossary keyterms and diarizes meetings only", () => {
+  const lecture = routeTranscription({
     plan: "enterprise",
     kind: "lecture",
     glossary: ["  PTI  ", "pti", "A", "Chinedu\u0000", "Ọ̀rẹ́"],
   });
-  assert.equal(route.tier, "enterprise");
-  assert.equal(route.provider, "elevenlabs");
-  assert.equal(route.diarize, true);
-  assert.deepEqual(route.keyterms, ["PTI", "Chinedu", "Ọ̀rẹ́"]);
-  assert.equal(route.costPerHour, STT_PRICES["scribe-keyterms"]);
+  assert.equal(lecture.tier, "enterprise");
+  assert.equal(lecture.provider, "elevenlabs");
+  assert.equal(lecture.diarize, false);
+  assert.deepEqual(lecture.keyterms, ["PTI", "Chinedu", "Ọ̀rẹ́"]);
+  assert.equal(lecture.costPerHour, STT_PRICES["scribe-keyterms"]);
+
+  const meeting = routeTranscription({ plan: "enterprise", kind: "meeting", glossary: ["PTI"] });
+  assert.equal(meeting.diarize, true);
+  assert.deepEqual(meeting.keyterms, ["PTI"]);
 });
 
-test("Igbo prefers the self-hosted reader, then Scribe", () => {
-  const worker = routeTranscription({ plan: "pro", kind: "meeting", language: "ig", available: { worker: true } });
+test("Igbo goes to Scribe first even when the self-hosted reader is configured", () => {
+  const both = routeTranscription({ plan: "pro", kind: "meeting", language: "ig", available: { worker: true } });
+  assert.equal(both.provider, "elevenlabs");
+  assert.equal(both.diarize, true);
+  assert.equal(both.costPerHour, STT_PRICES.scribe);
+
+  const worker = routeTranscription({
+    plan: "pro",
+    kind: "meeting",
+    language: "ig",
+    available: { scribe: false, worker: true },
+  });
   assert.equal(worker.provider, "worker");
   assert.equal(worker.costPerHour, 0);
-
-  const scribe = routeTranscription({ plan: "pro", kind: "meeting", language: "ig" });
-  assert.equal(scribe.provider, "elevenlabs");
-  assert.equal(scribe.diarize, true);
-  assert.equal(scribe.costPerHour, STT_PRICES.scribe);
 
   const free = routeTranscription({ plan: "free", kind: "lecture", language: "ig" });
   assert.equal(free.provider, "elevenlabs");
@@ -113,8 +122,8 @@ test("a missing provider falls back but keeps the intended rule visible", () => 
   assert.equal(group.fallback, true);
   assert.equal(group.requestedProvider, "elevenlabs");
 
-  const free = routeTranscription({ plan: "free", available: { groq: false } });
-  assert.equal(free.provider, "elevenlabs");
+  const free = routeTranscription({ plan: "free", available: { scribe: false, groq: false, worker: true } });
+  assert.equal(free.provider, "worker");
   assert.equal(free.diarize, false);
   assert.deepEqual(free.keyterms, []);
   assert.equal(free.fallback, true);
@@ -132,30 +141,31 @@ test("nothing configured returns a none route instead of throwing", () => {
   assert.equal(route.fallback, true);
 });
 
-test("live captions stay on the fastest reader and leave batch Scribe for last", () => {
+test("live captions use Scribe first and never ask for speakers", () => {
   const route = routeLiveTranscription();
-  assert.equal(route.provider, "groq");
-  assert.equal(route.model, "whisper-large-v3-turbo");
+  assert.equal(route.provider, "elevenlabs");
+  assert.equal(route.model, "scribe_v3");
   assert.equal(route.diarize, false);
   assert.deepEqual(route.keyterms, []);
-  assert.equal(route.costPerHour, STT_PRICES["groq-turbo"]);
+  assert.equal(route.costPerHour, STT_PRICES.scribe);
+  assert.equal(route.fallback, false);
 
-  const hosted = routeLiveTranscription({ available: { groq: false, scribe: true, xai: true } });
-  assert.equal(hosted.provider, "xai");
-  assert.equal(hosted.fallback, true);
+  const groq = routeLiveTranscription({ available: { scribe: false } });
+  assert.equal(groq.provider, "groq");
+  assert.equal(groq.model, "whisper-large-v3-turbo");
+  assert.equal(groq.fallback, true);
 
-  const worker = routeLiveTranscription({ available: { groq: false, scribe: true, xai: false, worker: true } });
+  const worker = routeLiveTranscription({ available: { scribe: false, groq: false, worker: true } });
   assert.equal(worker.provider, "worker");
 
-  const scribeOnly = routeLiveTranscription({ available: { groq: false, scribe: true } });
-  assert.equal(scribeOnly.provider, "elevenlabs");
-  assert.equal(scribeOnly.diarize, false);
-  assert.deepEqual(scribeOnly.keyterms, []);
+  const xai = routeLiveTranscription({ available: { scribe: false, groq: false, xai: true } });
+  assert.equal(xai.provider, "xai");
+  assert.equal(xai.fallback, true);
 
-  const demo = routeLiveTranscription({ available: { groq: false, scribe: false, demo: true } });
+  const demo = routeLiveTranscription({ available: { scribe: false, groq: false, demo: true } });
   assert.equal(demo.provider, "demo");
 
-  const none = routeLiveTranscription({ available: { groq: false, scribe: false } });
+  const none = routeLiveTranscription({ available: { scribe: false, groq: false } });
   assert.equal(none.provider, "none");
 });
 
