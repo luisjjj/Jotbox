@@ -14,6 +14,7 @@ const MANAGED = [
   "WHISPER_API_KEY",
   "WHISPER_MODEL",
   "GROQ_NOTES_MODEL",
+  "JOTBOX_NOTES_PROVIDER",
   "GROQ_STT_MODEL",
   "GROQ_LIVE_STT_MODEL",
   "VERCEL",
@@ -646,6 +647,11 @@ test("notes parse fenced JSON, drop empty items and fail over between models", a
   assert.match(calls[1].body.messages[0].content, /Use the spellings of the people listed/);
   assert.match(calls[1].body.messages[0].content, /Blockers: what is stopping progress/);
   assert.match(calls[1].body.messages[0].content, /FollowUps: messages the listener still needs to send/);
+  assert.match(calls[1].body.messages[0].content, /two or three short paragraphs/);
+  assert.match(calls[1].body.messages[0].content, /5 to 10 points/);
+  assert.match(calls[1].body.messages[0].content, /3 to 6 sections/);
+  assert.match(calls[1].body.messages[0].content, /Never invent names, numbers, decisions, quotes, owners or assignments/);
+  assert.equal(calls[1].body.max_tokens, 4000);
   assert.match(calls[1].body.messages[1].content, /People in the room: Ada, Chinedu/);
   assert.match(calls[1].body.messages[1].content, /Today: \d{4}-\d{2}-\d{2}/);
   assert.match(calls[1].body.messages[1].content, /Transcript:\nSpeaker 1: The bank acknowledged/);
@@ -663,7 +669,7 @@ test("notes parse fenced JSON, drop empty items and fail over between models", a
   assert.deepEqual(result.sections, [{ heading: "Decisions", bullets: ["Pause the promise"] }]);
 });
 
-test("OpenRouter reports try Qwen3 first, then GPT-OSS, before Groq", async () => {
+test("notes try free Groq GPT-OSS first, then OpenRouter's free models", async () => {
   process.env.OPENROUTER_API_KEY = "test-openrouter";
   process.env.GROQ_API_KEY = "test-groq";
   const calls = [];
@@ -681,7 +687,83 @@ test("OpenRouter reports try Qwen3 first, then GPT-OSS, before Groq", async () =
   globalThis.fetch = async (url, init = {}) => {
     const body = JSON.parse(String(init.body));
     calls.push({ url: String(url), model: body.model, headers: init.headers });
-    if (body.model === "qwen/qwen3-next-80b-a3b-instruct") return new Response("rate limited", { status: 429 });
+    if (String(url).includes("api.groq.com")) return new Response("rate limited", { status: 429 });
+    if (body.model === "google/gemma-4-31b-it:free") return new Response("rate limited", { status: 429 });
+    return Response.json({ choices: [{ message: { content: JSON.stringify(payload) } }] });
+  };
+
+  const result = await ai.enhanceSession({
+    kind: "meeting",
+    title: "Friday payout review",
+    scratch: "",
+    transcript: "Speaker 1: The bank acknowledged the file late.",
+    tone: "warm-direct",
+  });
+
+  assert.equal(result.provider, "openrouter");
+  assert.equal(calls.length, 4);
+  assert.match(calls[0].url, /api\.groq\.com/);
+  assert.equal(calls[0].model, "openai/gpt-oss-120b");
+  assert.equal(calls[1].model, "openai/gpt-oss-20b");
+  assert.match(calls[2].url, /openrouter\.ai/);
+  assert.equal(calls[2].model, "google/gemma-4-31b-it:free");
+  assert.equal(calls[3].model, "openrouter/free");
+  assert.equal(calls[2].headers.Authorization, "Bearer test-openrouter");
+  assert.equal(calls[2].headers["X-Title"], "JotBox");
+});
+
+test("JOTBOX_NOTES_PROVIDER pins a paid OpenRouter writer ahead of Groq", async () => {
+  process.env.OPENROUTER_API_KEY = "test-openrouter";
+  process.env.GROQ_API_KEY = "test-groq";
+  process.env.JOTBOX_NOTES_PROVIDER = "openrouter";
+  process.env.OPENROUTER_NOTES_MODEL = "openai/gpt-4o";
+  const calls = [];
+
+  const payload = {
+    title: "Bank window slipped",
+    summary: "The bank received the file late, so the promise moved.",
+    highlights: ["The window moved"],
+    actions: [],
+    sections: [],
+  };
+
+  globalThis.fetch = async (url, init = {}) => {
+    const body = JSON.parse(String(init.body));
+    calls.push({ url: String(url), model: body.model });
+    return Response.json({ choices: [{ message: { content: JSON.stringify(payload) } }] });
+  };
+
+  const result = await ai.enhanceSession({
+    kind: "meeting",
+    title: "Friday payout review",
+    scratch: "",
+    transcript: "Speaker 1: The bank acknowledged the file late.",
+    tone: "warm-direct",
+  });
+
+  assert.equal(ai.aiStatus().notes, "openrouter");
+  assert.equal(result.provider, "openrouter");
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /openrouter\.ai/);
+  assert.equal(calls[0].model, "openai/gpt-4o");
+});
+
+test("OpenRouter alone still tries free Gemma before the free router", async () => {
+  process.env.OPENROUTER_API_KEY = "test-openrouter";
+  const calls = [];
+
+  const payload = {
+    title: "Bank window slipped",
+    summary: "The bank received the file late, so the promise moved.",
+    highlights: ["The window moved"],
+    actions: [],
+    sections: [],
+  };
+
+  globalThis.fetch = async (url, init = {}) => {
+    const body = JSON.parse(String(init.body));
+    calls.push({ url: String(url), model: body.model });
+    if (body.model === "google/gemma-4-31b-it:free") return new Response("rate limited", { status: 429 });
     return Response.json({ choices: [{ message: { content: JSON.stringify(payload) } }] });
   };
 
@@ -696,10 +778,8 @@ test("OpenRouter reports try Qwen3 first, then GPT-OSS, before Groq", async () =
   assert.equal(result.provider, "openrouter");
   assert.equal(calls.length, 2);
   assert.match(calls[0].url, /openrouter\.ai/);
-  assert.equal(calls[0].model, "qwen/qwen3-next-80b-a3b-instruct");
-  assert.equal(calls[1].model, "openai/gpt-oss-120b");
-  assert.equal(calls[0].headers.Authorization, "Bearer test-openrouter");
-  assert.equal(calls[0].headers["X-Title"], "JotBox");
+  assert.equal(calls[0].model, "google/gemma-4-31b-it:free");
+  assert.equal(calls[1].model, "openrouter/free");
 });
 
 const briefPrevious = {

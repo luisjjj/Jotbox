@@ -823,7 +823,7 @@ export default function SessionPage() {
                   Rewrite
                 </button>
               </div>
-              <p className="mt-2.5 max-w-[70ch] text-[21.5px] font-normal leading-[1.55] tracking-[0.002em] text-soft sm:text-[23px]">
+              <p className="mt-2.5 max-w-[70ch] whitespace-pre-line text-[21.5px] font-normal leading-[1.55] tracking-[0.002em] text-soft sm:text-[23px]">
                 {session.notes.summary}
               </p>
 

@@ -88,12 +88,12 @@ JotBox ships with a provider chain that prefers free infrastructure and falls ba
 | --- | --- | --- |
 | Short recordings | Groq `whisper-large-v3` | `GROQ_API_KEY` |
 | Long recordings | Self-hosted Speaches / faster-whisper | `WHISPER_BASE_URL`, `WHISPER_API_KEY` |
-| Notes (paid, first) | OpenRouter Qwen3 Next 80B, then GPT-OSS 120B | `OPENROUTER_API_KEY` |
-| Notes (free fallback) | Groq `openai/gpt-oss-120b` | `GROQ_API_KEY` |
+| Notes (free, first) | Groq `openai/gpt-oss-120b`, then `openai/gpt-oss-20b` | `GROQ_API_KEY` |
+| Notes (free fallback) | OpenRouter free `google/gemma-4-31b-it:free`, then `openrouter/free` | `OPENROUTER_API_KEY` |
 | Notes (premium fallback) | xAI | `XAI_API_KEY` |
 | No keys at all | On-device notes from the spoken words and jottings | None |
 
-The prompts are written for Nigerian Pidgin and code-switching: Pidgin lines survive as they were said, quoted inside otherwise clear English notes, and names, amounts, dates, and decisions stay exact. Whisper is given Pidgin context through its prompt because it has no Nigerian Pidgin language token, so the request uses `language=en` with that context.
+The prompts are written for Nigerian Pidgin and code-switching: Pidgin lines survive as they were said, quoted inside otherwise clear English notes, and names, amounts, dates, and decisions stay exact. A report carries a two or three paragraph summary, 5 to 10 highlights, and 3 to 6 sections with specific bullets; a short voice note stays short. Whisper is given Pidgin context through its prompt because it has no Nigerian Pidgin language token, so the request uses `language=en` with that context.
 
 Capture setup and Settings also expose two listening controls. **Session focus** (`Off`, `Balanced`, `Strict`) drops clear side talk such as wifi or lunch before the notes are written; `Strict` also drops lines that never touch the session title or the roster. **Pickup** (`Balanced`, `Far voices`) runs the recorded stream through a high-pass filter, compressor and makeup gain so close and distant speakers arrive at a similar level; `Far voices` also relaxes browser noise suppression and lifts quiet voices further. Roster names are sent with both the transcription request and the notes prompt, so JotBox spells people the way the room does.
 
@@ -108,11 +108,11 @@ WHISPER_BASE_URL=https://your-worker.example.com/v1
 WHISPER_API_KEY=choose-a-long-random-token
 WHISPER_MODEL=Systran/faster-whisper-small
 
-# Optional: reports, notes and memory, then the free fallbacks
+# Optional: free reports, notes and memory when Groq is busy
 OPENROUTER_API_KEY=sk-or-v1-...
-# Optional overrides. Unset means Qwen3 Next 80B, then GPT-OSS 120B.
-OPENROUTER_NOTES_MODEL=qwen/qwen3-next-80b-a3b-instruct
-OPENROUTER_MEMORY_MODEL=qwen/qwen3-next-80b-a3b-instruct
+# Optional: pin a model instead of the free chain.
+# OPENROUTER_NOTES_MODEL=google/gemma-4-31b-it:free
+# OPENROUTER_MEMORY_MODEL=google/gemma-4-31b-it:free
 XAI_API_KEY=...
 ```
 
@@ -321,7 +321,7 @@ microphone / tab audio / upload
         │
         └─ on stop ──> /api/transcribe (Groq → self-hosted worker → xAI)
                         │
-                        └─ /api/enhance (OpenRouter Qwen3 → GPT-OSS → Groq → xAI)
+                        └─ /api/enhance (Groq GPT-OSS → OpenRouter free → xAI)
                               summary + key points + actions + sections
                               │
                               └─ Zustand persisted session
@@ -368,7 +368,7 @@ Client types:
 - Neon Postgres + `pg` (app role; server-side only)
 - Vercel Functions for auth, captures, health, transcription, and notes
 - Electron + electron-builder for the Windows desktop island
-- Groq Whisper, self-hosted Speaches/faster-whisper, OpenRouter Qwen3 and GPT-OSS for reports and memory, xAI fallback
+- Groq Whisper, self-hosted Speaches/faster-whisper, Groq GPT-OSS then free OpenRouter models for reports and memory, xAI fallback
 - `vite-plugin-pwa` (Workbox)
 - Self-hosted SF Pro Display for the interface
 

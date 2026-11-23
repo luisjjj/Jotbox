@@ -93,7 +93,7 @@ test("a stated reason is not flagged as missing", async () => {
   assert.equal(answer.reasonNote, "");
 });
 
-test("memory answers go to OpenRouter Qwen3 before Groq", async () => {
+test("memory answers go to free Groq GPT-OSS before OpenRouter", async () => {
   process.env.OPENROUTER_API_KEY = "test-openrouter";
   process.env.GROQ_API_KEY = "test-groq";
   const calls = [];
@@ -125,10 +125,48 @@ test("memory answers go to OpenRouter Qwen3 before Groq", async () => {
     history: [],
   });
 
-  assert.equal(answer.provider, "openrouter");
-  assert.equal(answer.model, "qwen/qwen3-next-80b-a3b-instruct");
+  assert.equal(answer.provider, "groq");
+  assert.equal(answer.model, "openai/gpt-oss-120b");
   assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /openrouter\.ai/);
+  assert.match(calls[0].url, /api\.groq\.com/);
+});
+
+test("memory answers fall to a free OpenRouter model when Groq is down", async () => {
+  process.env.OPENROUTER_API_KEY = "test-openrouter";
+  process.env.GROQ_API_KEY = "test-groq";
+  const calls = [];
+
+  globalThis.fetch = async (url, init = {}) => {
+    const body = JSON.parse(String(init.body));
+    calls.push({ url: String(url), model: body.model });
+    if (String(url).includes("api.groq.com")) return new Response("rate limited", { status: 429 });
+    return Response.json({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              answer: "The record says hiring paused.",
+              timeline: [],
+              recorded: [],
+              inferences: [],
+              reasonMissing: false,
+              reasonNote: "",
+            }),
+          },
+        },
+      ],
+    });
+  };
+
+  const answer = await answerOrganisationMemory({
+    question: "What changed?",
+    records: [record()],
+    history: [],
+  });
+
+  assert.equal(answer.provider, "openrouter");
+  assert.equal(answer.model, "google/gemma-4-31b-it:free");
+  assert.match(calls[calls.length - 1].url, /openrouter\.ai/);
 });
 
 test("provider citations outside the permitted record set are stripped", async () => {
