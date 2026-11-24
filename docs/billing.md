@@ -111,12 +111,14 @@ Every feature is visible on the free plan. The paid ones show a paywall with a w
 | --- | --- | --- | --- | --- |
 | Price | $0 | $7 / month (₦9,800) | $16 / month (₦22,400) | Per seat, invoiced |
 | Listening | 100 minutes, lifetime | 10 hours a calendar month | 25 hours a calendar month | 1,000 hours a calendar month, shown as unlimited |
-| Speaker labels | No | Meetings only | Meetings only | Meetings only |
+| Speaker labels | Every capture except a voice note | Same | Same | Same |
+| Name boosting | Names and room words on every capture | Same | Same | Same, plus the organisation glossary |
 | Notes, jottings, transcript, copy, Markdown, print | Yes | Yes | Yes | Yes |
 | Share links | 1 live link per session, 7 days | 5 live links, up to 30 days | 5 live links, up to 30 days | 5 live links, up to 30 days |
 | Branded PDF | Paywall | Yes | Yes | Yes |
 | AI follow-up draft | Local draft from notes (paywall for AI) | Yes | Yes | Yes |
-| Calendar, Jira, organisation Ask | Paywall | Calendar and Jira on Home, org Ask | Calendar and Jira on Home, org Ask | Workspace and audit trail, org Ask |
+| Calendar and Jira | Paywall | Yes | Yes | Yes |
+| Organisation Ask | Workspace and audit trail; Ask shows a paywall | Yes | Yes | Yes |
 | Session ask and live decisions | Yes | Yes | Yes | Yes |
 
 The legacy `pro` plan key is not sold any more. Anyone already paying $7 keeps 20 hours a month, more than the new Starter Pro allowance, and is never moved onto a new tier automatically.
@@ -148,36 +150,40 @@ Activation writes a manual subscription row with `plan_key = enterprise` and `pr
 
 ## What listening costs
 
-Scribe v3 reads every plan and both passes: the five-second live captions and the final full-recording pass. Scribe bills by audio duration at $0.20 per audio hour, so an hour of listening costs about $0.40 because the same audio is sent twice. A live segment that never rises above the speech gate is not sent, so a room with normal pauses costs less than this ceiling; the final pass still reads the whole file. Enterprise keyterms add $0.05 an hour on the final pass.
+Scribe v3 reads every plan and both passes: the five-second live captions and the final full-recording pass. Scribe bills by audio duration at $0.20 per audio hour, so an hour of listening costs about $0.40 because the same audio is sent twice. A live segment that never rises above the speech gate is not sent, so a room with normal pauses costs less than this ceiling; the final pass still reads the whole file.
 
-Speaker labels are requested only on paid meetings. Labels do not change the per-hour price; they only add speaker ids to the final pass. Free captures, and every lecture, seminar and voice note, are read without labels.
+When the roster or the configured vocabulary gives Scribe names and room words to boost, the final pass adds $0.05 an hour, so a named hour costs about $0.45. Live captions stay unboosted: a five-second chunk cannot carry speaker ids, and adding keyterms to the live pass would raise every hour by another $0.05 for little gain. A session with no names at all stays at $0.40.
+
+Speaker labels are requested on every capture except a voice note, on every plan, including free. Labels do not change the per-hour price; they only add speaker ids to the final pass.
 
 | Session | Live plus final |
 | --- | --- |
-| 15 min | $0.10 |
-| 30 min | $0.20 |
-| 60 min | $0.40 |
-| 90 min | $0.60 |
-| 120 min | $0.80 |
+| 15 min | $0.11 |
+| 30 min | $0.23 |
+| 60 min | $0.45 |
+| 90 min | $0.68 |
+| 120 min | $0.90 |
 
 | Monthly listening | Scribe cost |
 | --- | --- |
-| 5 h | $2.00 |
-| 10 h | $4.00 |
-| 20 h | $8.00 |
-| 25 h | $10.00 |
+| 5 h | $2.25 |
+| 10 h | $4.50 |
+| 20 h | $9.00 |
+| 25 h | $11.25 |
 
-After a 3.5% Paystack fee, Starter Pro leaves about $6.75 a month. Filling its 10-hour cap costs $4.00 in speech, so even the heaviest Starter month keeps about $2.75. Power User leaves about $15.44 and costs $10.00 at its 25-hour cap, keeping about $5.44.
+These use the keyterms rate, the worst case where every hour carries names and room words. An hour with no names stays at $0.40.
 
-The legacy $7 Pro plan is the only tier that runs at a planned loss: 20 hours costs about $8.00 against about $6.75 after fees, so the heaviest legacy month loses about $1.25. That plan is closed to new subscribers, and it is the cost of not cutting anyone's allowance.
+After a 3.5% Paystack fee, Starter Pro leaves about $6.75 a month. Filling its 10-hour cap costs $4.50 in speech, so even the heaviest Starter month keeps about $2.25. Power User leaves about $15.44 and costs $11.25 at its 25-hour cap, keeping about $4.19.
 
-A realistic mix is far below either cap. Take Starter users averaging 3 hours, and Power users averaging 8 hours: the blended speech cost is about $2.20, leaving most of each payment. The cap sets the worst case, not the expected cost.
+The legacy $7 Pro plan is the only tier that runs at a planned loss: 20 hours costs about $9.00 against about $6.75 after fees, so the heaviest legacy month loses about $2.25. It breaks even at about 15 hours. That plan is closed to new subscribers, and it is the cost of not cutting anyone's allowance.
+
+A realistic mix is far below either cap. Take Starter users averaging 3 hours and Power users averaging 8 hours: that is about $1.35 and $3.60 in speech, leaving most of each payment. The cap sets the worst case, not the expected cost.
 
 Prices are public list prices at the time of writing; confirm them in the ElevenLabs console before relying on them.
 
 ### Free tier carries the cost of the demo
 
-Free gets the same Scribe reader because the free experience is the pitch. The allowance is 100 minutes for the life of the account, so a free user who uses all of it costs at most about $0.67, once. That spend is accepted as acquisition cost. A short first session costs a few cents, which is the point: the person hears the real accuracy before deciding to pay.
+Free gets the same Scribe reader because the free experience is the pitch. The allowance is 100 minutes for the life of the account, so a free user who uses all of it costs at most about $0.75 with names boosted, once. That spend is accepted as acquisition cost. A short first session costs a few cents, which is the point: the person hears the real accuracy before deciding to pay.
 
 The free cap is enforced by the app and the server, not by the provider, so clearing local data does not move a free user onto a paid plan.
 
@@ -189,7 +195,7 @@ Scribe is the only path while `ELEVENLABS_API_KEY` is set. The fallbacks exist f
 - `GROQ_API_KEY` is the Groq fallback. Its free-plan quotas (20 requests a minute, 2,000 a day, 2 audio-hours an hour, 8 audio-hours a day per model) only matter on such a server. At chunks averaging about five seconds one live session sends about 12 requests a minute.
 - `XAI_API_KEY` and the demo reader run after those.
 
-`JOTBOX_STT_PROVIDER` pins the fallback order for a provider benchmark. It never changes the plan rules: free stays without speaker labels and only paid meetings ask for them.
+`JOTBOX_STT_PROVIDER` pins the fallback order for a provider benchmark. It never changes the plan rules: every plan gets the same labels and name boosting, and only a voice note skips labels.
 
 ### Levers that move the number further
 

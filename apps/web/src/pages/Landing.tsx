@@ -113,6 +113,7 @@ const FEATURES = [
 const FREE_FEATURES = [
   "100 minutes of listening, lifetime",
   "Written notes for every session",
+  "Speaker labels and your names boosted on every capture",
   "Jottings and spoken words side by side",
   "Markdown, copy and print",
   "One 7-day share link per session",
@@ -120,7 +121,6 @@ const FREE_FEATURES = [
 
 const STARTER_FEATURES = [
   "10 hours of listening a month",
-  "Speaker labels when you record a meeting",
   "Branded PDF export for every session",
   "Five share links, up to 30 days each",
   "AI follow-up drafts in English or Pidgin",

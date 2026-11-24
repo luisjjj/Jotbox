@@ -668,6 +668,59 @@ insert into schema_migrations (version)
 values ('015_stt_routing_insights')
 on conflict (version) do nothing;
 
+-- Study exchange for student accounts. A group is joined with a six-character
+-- code; items are snapshots, so editing the original note later never changes
+-- what a classmate already has.
+create table if not exists study_groups (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(trim(name)) between 2 and 80),
+  code char(6) not null unique,
+  created_by uuid not null references users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists study_group_members (
+  group_id uuid not null references study_groups(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (group_id, user_id)
+);
+
+create index if not exists study_group_members_user_idx
+  on study_group_members (user_id, joined_at desc);
+
+create table if not exists study_items (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references study_groups(id) on delete cascade,
+  author_id uuid not null references users(id) on delete cascade,
+  kind text not null check (kind in ('note', 'quiz', 'cards')),
+  title text not null check (char_length(title) <= 160),
+  source_capture_id uuid,
+  source_kind text not null default 'seminar' check (source_kind in ('meeting', 'seminar', 'lecture', 'voice')),
+  payload jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists study_items_group_idx on study_items (group_id, created_at desc);
+create index if not exists study_items_author_idx on study_items (author_id, created_at desc);
+
+-- Free accounts may write three quiz or card sets a month. Notes already come
+-- from a capture, so sharing one does not spend a generation.
+create table if not exists study_generations (
+  id bigserial primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  kind text not null check (kind in ('quiz', 'cards')),
+  source_capture_id uuid,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists study_generations_user_idx
+  on study_generations (user_id, created_at desc);
+
+insert into schema_migrations (version)
+values ('016_study_exchange')
+on conflict (version) do nothing;
+
 -- Pricing tiers. The free allowance becomes a lifetime 100 minutes, counted
 -- from `free_allowance_started_at`. The default fills existing accounts at
 -- rollout so nobody loses minutes they already had. New checkouts record which
