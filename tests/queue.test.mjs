@@ -31,10 +31,13 @@ test("quota decisions clamp impossible input instead of going negative", () => {
   assert.equal(decision.allowed, false);
 });
 
-test("the Pro limit message is written in hours", () => {
+test("paid limit messages are written in hours and free is a lifetime cap", () => {
+  assert.match(overLimitMessage("starter", 10 * 3600, true), /10 hours/);
+  assert.match(overLimitMessage("power", 25 * 3600, true), /25 hours/);
   assert.match(overLimitMessage("pro", 20 * 3600, true), /20 hours/);
-  assert.match(overLimitMessage("pro", 20 * 3600, false), /Pro listening time/);
+  assert.match(overLimitMessage("starter", 10 * 3600, false), /listening time you have left/);
   assert.match(overLimitMessage("free", 6000, true), /free listening minutes/);
+  assert.doesNotMatch(overLimitMessage("free", 6000, true), /month/);
   assert.match(overLimitMessage("enterprise", 1000 * 3600, true), /workspace/);
 });
 

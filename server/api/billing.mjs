@@ -12,13 +12,23 @@ import {
   requireMethod,
   sendJson,
 } from "./http.mjs";
+import {
+  ENTERPRISE_PLAN_KEY,
+  LEGACY_PRO_PLAN_KEY,
+  PAID_PLAN_KEYS,
+  POWER_PLAN_KEY,
+  STARTER_PLAN_KEY,
+  isPurchasePlan,
+} from "./plan-keys.mjs";
 
 /**
- * Paystack subscriptions.
+ * Pro subscriptions.
  *
- * Pro is priced in US dollars on the site but charged in Naira, because a
- * Paystack plan is tied to one currency. The Naira amount is set with
- * PAYSTACK_PRO_AMOUNT_NGN, or converted from $7 with JOTBOX_USD_TO_NGN.
+ * There are two paid plans, Starter Pro and Power User. Both are priced in US
+ * dollars on the site but charged in Naira, because a Paystack plan is tied to
+ * one currency. Each Naira amount is set with PAYSTACK_PRO_AMOUNT_NGN or
+ * PAYSTACK_POWER_AMOUNT_NGN, or converted from the dollar price with
+ * JOTBOX_USD_TO_NGN. A legacy Pro row keeps its original price and allowance.
  *
  * Money is only trusted after Paystack confirms it. The browser return and the
  * webhook both write through the same reference-first ledger, so a retry or a
@@ -27,10 +37,9 @@ import {
  */
 
 const PAYSTACK_API = "https://api.paystack.co";
-const PRO_PRICE_USD = 7;
+const STARTER_PRICE_USD = 7;
+const POWER_PRICE_USD = 16;
 const DEFAULT_NGN_PER_USD = 1400;
-const PRO_PLAN_KEY = "pro";
-const ENTERPRISE_PLAN_KEY = "enterprise";
 const PAYSTACK_TIMEOUT_MS = 20_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CHECKOUT_CREATING_MS = 90 * 1000;
@@ -49,21 +58,60 @@ function positiveNumber(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function purchaseTier({ key, label, usd, amountEnv, planCodeEnv, ngnPerUsd, env }) {
+  const naira = Math.round(positiveNumber(env[amountEnv], usd * ngnPerUsd));
+  return {
+    key,
+    label,
+    usd,
+    naira,
+    amountKobo: naira * 100,
+    planCode: env[planCodeEnv]?.trim() || "",
+  };
+}
+
 export function billingConfig(env = process.env) {
   const ngnPerUsd = Math.round(positiveNumber(env.JOTBOX_USD_TO_NGN, DEFAULT_NGN_PER_USD));
-  const naira = Math.round(positiveNumber(env.PAYSTACK_PRO_AMOUNT_NGN, PRO_PRICE_USD * ngnPerUsd));
   const secret = env.PAYSTACK_SECRET_KEY?.trim() || "";
+  const starter = purchaseTier({
+    key: STARTER_PLAN_KEY,
+    label: "Starter Pro",
+    usd: STARTER_PRICE_USD,
+    amountEnv: "PAYSTACK_PRO_AMOUNT_NGN",
+    planCodeEnv: "PAYSTACK_PLAN_CODE",
+    ngnPerUsd,
+    env,
+  });
+  const power = purchaseTier({
+    key: POWER_PLAN_KEY,
+    label: "Power User",
+    usd: POWER_PRICE_USD,
+    amountEnv: "PAYSTACK_POWER_AMOUNT_NGN",
+    planCodeEnv: "PAYSTACK_POWER_PLAN_CODE",
+    ngnPerUsd,
+    env,
+  });
   return {
     currency: "NGN",
     interval: "monthly",
-    usd: PRO_PRICE_USD,
+    // The top-level fields stay on Starter so older callers keep working.
+    usd: starter.usd,
+    naira: starter.naira,
+    amountKobo: starter.amountKobo,
+    planCode: starter.planCode,
     ngnPerUsd,
-    naira,
-    amountKobo: naira * 100,
     configured: Boolean(secret),
     live: secret.startsWith("sk_live_"),
-    planCode: env.PAYSTACK_PLAN_CODE?.trim() || "",
+    tiers: { [STARTER_PLAN_KEY]: starter, [POWER_PLAN_KEY]: power },
+    starter,
+    power,
   };
+}
+
+export function tierConfig(config, tier) {
+  const found = config.tiers?.[tier];
+  if (!found) throw new HttpError(400, "That plan is not available.");
+  return found;
 }
 
 function publicPricing(config = billingConfig()) {
@@ -73,6 +121,8 @@ function publicPricing(config = billingConfig()) {
     ngnPerUsd: config.ngnPerUsd,
     currency: config.currency,
     interval: config.interval,
+    starter: { usd: config.starter.usd, naira: config.starter.naira },
+    power: { usd: config.power.usd, naira: config.power.naira },
   };
 }
 
@@ -153,15 +203,16 @@ async function planMatches(code, config) {
   return matches;
 }
 
-async function ensurePlan(config) {
-  if (config.planCode) {
-    if (!(await planMatches(config.planCode, config))) {
+async function ensurePlan(config, tier = config.starter) {
+  const price = { ...config, amountKobo: tier.amountKobo, currency: config.currency, interval: config.interval };
+  if (tier.planCode) {
+    if (!(await planMatches(tier.planCode, price))) {
       throw new HttpError(
         503,
-        "The Paystack plan code does not match the current Pro price. Update PAYSTACK_PLAN_CODE or remove it.",
+        `The Paystack plan code for ${tier.label} does not match the current price. Update it or remove it.`,
       );
     }
-    return config.planCode;
+    return tier.planCode;
   }
 
   const cached = await query(
@@ -169,15 +220,15 @@ async function ensurePlan(config) {
        from billing_plans
       where provider = 'paystack' and plan_key = $1
       limit 1`,
-    [PRO_PLAN_KEY],
+    [tier.key],
   );
   const row = cached.rows[0];
   if (
     row &&
     row.currency === config.currency &&
-    Number(row.amount) === config.amountKobo &&
+    Number(row.amount) === tier.amountKobo &&
     row.interval === config.interval &&
-    (await planMatches(row.code, config))
+    (await planMatches(row.code, price))
   ) {
     return row.code;
   }
@@ -185,9 +236,9 @@ async function ensurePlan(config) {
   const plan = await paystack("/plan", {
     method: "POST",
     body: JSON.stringify({
-      name: `JotBox Pro ${config.currency} ${config.naira} monthly`,
+      name: `JotBox ${tier.label} ${config.currency} ${tier.naira} monthly`,
       interval: config.interval,
-      amount: config.amountKobo,
+      amount: tier.amountKobo,
       currency: config.currency,
     }),
   });
@@ -203,16 +254,17 @@ async function ensurePlan(config) {
            amount = excluded.amount,
            interval = excluded.interval,
            created_at = now()`,
-    [PRO_PLAN_KEY, code, config.currency, config.amountKobo, config.interval],
+    [tier.key, code, config.currency, tier.amountKobo, config.interval],
   );
   return code;
 }
 
-async function knownPlanCode(config) {
-  if (config.planCode) return config.planCode;
+async function knownPlanCode(config, planKey = LEGACY_PRO_PLAN_KEY) {
+  const tier = config.tiers?.[planKey];
+  if (tier?.planCode) return tier.planCode;
   const cached = await query(
     "select code from billing_plans where provider = 'paystack' and plan_key = $1 limit 1",
-    [PRO_PLAN_KEY],
+    [planKey],
   );
   return cached.rows[0]?.code ?? null;
 }
@@ -298,7 +350,10 @@ export async function isProUser(userId) {
 
 export function planOf(row, now = Date.now()) {
   if (!isEntitled(row, now)) return "free";
-  return row.plan_key === ENTERPRISE_PLAN_KEY ? "enterprise" : "pro";
+  if (row.plan_key === ENTERPRISE_PLAN_KEY) return "enterprise";
+  if (row.plan_key === POWER_PLAN_KEY) return "power";
+  if (row.plan_key === STARTER_PLAN_KEY) return "starter";
+  return LEGACY_PRO_PLAN_KEY;
 }
 
 export async function planForUser(userId) {
@@ -401,7 +456,7 @@ async function saveSubscription(input, client = null) {
        returning *`,
       [
         input.userId,
-        PRO_PLAN_KEY,
+        PAID_PLAN_KEYS.includes(input.planKey) ? input.planKey : LEGACY_PRO_PLAN_KEY,
         input.planCode ?? null,
         input.subscriptionCode ?? null,
         input.emailToken ?? null,
@@ -485,20 +540,20 @@ function shapeEvent(data) {
  * reject a payment made just before a price change, and accepting any cheaper
  * reference would let someone unlock Pro with a smaller payment.
  */
-export function validProCharge(data, { existing, config, planCode, checkout = null }) {
+export function validPaidCharge(data, { existing, config, planCode, checkout = null, tier = null }) {
   const shaped = shapeEvent(data);
   const chargeCode = shaped.plan.plan_code || data?.plan_code || null;
   const ourCode = checkout?.plan_code || existing?.plan_code || planCode;
   if (chargeCode && ourCode && chargeCode !== ourCode) return false;
 
   const metadata = metadataOf(data);
-  if (metadata.plan_key && metadata.plan_key !== PRO_PLAN_KEY) return false;
-  const hasProEvidence =
+  if (metadata.plan_key && !PAID_PLAN_KEYS.includes(metadata.plan_key)) return false;
+  const hasPaidEvidence =
     Boolean(checkout) ||
     Boolean(existing) ||
-    metadata.plan_key === PRO_PLAN_KEY ||
+    PAID_PLAN_KEYS.includes(metadata.plan_key) ||
     Boolean(chargeCode && (!ourCode || chargeCode === ourCode));
-  if (!hasProEvidence) return false;
+  if (!hasPaidEvidence) return false;
 
   const currency = currencyOf(data?.currency || shaped.plan.currency);
   const expectedCurrency = currencyOf(checkout?.currency || existing?.currency || config.currency);
@@ -511,7 +566,9 @@ export function validProCharge(data, { existing, config, planCode, checkout = nu
       ? Number(checkout.amount)
       : existing?.amount > 0
         ? Number(existing.amount)
-        : config.amountKobo;
+        : tier?.amountKobo > 0
+          ? tier.amountKobo
+          : config.amountKobo;
   return amount === expected && amount >= MIN_PRO_AMOUNT_KOBO;
 }
 
@@ -577,6 +634,26 @@ async function recordTransaction(client, input) {
   return result.rows[0] ?? null;
 }
 
+async function planKeyForCode(code, config) {
+  if (!code) return null;
+  if (config.power?.planCode === code) return POWER_PLAN_KEY;
+  if (config.starter?.planCode === code) return STARTER_PLAN_KEY;
+  const found = await query(
+    "select plan_key from billing_plans where provider = 'paystack' and code = $1 limit 1",
+    [code],
+  );
+  return found.rows[0]?.plan_key ?? null;
+}
+
+export function planKeyForCharge({ metadata, checkout, existing, chargePlanCode, config }) {
+  if (PAID_PLAN_KEYS.includes(metadata?.plan_key)) return metadata.plan_key;
+  if (PAID_PLAN_KEYS.includes(checkout?.plan_key)) return checkout.plan_key;
+  if (PAID_PLAN_KEYS.includes(existing?.plan_key)) return existing.plan_key;
+  if (chargePlanCode && config.power?.planCode === chargePlanCode) return POWER_PLAN_KEY;
+  if (chargePlanCode && config.starter?.planCode === chargePlanCode) return STARTER_PLAN_KEY;
+  return null;
+}
+
 async function applyVerifiedTransaction(
   transaction,
   userId,
@@ -585,22 +662,28 @@ async function applyVerifiedTransaction(
   const shaped = shapeEvent(transaction);
   const reference = String(transaction?.reference || "").trim();
   if (!reference) throw new HttpError(400, "That payment has no reference.");
-  if (!validProCharge(transaction, { existing, config, planCode, checkout })) {
-    return { applied: false, reason: "not_a_pro_charge" };
+  const metadata = metadataOf(transaction);
+  const chargePlanCode = shaped.plan.plan_code || transaction?.plan_code || checkout?.plan_code || planCode;
+  const planKey =
+    planKeyForCharge({ metadata, checkout, existing, chargePlanCode, config }) ||
+    (await planKeyForCode(chargePlanCode, config)) ||
+    LEGACY_PRO_PLAN_KEY;
+  if (!validPaidCharge(transaction, { existing, config, planCode, checkout, tier: config.tiers?.[planKey] })) {
+    return { applied: false, reason: "not_a_paid_charge" };
   }
 
   const outcome = await withTransaction(async (client) => {
     const recorded = await recordTransaction(client, {
       reference,
       userId,
-      planCode: shaped.plan.plan_code || transaction?.plan_code || checkout?.plan_code || planCode,
+      planCode: chargePlanCode,
       subscriptionCode: shaped.subscriptionCode,
       status: String(transaction?.status || "unknown"),
       amount: transaction?.amount,
       currency: transaction?.currency || shaped.plan.currency,
       channel: transaction?.channel,
       paidAt: transaction?.paid_at || transaction?.created_at,
-      metadata: metadataOf(transaction),
+      metadata,
     });
 
     if (transaction?.status !== "success") return { applied: false, reason: "not_successful" };
@@ -614,7 +697,8 @@ async function applyVerifiedTransaction(
       {
         userId,
         status: "active",
-        planCode: shaped.plan.plan_code || transaction?.plan_code || checkout?.plan_code || planCode,
+        planKey,
+        planCode: chargePlanCode,
         subscriptionCode: shaped.subscriptionCode,
         emailToken: shaped.emailToken,
         amount: transaction?.amount,
@@ -636,7 +720,7 @@ async function applyVerifiedTransaction(
       "update billing_transactions set applied_at = now(), updated_at = now() where provider = 'paystack' and reference = $1",
       [reference],
     );
-    return { applied: true, reason: "", interval: shaped.plan.interval || "monthly" };
+    return { applied: true, reason: "", interval: shaped.plan.interval || "monthly", planKey };
   });
 
   if (outcome.applied) {
@@ -645,6 +729,7 @@ async function applyVerifiedTransaction(
       currency: transaction?.currency || shaped.plan.currency,
       reference,
       interval: outcome.interval,
+      planKey: outcome.planKey,
     });
   }
   return outcome;
@@ -669,7 +754,7 @@ export async function sendRenewalReminders({ limit = REMINDER_BATCH } = {}) {
   const batch = Math.max(1, Math.min(100, Number(limit) || REMINDER_BATCH));
   const due = await query(
     `select u.id, u.email, u.name,
-            s.amount, s.currency,
+            s.amount, s.currency, s.plan_key,
             coalesce(s.current_period_end, s.next_payment_at) as renews_at
        from billing_subscriptions s
        join users u on u.id = s.user_id
@@ -705,7 +790,7 @@ export async function sendRenewalReminders({ limit = REMINDER_BATCH } = {}) {
       try {
         const result = await sendRenewalReminderEmail(
           { id: row.id, email: row.email, name: row.name },
-          { amount: row.amount, currency: row.currency, nextPaymentAt: row.renews_at },
+          { amount: row.amount, currency: row.currency, nextPaymentAt: row.renews_at, planKey: row.plan_key },
         );
         if (result.delivered) {
           sent += 1;
@@ -773,6 +858,7 @@ function checkoutView(row, config) {
   return {
     authorizationUrl: row.authorization_url,
     reference: row.reference,
+    planKey: row.plan_key,
     pricing: publicPricing(config),
   };
 }
@@ -786,7 +872,7 @@ function idempotencyKey(req) {
   return raw;
 }
 
-async function openCheckout(userId, userEmail, req, key, config) {
+async function openCheckout(userId, userEmail, req, key, config, tier = config.starter) {
   // Abandoned attempts must not block a fresh checkout, and a key that already
   // failed is allowed to start again with a new Paystack reference.
   await query(
@@ -804,8 +890,8 @@ async function openCheckout(userId, userEmail, req, key, config) {
       key,
     ]);
     const row = byKey.rows[0];
-    if (row) {
-      if (row.status === "paid") throw new HttpError(409, "You are already on Pro. Manage your plan below.");
+    if (row && row.plan_key === tier.key) {
+      if (row.status === "paid") throw new HttpError(409, "You are already on a paid plan. Manage it below.");
       if (row.status === "open" && row.authorization_url) return row;
       if (row.status === "creating" && Date.now() - new Date(row.created_at).getTime() < CHECKOUT_CREATING_MS) {
         throw new HttpError(409, "Your checkout is still being prepared. Try again in a moment.");
@@ -817,16 +903,26 @@ async function openCheckout(userId, userEmail, req, key, config) {
     `select * from billing_checkouts
       where user_id = $1
         and status in ('creating', 'open')
+        and plan_key = $2
         and created_at > now() - interval '30 minutes'
       order by created_at desc
       limit 1`,
-    [userId],
+    [userId, tier.key],
   );
   const row = open.rows[0];
   if (row) {
     if (row.status === "open" && row.authorization_url) return row;
     throw new HttpError(409, "Your checkout is still being prepared. Try again in a moment.");
   }
+
+  // Only one open checkout can exist per user. Switching tier abandons the
+  // unpaid one rather than sending the person to the wrong plan.
+  await query(
+    `update billing_checkouts
+        set status = 'expired', updated_at = now()
+      where user_id = $1 and status in ('creating', 'open') and plan_key <> $2`,
+    [userId, tier.key],
+  );
 
   const recent = await query(
     "select count(*)::int as count from billing_checkouts where user_id = $1 and created_at > now() - interval '1 hour'",
@@ -836,23 +932,23 @@ async function openCheckout(userId, userEmail, req, key, config) {
     throw new HttpError(429, "That is a lot of checkout attempts. Wait a little, then try again.");
   }
 
-  const planCode = await ensurePlan(config);
+  const planCode = await ensurePlan(config, tier);
   const reference = `jotbox_${randomUUID().replaceAll("-", "")}`;
   let inserted;
   try {
     inserted = await query(
-      `insert into billing_checkouts (reference, user_id, idempotency_key, amount, currency, plan_code)
-       values ($1, $2, $3, $4, $5, $6)
+      `insert into billing_checkouts (reference, user_id, idempotency_key, amount, currency, plan_code, plan_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning *`,
-      [reference, userId, key, config.amountKobo, config.currency, planCode],
+      [reference, userId, key, tier.amountKobo, config.currency, planCode, tier.key],
     );
   } catch (error) {
     if (error?.code === "23505") {
       const again = await query(
         `select * from billing_checkouts
-          where user_id = $1 and status in ('creating', 'open')
+          where user_id = $1 and status in ('creating', 'open') and plan_key = $2
           order by created_at desc limit 1`,
-        [userId],
+        [userId, tier.key],
       );
       if (again.rows[0]?.status === "open" && again.rows[0]?.authorization_url) return again.rows[0];
       throw new HttpError(409, "Your checkout is still being prepared. Try again in a moment.");
@@ -866,14 +962,14 @@ async function openCheckout(userId, userEmail, req, key, config) {
       method: "POST",
       body: JSON.stringify({
         email: userEmail,
-        amount: config.amountKobo,
+        amount: tier.amountKobo,
         currency: config.currency,
         plan: planCode,
         reference,
         callback_url: `${publicOrigin(req)}/account?billing=callback`,
         metadata: {
           user_id: userId,
-          plan_key: PRO_PLAN_KEY,
+          plan_key: tier.key,
           reference,
           source: "jotbox",
         },
@@ -899,14 +995,18 @@ async function openCheckout(userId, userEmail, req, key, config) {
 async function checkout(req, res) {
   assertSameOrigin(req);
   const { user } = await requireSession(req);
+  const body = await readJson(req, 4_000);
+  const requested = typeof body?.tier === "string" && body.tier.trim() ? body.tier.trim() : STARTER_PLAN_KEY;
+  if (!isPurchasePlan(requested)) throw new HttpError(400, "That plan is not available.");
   const config = billingConfig();
+  const tier = tierConfig(config, requested);
   const existing = await getSubscription(user.id);
   if (isEntitled(existing)) {
-    throw new HttpError(409, "You are already on Pro. Manage your plan below.");
+    throw new HttpError(409, "You are already on a paid plan. Manage it below.");
   }
 
   const key = idempotencyKey(req);
-  const checkoutRow = await openCheckout(user.id, user.email, req, key, config);
+  const checkoutRow = await openCheckout(user.id, user.email, req, key, config, tier);
   sendJson(res, 200, checkoutView(checkoutRow, config));
 }
 
@@ -939,7 +1039,7 @@ async function verify(req, res) {
   const existing = await getSubscription(user.id);
   const checkout = await getCheckout(reference, user.id);
   const applied = await applyVerifiedTransaction(transaction, user.id, {
-    planCode: await knownPlanCode(config),
+    planCode: await knownPlanCode(config, checkout?.plan_key || LEGACY_PRO_PLAN_KEY),
     config,
     existing,
     checkout,
@@ -947,8 +1047,8 @@ async function verify(req, res) {
     source: "verify",
   });
 
-  if (!applied.applied && applied.reason === "not_a_pro_charge") {
-    throw new HttpError(402, "That payment is not a JotBox Pro payment, so Pro was not switched on.");
+  if (!applied.applied && applied.reason === "not_a_paid_charge") {
+    throw new HttpError(402, "That payment is not a JotBox plan payment, so no plan was switched on.");
   }
 
   sendJson(res, 200, { ...(await statusFor(user.id)), payment: "success" });
@@ -996,6 +1096,7 @@ async function cancel(req, res) {
   await saveSubscription({
     userId: user.id,
     status: "cancelled",
+    planKey: row.plan_key,
     subscriptionCode: active.subscription_code,
     emailToken: active.email_token,
     planCode: active.plan_code,
@@ -1013,6 +1114,7 @@ async function cancel(req, res) {
 
   await sendCancellationEmail(user, {
     periodEnd: active.current_period_end || active.next_payment_at,
+    planKey: row.plan_key,
   }).catch((error) => {
     console.error("[jotbox-billing] cancellation email failed", error instanceof Error ? error.message : error);
   });
@@ -1107,7 +1209,7 @@ async function reconcileUser(userId, { force = false } = {}) {
       const list = await paystack(`/subscription?customer=${encodeURIComponent(email)}`, {}, 3000);
       const items = Array.isArray(list) ? list : [];
       remote =
-        items.find((item) => item?.plan?.plan_code && item.plan.plan_code === (planCode || current?.plan_code)) ||
+        items.find((item) => item?.plan?.plan_code && item.plan.plan_code === (current?.plan_code || planCode)) ||
         items.find((item) => item?.status === "active") ||
         items[0] ||
         null;
@@ -1119,9 +1221,12 @@ async function reconcileUser(userId, { force = false } = {}) {
   if (remote) {
     const status = planStatus(remote.status);
     if (status) {
+      const remotePlanKey =
+        (await planKeyForCode(remote.plan?.plan_code, config)) || current?.plan_key || LEGACY_PRO_PLAN_KEY;
       await saveSubscription({
         userId,
         status,
+        planKey: remotePlanKey,
         planCode: remote.plan?.plan_code || current?.plan_code || planCode,
         subscriptionCode: remote.subscription_code || current?.subscription_code,
         emailToken: remote.email_token || current?.email_token,
@@ -1234,15 +1339,20 @@ async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
   const isMoneyEvent = event === "charge.success" || event.startsWith("invoice.");
   const checkout = isMoneyEvent && data?.reference ? await getCheckout(data.reference, userId) : null;
 
-  if (eventChargeCode && localCode && eventChargeCode !== localCode) {
+  const codePlanKey = await planKeyForCode(eventChargeCode, config);
+  if (eventChargeCode && localCode && eventChargeCode !== localCode && !codePlanKey) {
     return { applied: false, reason: "different_plan", userId };
   }
+  const planKey =
+    planKeyForCharge({ metadata, checkout, existing, chargePlanCode: eventChargeCode, config }) ||
+    codePlanKey ||
+    LEGACY_PRO_PLAN_KEY;
 
   if (isMoneyEvent) {
     const hasAmount = numberOrNull(data?.amount ?? shaped.plan.amount) !== null;
     if (hasAmount) {
-      if (!validProCharge(data, { existing, config, planCode, checkout })) {
-        return { applied: false, reason: "not_a_pro_charge", userId };
+      if (!validPaidCharge(data, { existing, config, planCode, checkout, tier: config.tiers?.[planKey] })) {
+        return { applied: false, reason: "not_a_paid_charge", userId };
       }
     } else if (!existing) {
       return { applied: false, reason: "missing_amount", userId };
@@ -1266,6 +1376,7 @@ async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
   const result = await saveSubscription({
     userId,
     status,
+    planKey,
     planCode: eventChargeCode || checkout?.plan_code || existing?.plan_code || planCode,
     subscriptionCode: shaped.subscriptionCode,
     emailToken: shaped.emailToken,

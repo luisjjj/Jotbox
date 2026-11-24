@@ -189,12 +189,12 @@ export async function sendWelcomeEmail(user) {
   return sendEmail({
     to: user.email,
     subject: `${name}, your JotBox account is ready`,
-    text: `Hi ${name},\n\nYour JotBox account is ready. Sign in and your notes will follow you across devices.\n\n${url}\n\nStart with a lecture, a meeting, or any room where the words matter. You get 100 minutes of listening each month for free.\n\nJotBox`,
+    text: `Hi ${name},\n\nYour JotBox account is ready. Sign in and your notes will follow you across devices.\n\n${url}\n\nStart with a lecture, a meeting, or any room where the words matter. You get 100 minutes of listening free.\n\nJotBox`,
     html: layout({
       heading: `Welcome, ${name}.`,
       body:
         paragraph("Your JotBox account is ready. Sign in and your notes will follow you across devices.") +
-        paragraph("Start with a lecture, a meeting, or any room where the words matter. You get 100 minutes of listening each month for free."),
+        paragraph("Start with a lecture, a meeting, or any room where the words matter. You get 100 minutes of listening free."),
       action: "Open JotBox",
       actionUrl: url,
       footnote: "Recordings stay on your device. Notes follow you only when you sign in.",
@@ -249,19 +249,34 @@ function money(amountMinor, currency) {
   }
 }
 
-export async function sendReceiptEmail(user, { amount, currency, reference, interval = "monthly" }) {
+const EMAIL_PLANS = {
+  starter: { label: "Starter Pro", hours: 10 },
+  power: { label: "Power User", hours: 25 },
+  pro: { label: "Pro", hours: 20 },
+  enterprise: { label: "Enterprise", hours: null },
+};
+
+function planDetails(planKey) {
+  return EMAIL_PLANS[planKey] ?? EMAIL_PLANS.pro;
+}
+
+export async function sendReceiptEmail(user, { amount, currency, reference, interval = "monthly", planKey = "starter" }) {
+  const plan = planDetails(planKey);
   const paid = money(amount, currency);
   const name = personName(user.name, user.email);
+  const included = plan.hours
+    ? `${plan.hours} hours of listening each month`
+    : "unlimited listening";
   return sendEmail({
     to: user.email,
-    subject: `Your JotBox Pro receipt: ${paid}`,
-    text: `Hi ${name},\n\nThank you. We received ${paid} for JotBox Pro (${interval}).\n\nReference: ${reference}\n\nYour Pro features are switched on now: 20 hours of listening each month, branded PDF export, longer share links, AI follow-up drafts, and the Pre-Meeting Brief.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
+    subject: `Your JotBox ${plan.label} receipt: ${paid}`,
+    text: `Hi ${name},\n\nThank you. We received ${paid} for JotBox ${plan.label} (${interval}).\n\nReference: ${reference}\n\nYour ${plan.label} features are switched on now: ${included}, branded PDF export, longer share links, AI follow-up drafts, and the Pre-Meeting Brief.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
     html: layout({
       heading: `Payment received: ${paid}`,
       body:
-        paragraph(`Thank you. We received ${paid} for JotBox Pro (${interval}).`) +
+        paragraph(`Thank you. We received ${paid} for JotBox ${plan.label} (${interval}).`) +
         paragraph(`Reference: ${reference}`) +
-        paragraph("Your Pro features are switched on now: 20 hours of listening each month, branded PDF export, longer share links, AI follow-up drafts, and the Pre-Meeting Brief."),
+        paragraph(`Your ${plan.label} features are switched on now: ${included}, branded PDF export, longer share links, AI follow-up drafts, and the Pre-Meeting Brief.`),
       action: "Manage your plan",
       actionUrl: `${publicAppUrl()}/account`,
       footnote: "This receipt is for your records. Billing questions? Reply to this email.",
@@ -269,25 +284,27 @@ export async function sendReceiptEmail(user, { amount, currency, reference, inte
   });
 }
 
-export async function sendRenewalReminderEmail(user, { amount, currency, nextPaymentAt }) {
+export async function sendRenewalReminderEmail(user, { amount, currency, nextPaymentAt, planKey = "starter" }) {
+  const plan = planDetails(planKey);
   const paid = money(amount, currency);
   const when = longDate(nextPaymentAt) || "soon";
   const name = personName(user.name, user.email);
   const cycle = new Date(nextPaymentAt).getTime();
   const keyUser = String(user.id || user.email || "").replace(/[^A-Za-z0-9_-]+/g, "_");
+  const included = plan.hours ? `your ${plan.hours} hours of listening` : "unlimited listening";
   return sendEmail({
     to: user.email,
-    subject: `${name}, JotBox Pro renews on ${when}`,
-    text: `Hi ${name},\n\nYour JotBox Pro plan renews on ${when}. We will charge ${paid} then.\n\nNothing to do if you want to keep Pro: your 20 hours of listening and every Pro feature stay on.\n\nIf you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 100 minutes of listening each month.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
+    subject: `${name}, JotBox ${plan.label} renews on ${when}`,
+    text: `Hi ${name},\n\nYour JotBox ${plan.label} plan renews on ${when}. We will charge ${paid} then.\n\nNothing to do if you want to keep ${plan.label}: ${included} and every ${plan.label} feature stay on.\n\nIf you would rather stop, cancel before ${when}. ${plan.label} stays on until the end of the period you already paid for, and the free plan keeps 100 minutes of listening.\n\nManage your plan: ${publicAppUrl()}/account\n\nJotBox`,
     html: layout({
-      heading: `Pro renews on ${when}`,
+      heading: `${plan.label} renews on ${when}`,
       body:
-        paragraph(`Your JotBox Pro plan renews on ${when}. We will charge ${paid} then.`) +
-        paragraph("Nothing to do if you want to keep Pro: your 20 hours of listening and every Pro feature stay on.") +
-        paragraph(`If you would rather stop, cancel before ${when}. Pro stays on until the end of the period you already paid for, and the free plan keeps 100 minutes of listening each month.`),
+        paragraph(`Your JotBox ${plan.label} plan renews on ${when}. We will charge ${paid} then.`) +
+        paragraph(`Nothing to do if you want to keep ${plan.label}: ${included} and every ${plan.label} feature stay on.`) +
+        paragraph(`If you would rather stop, cancel before ${when}. ${plan.label} stays on until the end of the period you already paid for, and the free plan keeps 100 minutes of listening.`),
       action: "Manage your plan",
       actionUrl: `${publicAppUrl()}/account`,
-      footnote: "You are receiving this because Pro is active on your account.",
+      footnote: `You are receiving this because ${plan.label} is active on your account.`,
     }),
     idempotencyKey: Number.isFinite(cycle) ? `renewal-${keyUser}-${cycle}` : undefined,
   });
@@ -305,13 +322,13 @@ export async function sendReferralPartnerEmail({
   return sendEmail({
     to,
     subject: `${person}, your JotBox partner dashboard`,
-    text: `Hi ${person},\n\nThank you for working with JotBox. This is your personal referral link:\n\n${referralUrl}\n\nAnyone who signs up through it is counted to you, and you earn ${share}% of every Pro payment they make. Your dashboard shows who joined, who paid, and what is owed to you:\n\n${dashboardUrl}\n\nThe dashboard link is private, so please keep it to yourself. Payouts are handled by hand, so there is nothing for you to set up on Paystack.\n\nIf you want a different link name or have any questions, just reply to this email.\n\nJotBox`,
+    text: `Hi ${person},\n\nThank you for working with JotBox. This is your personal referral link:\n\n${referralUrl}\n\nAnyone who signs up through it is counted to you, and you earn ${share}% of every paid plan payment they make. Your dashboard shows who joined, who paid, and what is owed to you:\n\n${dashboardUrl}\n\nThe dashboard link is private, so please keep it to yourself. Payouts are handled by hand, so there is nothing for you to set up on Paystack.\n\nIf you want a different link name or have any questions, just reply to this email.\n\nJotBox`,
     html: layout({
       heading: "Your JotBox partner dashboard",
       body:
         paragraph(`Thank you for working with JotBox. This is your personal referral link.`) +
         linkBlock("Referral link", referralUrl) +
-        paragraph(`Anyone who signs up through it is counted to you, and you earn ${share}% of every Pro payment they make.`) +
+        paragraph(`Anyone who signs up through it is counted to you, and you earn ${share}% of every paid plan payment they make.`) +
         paragraph("Your dashboard shows who joined, who paid, and what is owed to you. The link is private, so please keep it to yourself.") +
         paragraph("Payouts are handled by hand, so there is nothing for you to set up on Paystack."),
       action: "Open your dashboard",
@@ -364,21 +381,22 @@ export async function sendFounderNoteEmail({
   });
 }
 
-export async function sendCancellationEmail(user, { periodEnd } = {}) {
+export async function sendCancellationEmail(user, { periodEnd, planKey = "starter" } = {}) {
+  const plan = planDetails(planKey);
   const until = periodEnd ? new Date(periodEnd) : null;
   const endText =
     until && !Number.isNaN(until.getTime())
-      ? `Pro stays on until ${until.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}, the end of the period you already paid for.`
-      : "Pro stays on until the end of the period you already paid for.";
+      ? `${plan.label} stays on until ${until.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}, the end of the period you already paid for.`
+      : `${plan.label} stays on until the end of the period you already paid for.`;
   return sendEmail({
     to: user.email,
-    subject: "JotBox Pro will not renew",
-    text: `Hi ${personName(user.name, user.email)},\n\nYour JotBox Pro subscription is cancelled and will not renew. ${endText}\n\nYour notes are still yours, and the free plan keeps 100 minutes of listening each month. You can come back any time.\n\nJotBox`,
+    subject: `JotBox ${plan.label} will not renew`,
+    text: `Hi ${personName(user.name, user.email)},\n\nYour JotBox ${plan.label} subscription is cancelled and will not renew. ${endText}\n\nYour notes are still yours, and the free plan keeps 100 minutes of listening. You can come back any time.\n\nJotBox`,
     html: layout({
-      heading: "Your Pro plan will not renew",
+      heading: `Your ${plan.label} plan will not renew`,
       body:
-        paragraph(`Your JotBox Pro subscription is cancelled and will not renew. ${endText}`) +
-        paragraph("Your notes are still yours, and the free plan keeps 100 minutes of listening each month. You can come back any time."),
+        paragraph(`Your JotBox ${plan.label} subscription is cancelled and will not renew. ${endText}`) +
+        paragraph("Your notes are still yours, and the free plan keeps 100 minutes of listening. You can come back any time."),
       action: "Manage your plan",
       actionUrl: `${publicAppUrl()}/account`,
     }),

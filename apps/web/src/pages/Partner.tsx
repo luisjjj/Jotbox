@@ -28,7 +28,7 @@ function StatusChip({ status }: { status: string }) {
         : "bg-raised-2 text-muted";
   const label =
     status === "active"
-      ? "Pro"
+      ? "Paid"
       : status === "ending"
         ? "Ending"
         : status === "attention"
@@ -159,7 +159,7 @@ export default function Partner() {
               {partner.name}
             </h1>
             <p className="mt-2 max-w-[46ch] text-[14.5px] leading-relaxed opacity-80 sm:text-[15px]">
-              You earn {percent}% of every Pro payment from people who sign up with your link. JotBox pays you
+              You earn {percent}% of every paid plan payment from people who sign up with your link. JotBox pays you
               manually, so this page is your running record.
             </p>
             <div className="mt-6">
@@ -200,7 +200,7 @@ export default function Partner() {
             value={String(stats.paying)}
             icon={<span className="text-[13px] font-semibold">%</span>}
           />
-          <Stat label="Active Pro" value={String(stats.active)} icon={<Check className="h-4 w-4" />} />
+          <Stat label="Active paid" value={String(stats.active)} icon={<Check className="h-4 w-4" />} />
           <Stat label="Collected" value={money(stats.grossKobo)} icon={<Wallet className="h-4 w-4" />} />
         </section>
 

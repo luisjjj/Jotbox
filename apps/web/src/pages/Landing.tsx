@@ -45,7 +45,8 @@ const LIVE_LINES = [
   { who: "You", text: "I go send the merchant note before four." },
 ];
 
-const PRO_NAIRA = BILLING_CONFIG.proUsd * BILLING_CONFIG.usdToNgn;
+const STARTER_NAIRA = BILLING_CONFIG.starterUsd * BILLING_CONFIG.usdToNgn;
+const POWER_NAIRA = BILLING_CONFIG.powerUsd * BILLING_CONFIG.usdToNgn;
 const WINDOWS_DOWNLOAD = "/api/download/windows";
 const naira = new Intl.NumberFormat("en-NG", {
   style: "currency",
@@ -110,28 +111,32 @@ const FEATURES = [
 ];
 
 const FREE_FEATURES = [
-  "100 minutes of listening a month",
+  "100 minutes of listening, lifetime",
   "Written notes for every session",
   "Jottings and spoken words side by side",
   "Markdown, copy and print",
   "One 7-day share link per session",
 ];
 
-const PRO_FEATURES = [
-  "20 hours of listening a month",
+const STARTER_FEATURES = [
+  "10 hours of listening a month",
   "Speaker labels when you record a meeting",
   "Branded PDF export for every session",
   "Five share links, up to 30 days each",
   "AI follow-up drafts in English or Pidgin",
   "Pre-Meeting Brief from your last notes",
-  "Ask across organisation memory",
   "Notes follow you across devices",
-  "Google Calendar and Outlook, next up on Home",
-  "Send session action items to Jira",
+];
+
+const POWER_FEATURES = [
+  "Everything in Starter Pro",
+  "25 hours of listening a month",
+  "Room for long lectures and all-day workshops",
+  "Built for people who record every day",
 ];
 
 const TEAM_FEATURES = [
-  "Everything in Pro, with unlimited listening for every seat",
+  "Everything in Power User, with unlimited listening for every seat",
   "Organisational memory across every meeting",
   "Admin, roles, and meeting-level access",
   "Retention rules and a full audit trail",
@@ -226,7 +231,8 @@ export default function Landing() {
   const exampleHref = signedIn ? "/app?demo=1" : "/auth?next=%2Fapp%3Fdemo%3D1";
   const memoryHref = signedIn ? "/memory" : "/auth?next=%2Fmemory";
   const accountHref = signedIn ? "/account" : "/auth?next=%2Faccount";
-  const proHref = signedIn ? "/account?plan=pro" : "/auth?next=%2Faccount%3Fplan%3Dpro";
+  const starterHref = signedIn ? "/account?plan=starter" : "/auth?next=%2Faccount%3Fplan%3Dstarter";
+  const powerHref = signedIn ? "/account?plan=power" : "/auth?next=%2Faccount%3Fplan%3Dpower";
   const authHref = "/auth?next=%2Fapp";
 
   useEffect(() => {
@@ -725,7 +731,7 @@ export default function Landing() {
             </div>
           </Reveal>
 
-          <div className="mx-auto mt-9 grid max-w-[1200px] gap-4 lg:grid-cols-3 lg:items-stretch">
+          <div className="mx-auto mt-9 grid max-w-[1240px] gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-stretch">
             <Reveal delay={40} className="h-full">
               <div className="card plan-card flex h-full flex-col p-6 sm:p-7">
                 <p className="text-[15px] font-semibold text-ink">Free</p>
@@ -755,34 +761,68 @@ export default function Landing() {
                   <span className="absolute right-5 top-5 rounded-full bg-accent-soft px-2.5 py-1 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-accent">
                     Most popular
                   </span>
-                  <p className="text-[15px] font-semibold text-ink">Pro</p>
+                  <p className="text-[15px] font-semibold text-ink">Starter Pro</p>
                   <div className="mt-3 flex items-baseline gap-1.5">
                     <span className="text-[46px] font-semibold leading-none tracking-[-0.05em] text-ink">
-                      ${BILLING_CONFIG.proUsd}
+                      ${BILLING_CONFIG.starterUsd}
                     </span>
                     <span className="text-[14px] text-muted">/ month</span>
                   </div>
                   <p className="mt-2 text-[12.5px] font-medium text-accent">
-                    {naira.format(PRO_NAIRA)} in Naira at checkout
+                    {naira.format(STARTER_NAIRA)} in Naira at checkout
                   </p>
                   <p className="mt-2 text-[14px] leading-5 text-muted">For one person who listens for a living.</p>
                   <ul className="mt-5 flex-1 space-y-2.5">
-                    {PRO_FEATURES.map((feature) => (
+                    {STARTER_FEATURES.map((feature) => (
                       <li key={feature} className="flex items-start gap-2 text-[14px] leading-5 text-soft">
                         <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-accent" strokeWidth={2.4} />
                         {feature}
                       </li>
                     ))}
                   </ul>
-                  <Link to={proHref} className="btn btn-primary mt-6 w-full">
-                    {signedIn ? "Manage your plan" : "Get Pro"}
+                  <Link to={starterHref} className="btn btn-primary mt-6 w-full">
+                    {signedIn ? "Manage your plan" : "Get Starter Pro"}
                   </Link>
                   <p className="mt-2.5 text-center text-[12px] text-faint">Billed monthly. Cancel anytime.</p>
                 </div>
               </div>
             </Reveal>
 
-            <Reveal delay={200} className="h-full">
+            <Reveal delay={160} className="h-full">
+              <div className="card plan-card flex h-full flex-col p-6 sm:p-7">
+                <div className="flex items-center gap-2">
+                  <p className="text-[15px] font-semibold text-ink">Power User</p>
+                  <span className="chip !min-h-0 !px-2 !py-0.5 !text-[11px]">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    Heavy
+                  </span>
+                </div>
+                <div className="mt-3 flex items-baseline gap-1.5">
+                  <span className="text-[42px] font-semibold leading-none tracking-[-0.05em] text-ink">
+                    ${BILLING_CONFIG.powerUsd}
+                  </span>
+                  <span className="text-[14px] text-muted">/ month</span>
+                </div>
+                <p className="mt-2 text-[12.5px] font-medium text-muted">
+                  {naira.format(POWER_NAIRA)} in Naira at checkout
+                </p>
+                <p className="mt-2 text-[14px] leading-5 text-muted">For talk-heavy weeks and back-to-back rooms.</p>
+                <ul className="mt-5 flex-1 space-y-2.5">
+                  {POWER_FEATURES.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2 text-[14px] leading-5 text-soft">
+                      <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-accent" strokeWidth={2.4} />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <Link to={powerHref} className="btn btn-line mt-6 w-full">
+                  {signedIn ? "Manage your plan" : "Get Power"}
+                </Link>
+                <p className="mt-2.5 text-center text-[12px] text-faint">Billed monthly. Cancel anytime.</p>
+              </div>
+            </Reveal>
+
+            <Reveal delay={240} className="h-full">
               <div className="card plan-card flex h-full flex-col p-6 sm:p-7">
                 <div className="flex items-center gap-2">
                   <p className="text-[15px] font-semibold text-ink">Enterprise</p>
@@ -818,7 +858,8 @@ export default function Landing() {
 
           <Reveal delay={120}>
             <p className="mt-5 text-center text-[12.5px] leading-5 text-faint">
-              Prices shown in US dollars. Pro is charged in Naira at checkout. Teams can pay yearly and save two months.
+              Prices shown in US dollars. Starter Pro and Power User are charged in Naira at checkout. Teams can pay
+              yearly and save two months.
             </p>
           </Reveal>
         </section>

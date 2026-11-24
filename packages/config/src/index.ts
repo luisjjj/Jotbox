@@ -9,7 +9,10 @@ export const APP_CONFIG = {
 } as const;
 
 export const BILLING_CONFIG = {
-  proUsd: 7,
+  starterUsd: 7,
+  starterHours: 10,
+  powerUsd: 16,
+  powerHours: 25,
   usdToNgn: 1400,
 } as const;
 

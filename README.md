@@ -148,11 +148,12 @@ npm run eval:check   # fails on a release gate regression
 
 ### Payments (Paystack)
 
-Pro is $7 a month on the site and is charged in Naira at checkout, because a Paystack plan is tied to one currency. JotBox creates and caches the monthly NGN plan on the first upgrade. Add the live secret key on the server (the public key is not used, because checkout is a server-created redirect):
+Starter Pro is $7 a month and Power User is $16 a month on the site, and both are charged in Naira at checkout, because a Paystack plan is tied to one currency. JotBox creates and caches each monthly NGN plan on its first upgrade. Add the live secret key on the server (the public key is not used, because checkout is a server-created redirect):
 
 ```env
 PAYSTACK_SECRET_KEY=sk_live_...
 PAYSTACK_PRO_AMOUNT_NGN=9800
+PAYSTACK_POWER_AMOUNT_NGN=22400
 JOTBOX_USD_TO_NGN=1400
 ```
 

@@ -11,6 +11,8 @@ import {
 
 test("unknown plans fall back to free and kinds map to a recording mode", () => {
   assert.equal(normalizePlan("pro"), "pro");
+  assert.equal(normalizePlan("starter"), "pro");
+  assert.equal(normalizePlan("power"), "pro");
   assert.equal(normalizePlan("enterprise"), "enterprise");
   assert.equal(normalizePlan("team"), "free");
   assert.equal(normalizePlan(undefined), "free");
@@ -19,6 +21,15 @@ test("unknown plans fall back to free and kinds map to a recording mode", () => 
   assert.equal(modeForKind("seminar"), "group");
   assert.equal(modeForKind("lecture"), "lecture");
   assert.equal(modeForKind("voice"), "lecture");
+});
+
+test("starter and power meetings both get speaker labels", () => {
+  for (const plan of ["starter", "power"]) {
+    const meeting = routeTranscription({ plan, kind: "meeting" });
+    assert.equal(meeting.provider, "elevenlabs");
+    assert.equal(meeting.diarize, true);
+    assert.equal(meeting.costPerHour, STT_PRICES.scribe);
+  }
 });
 
 test("free captures use Scribe with no speakers and no paid keyterms", () => {

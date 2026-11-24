@@ -18,7 +18,9 @@ export const GROUP_KINDS = new Set(["meeting", "seminar"]);
 export const RECORDING_MODES = new Set(["lecture", "group"]);
 
 export function normalizePlan(plan) {
-  return plan === "pro" || plan === "enterprise" ? plan : "free";
+  if (plan === "enterprise") return "enterprise";
+  if (plan === "pro" || plan === "starter" || plan === "power") return "pro";
+  return "free";
 }
 
 export function modeForKind(kind) {

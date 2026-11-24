@@ -142,12 +142,19 @@ export interface JiraHandoffResult {
   site: { name: string; url: string };
 }
 
+export interface BillingTierPrice {
+  usd: number;
+  naira: number;
+}
+
 export interface BillingPricing {
   usd: number;
   naira: number;
   ngnPerUsd: number;
   currency: string;
   interval: string;
+  starter: BillingTierPrice;
+  power: BillingTierPrice;
 }
 
 export interface BillingSubscription {
@@ -163,7 +170,8 @@ export interface BillingSubscription {
   reconciledAt: number | null;
 }
 
-export type Plan = "free" | "pro" | "enterprise";
+export type Plan = "free" | "starter" | "power" | "pro" | "enterprise";
+export type PurchasePlan = "starter" | "power";
 
 export interface BillingUsage {
   unlimited: boolean;
@@ -186,6 +194,7 @@ export interface BillingStatus {
 export interface CheckoutSession {
   authorizationUrl: string;
   reference: string;
+  planKey: PurchasePlan;
   pricing: BillingPricing;
 }
 
@@ -746,10 +755,11 @@ export const api = {
     request<PartnerDashboard>(`/api/referrals/${encodeURIComponent(token)}`),
   billingStatus: () => request<BillingStatus>("/api/billing"),
   reconcileBilling: () => request<BillingStatus>("/api/billing?action=reconcile"),
-  startCheckout: () =>
+  startCheckout: (tier: PurchasePlan = "starter") =>
     request<CheckoutSession>("/api/billing?action=checkout", {
       method: "POST",
-      headers: { "Idempotency-Key": `checkout:${crypto.randomUUID()}` },
+      headers: { "Idempotency-Key": `checkout:${tier}:${crypto.randomUUID()}` },
+      body: JSON.stringify({ tier }),
     }),
   verifyCheckout: (reference: string) =>
     request<BillingStatus>("/api/billing?action=verify", {

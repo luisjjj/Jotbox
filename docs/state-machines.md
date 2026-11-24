@@ -35,7 +35,7 @@ the transition tables before shipping.
 | 11 | Payment ledger | pending, applied, ignored | `server/api/billing.mjs:287` |
 | 12 | Subscription | active, attention, non-renewing, cancelled, completed | `db/schema.sql:174` |
 | 13 | Cancellation and reconciliation | fresh, stale, cancelled | `server/api/billing.mjs:767`, `:817` |
-| 14 | Usage quota | unknown, free within limit, free exhausted, pro | `lib/usageStore.ts:23` |
+| 14 | Usage quota | unknown, free within lifetime allowance, free exhausted, starter, power, legacy pro, enterprise | `lib/usageStore.ts:25` |
 | 15 | Paywall and plan intent | closed, open, pending plan, consumed | `components/Paywall.tsx:17`, `pages/Account.tsx:115` |
 | 16 | Share link | active, expired, revoked, deleted | `db/schema.sql:139`, `server/api/share.mjs:47` |
 | 17 | Share dialog | closed, loading, idle, creating, created, error, paywall | `components/ShareDialog.tsx:29` |
@@ -63,9 +63,9 @@ These events move more than one machine. Most serious bugs live at these seams.
 | Capture save returns 402 | 2, 14, 21 | Keep local copy, park sync, refresh usage, show upgrade path |
 | Auth cookie expires | 9, 21 | Every API returns 401; app should move to signed out |
 | Sign out | 9, 21, 24 | Flush or preserve unsynced work, stop sync, clear cache, prune audio |
-| Upgrade to Pro | 10, 11, 12, 14, 15 | Checkout, verify, entitlement, 20 hours a month, clear paywalls |
+| Upgrade to Starter Pro or Power | 10, 11, 12, 14, 15 | Checkout with the chosen tier, verify, entitlement, tier hours, clear paywalls |
 | Renewal fails | 12, 14, 21 | Attention status, grace window, then free |
-| Cancel renewal | 12, 13 | Keep Pro to period end, stop future charges |
+| Cancel renewal | 12, 13 | Keep the plan to period end, stop future charges |
 | Revoke share link | 16, 17 | Row revoked, public page 410, open tabs stale |
 | Remove org member | 18, 19, 21 | Access predicate changes immediately, local panels stale |
 | Close browser mid-capture | 1, 2 | Next boot marks live capture failed, not ready |
@@ -285,37 +285,38 @@ site (`auth.mjs:79`).
 
 **States:** `creating`, `open`, `paid`, `failed`, `expired`
 (`db/schema.sql:245`). One live row per user (`:253`). The client intent is
-`/account?plan=pro` (`Account.tsx:115`).
+`/account?plan=starter` or `/account?plan=power` (`Account.tsx:118`), and every
+row stores the chosen `plan_key`.
 
 | From | Event | To | Effects |
 | --- | --- | --- | --- |
-| none | Upgrade click | creating | Insert row, call Paystack initialize |
+| none | Upgrade click | creating | Insert row with `plan_key`, call Paystack initialize |
 | creating | Paystack returns URL | open | Store authorization URL, redirect browser |
 | creating | Paystack error or no URL | failed | Row marked failed |
 | open | Verify or webhook success | paid | Ledger and subscription apply |
 | open | Verify non-success | open | Client toast only, same URL reused |
 | creating older than 90 seconds | Next checkout | deleted | Cleanup |
 | open older than 30 minutes | Next checkout | deleted | Cleanup |
-| paid | New checkout | unchanged | 409, already Pro |
+| open for another tier | Checkout on this tier | expired | Unpaid link abandoned, no wrong-tier charge |
+| paid | New checkout | unchanged | 409, already on a paid plan |
 | failed | New checkout | creating | Old row deleted |
+
+**Resolved**
+
+- `validPaidCharge` compares the charge to the checkout snapshot and the tier
+  amount, so a price change or a different tier cannot unlock the wrong plan
+  (`billing.mjs:541`).
 
 **Gaps**
 
-- **P1, a paid checkout can be rejected after a price change.**
-  `validProCharge` compares the charge to the current plan and amount
-  (`billing.mjs:422`), not to the amount stored on the checkout row. A checkout
-  opened before a price change can be paid and then refused. Validate against
-  the checkout snapshot.
-- **P2, `expired` is unreachable.** Stale rows are deleted, never marked
-  expired (`billing.mjs:580`). Remove the state or add a cleanup transition.
+- **P2, `expired` is only set when switching tier.** Stale rows are deleted
+  rather than expired (`billing.mjs:869`). Remove the state or add a cleanup
+  transition.
 - **P2, dead Paystack link reuse.** A non-success verify leaves the checkout
   open, so Upgrade returns the same link for 30 minutes (`billing.mjs:613`).
   Mark it failed or offer a fresh checkout.
 - **P3, idempotency is client-only.** Every click mints a new key
   (`api.ts:335`). Only the one-live-row index prevents duplicates.
-- **P2, plan intent repeats.** Every fresh mount of `/account?plan=pro` starts
-  checkout again, including browser Back from Paystack (`Account.tsx:108`).
-  Consume the intent with `history.replaceState` before redirecting.
 
 ## 11. Payment verification and ledger
 
@@ -403,22 +404,26 @@ with an `ignored_reason` (`:287`).
 
 ## 14. Usage quota
 
-**Client states:** unknown, free within limit, free exhausted, pro within
-limit, pro exhausted, enterprise (`usageStore.ts:41`). **Server:** monthly sum
-over the `usage_ledger` table (`usage.mjs:47`), written in the same transaction
-as a saved capture (`captures.mjs:112`), with a 10 second overage grace. Limits
-come from `planMonthlySeconds`: 100 minutes free, 20 hours Pro, 1,000 hours
-enterprise, and enterprise is shown as unlimited.
+**Client states:** unknown, free within lifetime allowance, free exhausted,
+starter or power or legacy pro within limit, same plans exhausted, enterprise
+(`usageStore.ts:25`). **Server:** lifetime sum for free and a monthly sum for
+paid plans over the `usage_ledger` table (`usage.mjs:47`), written in the same
+transaction as a saved capture (`captures.mjs:112`), with a 10 second overage
+grace. Limits come from `planMonthlySeconds`: 100 minutes free for the life of
+the account, 10 hours Starter Pro, 25 hours Power, 20 hours legacy Pro, 1,000
+hours enterprise, and enterprise is shown as unlimited. The free window starts
+at `users.free_allowance_started_at`.
 
 | From | Event | To | Effects |
 | --- | --- | --- | --- |
-| unknown | Billing status | free, pro or enterprise | Store updated |
-| free or pro within limit | Capture saves | within limit or exhausted | Server sum changes |
-| free or pro within limit | Capture would exceed | exhausted, save 402 | Local copy kept, sync parked |
-| exhausted | Calendar month changes | within limit | Server UTC month |
-| free | Upgrade | pro | 20 hours a month |
-| pro | Enterprise activation | enterprise | Shown as unlimited, hidden 1,000 hour ceiling |
-| pro | Period ends | free | Next refresh |
+| unknown | Billing status | free, starter, power, pro or enterprise | Store updated |
+| free or paid within limit | Capture saves | within limit or exhausted | Server sum changes |
+| free or paid within limit | Capture would exceed | exhausted, save 402 | Local copy kept, sync parked |
+| paid exhausted | Calendar month changes | within limit | Server UTC month |
+| free exhausted | Lifetime rolls on | exhausted | No reset; upgrade is the way out |
+| free | Upgrade | starter or power | 10 or 25 hours a month |
+| starter or power or pro | Enterprise activation | enterprise | Shown as unlimited, hidden 1,000 hour ceiling |
+| starter or power or pro | Period ends | free | Next refresh |
 | any | Delete capture | usage unchanged | Ledger keeps minutes already spent |
 
 **Gaps**
@@ -430,7 +435,7 @@ enterprise, and enterprise is shown as unlimited.
 ## 15. Paywall and plan intent
 
 **Paywall:** closed or open (`Paywall.tsx:17`). **Plan intent:** absent,
-pending via `?plan=pro`, consumed.
+pending via `?plan=starter` or `?plan=power`, consumed.
 
 | From | Event | To | Effects |
 | --- | --- | --- | --- |
@@ -446,14 +451,14 @@ pending via `?plan=pro`, consumed.
 - Paywalls wait for `usage.loaded`, and Pro checks call `ensurePro()` before
   deciding (`usePlan`, `ensurePro` in `usageStore.ts`). A reload no longer
   flashes a paywall at a Pro user.
-- `?plan=pro` is removed with `history.replaceState` before the Paystack
-  redirect (`Account.tsx:117`), so Back lands on the account page and cannot
-  start a second checkout.
+- `?plan=starter` and `?plan=power` are removed with `history.replaceState`
+  before the Paystack redirect (`Account.tsx:117`), so Back lands on the account
+  page and cannot start a second checkout.
 
 **Gaps**
 
 - **P3, intent is URL-only for other entries.** Deep links that are not
-  `/account?plan=pro` still have no pending intent store.
+  `/account?plan=starter` or `?plan=power` still have no pending intent store.
 
 ## 16. Share link
 

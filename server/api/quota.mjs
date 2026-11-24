@@ -1,6 +1,7 @@
 import { getPool } from "./pg.mjs";
 import { planOf } from "./billing.mjs";
-import { planMonthlySeconds, usageSeconds, usageSnapshot } from "./usage.mjs";
+import { ENTERPRISE_PLAN_KEY, FREE_PLAN_KEY } from "./plan-keys.mjs";
+import { planMonthlySeconds, usageSeconds, usageSecondsSince, usageSnapshot } from "./usage.mjs";
 
 /**
  * Reserve and settle listening time.
@@ -17,18 +18,18 @@ export const MAX_RESERVATION_SECONDS = 4 * 3600;
 export const RESERVATION_TTL_MINUTES = 6 * 60;
 
 export function overLimitMessage(plan, limitSeconds, exhausted) {
-  if (plan === "enterprise") {
+  if (plan === ENTERPRISE_PLAN_KEY) {
     return "This workspace has used its listening time for this month. Your notes are still saved on this device.";
   }
-  if (plan === "pro") {
+  if (plan !== FREE_PLAN_KEY) {
     const hours = Math.max(1, Math.round(limitSeconds / 3600));
     return exhausted
-      ? `You have used the ${hours} hours included with Pro this month. It resets at the start of next month. Your notes are still saved on this device.`
-      : `This capture is longer than the Pro listening time you have left this month. Your notes are still saved on this device.`;
+      ? `You have used the ${hours} hours included with your plan this month. It resets at the start of next month. Your notes are still saved on this device.`
+      : "This capture is longer than the listening time you have left this month. Your notes are still saved on this device.";
   }
   return exhausted
-    ? "Your free listening minutes are finished for this month. Upgrade to Pro to keep listening. Your notes are still saved on this device."
-    : "This capture is longer than the free listening time you have left this month. Upgrade to Pro to keep listening. Your notes are still saved on this device.";
+    ? "Your 100 free listening minutes are finished. Upgrade to keep listening. Your notes are still saved on this device."
+    : "This capture is longer than the free listening time you have left. Upgrade to keep listening. Your notes are still saved on this device.";
 }
 
 /**
@@ -55,8 +56,13 @@ async function planRow(db, userId) {
   return result.rows[0] ?? null;
 }
 
+async function freeAllowanceStart(db, userId) {
+  const result = await db.query("select free_allowance_started_at from users where id = $1 limit 1", [userId]);
+  return result.rows[0]?.free_allowance_started_at ?? null;
+}
+
 async function poolFor(db, userId, plan) {
-  if (plan !== "enterprise") return null;
+  if (plan !== ENTERPRISE_PLAN_KEY) return null;
   const result = await db.query(
     `select o.id, o.pool_seconds
        from org_members m
@@ -85,8 +91,13 @@ export async function quotaScope(db, userId) {
       limitSeconds: pool.limitSeconds,
       unlimited: false,
       pooled: true,
+      lifetimeSince: null,
     };
   }
+  // Free minutes are a lifetime allowance. Paid plans keep the calendar-month
+  // window, which is what the quota message promises.
+  const lifetimeSince =
+    plan === FREE_PLAN_KEY ? ((await freeAllowanceStart(db, userId)) ?? new Date(0)) : null;
   return {
     userId,
     plan,
@@ -94,12 +105,14 @@ export async function quotaScope(db, userId) {
     scopeId: `user:${userId}`,
     limitSeconds: planMonthlySeconds(plan),
     // Enterprise keeps the hidden ceiling but presents as unlimited.
-    unlimited: plan === "enterprise",
+    unlimited: plan === ENTERPRISE_PLAN_KEY,
     pooled: false,
+    lifetimeSince,
   };
 }
 
 async function usedForScope(db, scope) {
+  if (scope.lifetimeSince != null) return usageSecondsSince(db, scope.userId, scope.lifetimeSince);
   if (!scope.pooled) return usageSeconds(db, scope.userId);
   const result = await db.query(
     `with bounds as (
@@ -149,14 +162,18 @@ export async function quotaState(db, userId, { excludeCaptureId = null } = {}) {
   await expireStale(db, scope);
   const used = await usedForScope(db, scope);
   const reserved = await reservedForScope(db, scope, excludeCaptureId);
-  const bounds = await db.query(
-    `select date_trunc('month', now()) as start_at,
-            date_trunc('month', now()) + interval '1 month' as end_at`,
-  );
+  let bounds = { start: scope.lifetimeSince, end: null };
+  if (scope.lifetimeSince === null) {
+    const month = await db.query(
+      `select date_trunc('month', now()) as start_at,
+              date_trunc('month', now()) + interval '1 month' as end_at`,
+    );
+    bounds = { start: month.rows[0]?.start_at, end: month.rows[0]?.end_at };
+  }
   const usage = usageSnapshot(
     used,
     { unlimited: scope.unlimited, limitSeconds: scope.limitSeconds },
-    { start: bounds.rows[0]?.start_at, end: bounds.rows[0]?.end_at },
+    bounds,
   );
   return {
     plan: scope.plan,

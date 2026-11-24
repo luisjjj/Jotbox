@@ -29,7 +29,9 @@ export default function Auth() {
   const [desktop] = useState(() => desktopBridge());
   const onDesktop = Boolean(desktop);
   const nextQuery = next.includes("?") ? new URLSearchParams(next.slice(next.indexOf("?") + 1)) : null;
-  const wantsPro = nextQuery?.get("plan") === "pro";
+  const planIntent = nextQuery?.get("plan");
+  const selectedPlan =
+    planIntent === "starter" ? "Starter Pro" : planIntent === "power" ? "Power User" : planIntent === "pro" ? "Pro" : null;
 
   useEffect(() => {
     if (!desktop || loading) return;
@@ -94,11 +96,11 @@ export default function Auth() {
 
   const form = (
     <>
-      {wantsPro && (
+      {selectedPlan && (
         <div className="mt-6 flex items-start gap-2 rounded-xl border border-accent/25 bg-accent-soft px-3 py-2.5">
           <Sparkles className="mt-0.5 h-3.5 w-3.5 flex-none text-accent" />
           <p className="text-[13px] leading-5 text-accent">
-            <span className="font-semibold">Pro selected.</span>{" "}
+            <span className="font-semibold">{selectedPlan} selected.</span>{" "}
             {mode === "login" ? "Sign in" : "Create your account"} and we will take you to Paystack to finish the payment.
           </p>
         </div>
@@ -234,7 +236,7 @@ export default function Auth() {
             <Link to="/privacy" className="font-medium text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent">
               Privacy Policy
             </Link>
-            . Pro subscriptions are also covered by the{" "}
+            . Paid subscriptions are also covered by the{" "}
             <Link to="/refunds" className="font-medium text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent">
               Cancellation and Refund Policy
             </Link>

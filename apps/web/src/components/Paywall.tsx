@@ -10,8 +10,8 @@ const naira = new Intl.NumberFormat("en-NG", {
 });
 
 function priceLine(usd: number | null, nairaAmount: number | null) {
-  if (nairaAmount) return `${naira.format(nairaAmount)} a month, about $${usd ?? 5}.`;
-  return `$${usd ?? 5} a month.`;
+  if (nairaAmount) return `${naira.format(nairaAmount)} a month, about $${usd ?? 7}.`;
+  return `$${usd ?? 7} a month.`;
 }
 
 export function PaywallDialog({
@@ -34,9 +34,10 @@ export function PaywallDialog({
             <Sparkles className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-[14.5px] font-medium text-ink">Pro opens this up</p>
+            <p className="text-[14.5px] font-medium text-ink">Starter Pro opens this up</p>
             <p className="mt-0.5 text-[13.5px] leading-5 text-soft">
-              {priceLine(pricing?.usd ?? null, pricing?.naira ?? null)} Everything on the free plan stays yours.
+              {priceLine(pricing?.starter.usd ?? null, pricing?.starter.naira ?? null)} Everything on the free plan
+              stays yours.
             </p>
           </div>
         </div>
@@ -45,7 +46,7 @@ export function PaywallDialog({
             Not now
           </button>
           <Link to="/account" className="btn btn-primary" onClick={onClose}>
-            See Pro
+            See plans
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -72,10 +73,10 @@ export function PaywallPanel({
       <h2 className="mt-3 max-w-[24ch] text-[19px] font-semibold tracking-[-0.02em] text-ink">{title}</h2>
       <p className="mt-1.5 max-w-[42ch] text-[14.5px] leading-6 text-muted">{description}</p>
       <p className="mt-2 text-[12.5px] text-faint">
-        {priceLine(pricing?.usd ?? null, pricing?.naira ?? null)} Cancel anytime.
+        {priceLine(pricing?.starter.usd ?? null, pricing?.starter.naira ?? null)} Cancel anytime.
       </p>
       <Link to="/account" className="btn btn-primary mt-4">
-        See Pro
+        See plans
         <ArrowRight className="h-3.5 w-3.5" />
       </Link>
     </section>

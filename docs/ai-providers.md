@@ -15,7 +15,7 @@ This guide covers the provider chain already wired into `/api/transcribe` and
 
 Scribe reads every plan, every session shape, and both passes: the live captions,
 cut about every five seconds at a gap in speech, and the final full recording.
-Speaker labels are requested only on Pro and Enterprise meetings; free captures
+Speaker labels are requested only on paid meetings; free captures
 and every lecture, seminar and voice note are read without labels. Live chunks
 never ask for labels because a short chunk cannot carry speaker ids that line up
 with the next one.
@@ -38,7 +38,7 @@ The prompts preserve Nigerian Pidgin and tone: Pidgin lines stay as they were sa
 and are quoted inside otherwise clear English notes; names, amounts, dates, and
 decisions stay exact. Scribe does not list Nigerian Pidgin as a language, so
 Pidgin requests are sent without a language code and the model auto-detects the
-English/Pidgin mix. Name accuracy on free and Pro comes from the transcript and
+English/Pidgin mix. Name accuracy on free and paid plans comes from the transcript and
 the naming pass, not from a prompt. Enterprise meetings also send the
 organisation glossary to Scribe as keyterms.
 
@@ -70,8 +70,8 @@ labels and keyterms stay an Enterprise feature.
 
 Notes:
 
-- `model_id=scribe_v3` is requested with word timestamps. Meetings on Pro and
-  Enterprise add `diarize=true`; free captures and every lecture, seminar and
+- `model_id=scribe_v3` is requested with word timestamps. Meetings on a paid plan
+  add `diarize=true`; free captures and every lecture, seminar and
   voice note are read without labels. The app maps Scribe speaker ids to
   `Speaker 1`, `Speaker 2`, then the existing naming pass assigns real names.
 - `keyterms` are sent only on Enterprise, built from the organisation glossary,
@@ -335,7 +335,7 @@ XAI_NOTES_MODEL=grok-4.7
 Routing:
 
 1. Speech → ElevenLabs Scribe v3 for live chunks and the full recording when its
-   key is set. Speaker labels are asked for only on Pro and Enterprise meetings.
+   key is set. Speaker labels are asked for only on paid meetings.
    Without Scribe, Groq (`/openai/v1/audio/transcriptions`) reads the audio,
    then the Speaches worker. If a fallback provider is not configured or fails,
    the gateway tries the next one, then xAI.
@@ -392,7 +392,7 @@ context controls instead. They are already wired into `/api/transcribe`:
 | Model | `GROQ_STT_MODEL`, `XAI_STT_MODEL` | `whisper-large-v3` is more accurate than `turbo` on accented, noisy rooms; `turbo` is faster and cheaper |
 | Live model | `GROQ_LIVE_STT_MODEL` | The Groq model used for live chunks only when Scribe is not configured. Defaults to `whisper-large-v3-turbo` because it trades accuracy for latency. Scribe reads live chunks otherwise |
 | Language | `JOTBOX_STT_LANGUAGE` | `en` is correct for English **and** Nigerian Pidgin, because Pidgin is English-lexified. `auto` omits the language token and lets the model guess; use it only for genuinely other-language meetings |
-| Vocabulary | `JOTBOX_STT_VOCAB` | Comma, semicolon, or newline separated names, places, products and Pidgin spellings. On Groq and the worker the gateway adds them to the speech prompt, which biases spelling without changing the audio. Scribe receives them only on Enterprise meetings, as keyterms; free and Pro send none |
+| Vocabulary | `JOTBOX_STT_VOCAB` | Comma, semicolon, or newline separated names, places, products and Pidgin spellings. On Groq and the worker the gateway adds them to the speech prompt, which biases spelling without changing the audio. Scribe receives them only on Enterprise meetings, as keyterms; free and Starter or Power send none |
 | Prompt | `JOTBOX_STT_PROMPT` | Replaces the built-in verbatim/Pidgin prompt sent to Groq and the worker. Scribe takes no prompt, so this does not affect it. Leave unset unless you have a specific reason |
 | Temperature | fixed at `0` | Keeps transcription deterministic and discourages the model from "tidying" Pidgin |
 | Noise cut | `JOTBOX_STT_NO_SPEECH`, `JOTBOX_STT_LOGPROB`, `JOTBOX_STT_COMPRESSION` | Segment-level confidence thresholds on Groq and the worker. Segments above the no-speech cut, below the log-probability cut, or with an unusually high compression ratio are dropped before the words reach the notes. Defaults are `0.65`, `-1` and `2.4` |
@@ -435,7 +435,7 @@ Keep the vocabulary under about 60 terms when Scribe is absent. Groq's prompt
 is a short context hint, not a dictionary; a long list crowds out the actual
 audio context. It is also the right place for Nigerian names, towns and
 workplace acronyms that the room shortens in speech. With Scribe configured,
-free and Pro input does not use this list; Enterprise meetings send the same
+free and Starter or Power input does not use this list; Enterprise meetings send the same
 names as keyterms, capped at 100.
 
 Groq rejects a speech prompt longer than **896 characters** with

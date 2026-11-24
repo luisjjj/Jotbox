@@ -18,11 +18,11 @@ import { useAuth } from "@/auth/AuthProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { IntegrationsCard } from "@/components/IntegrationsCard";
 import { requestCloudSync } from "@/components/CloudSync";
-import { api, type BillingStatus, type CloudUser } from "@/lib/api";
+import { api, type BillingStatus, type CloudUser, type PurchasePlan } from "@/lib/api";
 import { formatAllowance } from "@/lib/format";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
-import { useUsage } from "@/lib/usageStore";
+import { isPaidPlan, planName, useUsage } from "@/lib/usageStore";
 
 function initialsFor(user: CloudUser) {
   const source = user.name.trim() || user.email;
@@ -91,7 +91,7 @@ function planNote(status: BillingStatus["subscription"]): string {
   }
   if (status.status === "cancelled") {
     return status.nextPaymentAt
-      ? `Pro stays on until ${format(status.nextPaymentAt, "d MMM yyyy")}. It will not renew.`
+      ? `Your plan stays on until ${format(status.nextPaymentAt, "d MMM yyyy")}. It will not renew.`
       : "This plan has ended.";
   }
   return "This plan has ended.";
@@ -113,11 +113,13 @@ function PlanCard() {
     const params = new URLSearchParams(window.location.search);
     const reference = params.get("reference") || params.get("trxref") || "";
     const returning = params.get("billing") === "callback" || Boolean(reference);
-    const wantsPro = params.get("plan") === "pro";
+    const planParam = params.get("plan");
+    const wantedTier: PurchasePlan | null =
+      planParam === "starter" || planParam === "power" ? planParam : null;
 
     // Consume the plan intent before redirecting to Paystack. Pressing Back must
     // land on the account page, not start a second checkout.
-    if (wantsPro) {
+    if (planParam) {
       const next = new URL(window.location.href);
       next.searchParams.delete("plan");
       window.history.replaceState(window.history.state, "", `${next.pathname}${next.search}${next.hash}`);
@@ -129,8 +131,8 @@ function PlanCard() {
           const result = await api.verifyCheckout(reference);
           setBilling(result);
           useUsage.getState().applyStatus(result);
-          if (result.payment === "success" && result.plan === "pro") {
-            toast.success("Pro is active. Thank you.");
+          if (result.payment === "success" && isPaidPlan(result.plan)) {
+            toast.success(`${planName(result.plan)} is active. Thank you.`);
           } else {
             toast.error("That payment was not completed.");
           }
@@ -139,10 +141,10 @@ function PlanCard() {
           setBilling(result);
           useUsage.getState().applyStatus(result);
           if (returning) toast("No payment was made.");
-          if (wantsPro && !returning && result.plan === "free" && result.configured) {
+          if (wantedTier && !returning && result.plan === "free" && result.configured) {
             setBusy(true);
             try {
-              const session = await api.startCheckout();
+              const session = await api.startCheckout(wantedTier);
               window.location.assign(session.authorizationUrl);
               return;
             } catch (checkoutError) {
@@ -168,11 +170,11 @@ function PlanCard() {
     void load();
   }, [navigate]);
 
-  const upgrade = async () => {
+  const upgrade = async (tier: PurchasePlan) => {
     setBusy(true);
     setError(null);
     try {
-      const session = await api.startCheckout();
+      const session = await api.startCheckout(tier);
       window.location.assign(session.authorizationUrl);
     } catch (upgradeError) {
       const message = errorText(upgradeError);
@@ -188,7 +190,7 @@ function PlanCard() {
     setError(null);
     try {
       setBilling(await api.cancelSubscription());
-      toast.success("Renewal stopped. You keep Pro until the period ends.");
+      toast.success(`Renewal stopped. You keep ${planName(plan)} until the period ends.`);
     } catch (cancelError) {
       const message = errorText(cancelError);
       setError(message);
@@ -205,7 +207,7 @@ function PlanCard() {
       const result = await api.reconcileBilling();
       setBilling(result);
       useUsage.getState().applyStatus(result);
-      toast.success(result.plan === "pro" ? "Pro is active." : "Checked with Paystack. Nothing new yet.");
+      toast.success(result.plan !== "free" ? `${planName(result.plan)} is active.` : "Checked with Paystack. Nothing new yet.");
     } catch (checkError) {
       const message = errorText(checkError);
       setError(message);
@@ -216,11 +218,16 @@ function PlanCard() {
   };
 
   const plan = billing?.plan ?? "free";
-  const paid = plan === "pro" || plan === "enterprise";
+  const paid = isPaidPlan(plan);
   const enterprise = plan === "enterprise";
   const status = billing?.subscription ?? null;
-  const canCancel = plan === "pro" && status?.status === "active";
-  const price = billing ? naira.format(billing.pricing.naira) : "";
+  const canCancel = (plan === "starter" || plan === "power" || plan === "pro") && status?.status === "active";
+  const tierPricing =
+    plan === "starter" || plan === "pro"
+      ? billing?.pricing.starter
+      : plan === "power"
+        ? billing?.pricing.power
+        : null;
   const usage = billing?.usage ?? null;
   const left = usage && !usage.unlimited ? usage.remainingSeconds : null;
   const limitMinutes = usage?.limitSeconds ? Math.max(1, Math.round(usage.limitSeconds / 60)) : null;
@@ -236,8 +243,8 @@ function PlanCard() {
       : paid
         ? status
           ? planNote(status)
-          : "Pro is active."
-        : `Free covers ${limitMinutes ?? 100} minutes a month, and every note stays yours.`;
+          : `${planName(plan)} is active.`
+        : `Free includes ${limitMinutes ?? 100} listening minutes, once, and every note stays yours.`;
 
   return (
     <>
@@ -257,7 +264,7 @@ function PlanCard() {
                       : "chip border-line text-muted"
                   }
                 >
-                  {enterprise ? "Enterprise" : paid ? "Pro" : loading ? "Checking" : "Free"}
+                  {loading ? "Checking" : planName(plan)}
                 </span>
               </div>
               <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-muted">{summary}</p>
@@ -271,24 +278,28 @@ function PlanCard() {
                   </div>
                   <p className="mt-1 text-[12.5px] leading-4 text-faint">
                     {left <= 0
-                      ? plan === "pro"
-                        ? "Pro listening is finished for this month. It resets at the start of next month."
-                        : "Free minutes are finished for this month. Pro lifts the cap."
-                      : `${formatAllowance(left)} left of ${formatAllowance(usage?.limitSeconds ?? 0)} this month.`}
+                      ? paid
+                        ? `${planName(plan)} listening is finished for this month. It resets at the start of next month.`
+                        : "Your free minutes are finished. Starter Pro and Power User unlock more listening."
+                      : paid
+                        ? `${formatAllowance(left)} left of ${formatAllowance(usage?.limitSeconds ?? 0)} this month.`
+                        : `${formatAllowance(left)} of free listening left.`}
                   </p>
                 </div>
               )}
               {billing && enterprise && (
                 <p className="mt-1 text-[12.5px] text-faint">Enterprise plan. Billed per seat each month.</p>
               )}
-              {billing && plan === "pro" && (
+              {billing && tierPricing && (
                 <p className="mt-1 text-[12.5px] text-faint">
-                  {price} a month. Billed in {billing.pricing.currency === "NGN" ? "Naira" : billing.pricing.currency}.
+                  {naira.format(tierPricing.naira)} a month, about ${tierPricing.usd}. Billed in{" "}
+                  {billing.pricing.currency === "NGN" ? "Naira" : billing.pricing.currency}.
                 </p>
               )}
               {billing && !paid && (
-                <p className="mt-1 text-[12.5px] text-faint">
-                  Pro is {price} a month, about ${billing.pricing.usd}. Billed in{" "}
+                <p className="mt-1 text-[12.5px] leading-4 text-faint">
+                  Starter Pro is {naira.format(billing.pricing.starter.naira)} a month, Power User is{" "}
+                  {naira.format(billing.pricing.power.naira)}. Billed in{" "}
                   {billing.pricing.currency === "NGN" ? "Naira" : billing.pricing.currency}.
                 </p>
               )}
@@ -298,15 +309,25 @@ function PlanCard() {
           {!loading && billing && (
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               {!paid && (
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm w-full sm:w-auto"
-                  onClick={() => void upgrade()}
-                  disabled={busy || !billing.configured}
-                >
-                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
-                  Upgrade to Pro
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm w-full sm:w-auto"
+                    onClick={() => void upgrade("starter")}
+                    disabled={busy || !billing.configured}
+                  >
+                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                    Upgrade to Starter Pro
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-line btn-sm w-full sm:w-auto"
+                    onClick={() => void upgrade("power")}
+                    disabled={busy || !billing.configured}
+                  >
+                    Upgrade to Power
+                  </button>
+                </>
               )}
               {canCancel && (
                 <button
@@ -345,8 +366,8 @@ function PlanCard() {
         {billing && !billing.configured && !paid && (
           <div className="mt-4 rounded-xl border border-line bg-raised-2 p-3.5">
             <p className="text-[13.5px] leading-5 text-soft">
-              Payments are not switched on yet. Your free plan keeps working, and Pro will appear here once it is
-              ready.
+              Payments are not switched on yet. Your free plan keeps working, and paid plans will appear here once
+              they are ready.
             </p>
           </div>
         )}
@@ -380,8 +401,8 @@ function PlanCard() {
 
       <ConfirmDialog
         open={confirmCancel}
-        title="Stop your Pro renewal?"
-        description="You keep Pro until the end of the period you already paid for. After that, the free plan takes over and your notes stay yours."
+        title={`Stop your ${planName(plan)} renewal?`}
+        description="You keep your plan until the end of the period you already paid for. After that, the free plan takes over and your notes stay yours."
         confirmLabel="Stop renewal"
         tone="danger"
         onConfirm={() => void stopRenewal()}

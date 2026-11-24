@@ -7,20 +7,37 @@ import {
   eventTime,
   isEntitled,
   planOf,
+  planKeyForCharge,
   subscriptionView,
-  validProCharge,
+  validPaidCharge,
   verifyWebhookSignature,
 } from "../server/api/billing.mjs";
 import { PRO_SHARE_DAYS, PRO_SHARE_LINKS, FREE_SHARE_DAYS, FREE_SHARE_LINKS, shareLimits } from "../server/api/limits.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 
-test("Pro defaults to $7 converted into Naira kobo", () => {
+test("Starter defaults to $7 and Power to $16, converted into Naira kobo", () => {
   const config = billingConfig({});
   assert.equal(config.usd, 7);
   assert.equal(config.ngnPerUsd, 1400);
   assert.equal(config.naira, 9_800);
   assert.equal(config.amountKobo, 980_000);
+  assert.deepEqual(config.tiers.starter, {
+    key: "starter",
+    label: "Starter Pro",
+    usd: 7,
+    naira: 9_800,
+    amountKobo: 980_000,
+    planCode: "",
+  });
+  assert.deepEqual(config.tiers.power, {
+    key: "power",
+    label: "Power User",
+    usd: 16,
+    naira: 22_400,
+    amountKobo: 2_240_000,
+    planCode: "",
+  });
   assert.equal(config.currency, "NGN");
   assert.equal(config.interval, "monthly");
   assert.equal(config.configured, false);
@@ -104,6 +121,37 @@ test("planOf sends unpaid or unknown rows to free", () => {
   assert.equal(
     planOf({ plan_key: "pro", status: "active", started_at: new Date(now - DAY).toISOString() }, now),
     "pro",
+  );
+  assert.equal(
+    planOf({ plan_key: "starter", status: "active", started_at: new Date(now - DAY).toISOString() }, now),
+    "starter",
+  );
+  assert.equal(
+    planOf({ plan_key: "power", status: "active", started_at: new Date(now - DAY).toISOString() }, now),
+    "power",
+  );
+});
+
+test("a legacy Pro row is not downgraded by a charge plan code", () => {
+  const config = billingConfig({ PAYSTACK_PLAN_CODE: "PLN_starter", PAYSTACK_POWER_PLAN_CODE: "PLN_power" });
+  const existing = { plan_key: "pro", plan_code: "PLN_legacy" };
+  const checkout = { plan_key: "starter", plan_code: "PLN_starter" };
+
+  assert.equal(
+    planKeyForCharge({ metadata: {}, checkout: null, existing, chargePlanCode: "PLN_starter", config }),
+    "pro",
+  );
+  assert.equal(
+    planKeyForCharge({ metadata: {}, checkout, existing, chargePlanCode: "PLN_starter", config }),
+    "starter",
+  );
+  assert.equal(
+    planKeyForCharge({ metadata: {}, checkout: null, existing: null, chargePlanCode: "PLN_power", config }),
+    "power",
+  );
+  assert.equal(
+    planKeyForCharge({ metadata: {}, checkout: null, existing: null, chargePlanCode: "PLN_unknown", config }),
+    null,
   );
 });
 
@@ -200,10 +248,10 @@ test("a charge is checked against the price quoted at checkout, not the current 
   };
   const checkout = { amount: 800_000, currency: "NGN", plan_code: "PLN_pro" };
 
-  assert.equal(validProCharge(transaction, { config, existing: null, planCode: "PLN_pro" }), false);
-  assert.equal(validProCharge(transaction, { config, existing: null, planCode: "PLN_pro", checkout }), true);
+  assert.equal(validPaidCharge(transaction, { config, existing: null, planCode: "PLN_pro" }), false);
+  assert.equal(validPaidCharge(transaction, { config, existing: null, planCode: "PLN_pro", checkout }), true);
   assert.equal(
-    validProCharge(
+    validPaidCharge(
       { ...transaction, amount: 500_000 },
       { config, existing: null, planCode: "PLN_pro", checkout },
     ),
@@ -221,18 +269,50 @@ test("a charge must match the quoted amount to the kobo", () => {
     metadata: { plan_key: "pro" },
   });
 
-  assert.equal(validProCharge(charge(800_000), { config, existing: null, planCode: "PLN_pro", checkout }), true);
-  assert.equal(validProCharge(charge(800_001), { config, existing: null, planCode: "PLN_pro", checkout }), false);
-  assert.equal(validProCharge(charge(799_999), { config, existing: null, planCode: "PLN_pro", checkout }), false);
+  assert.equal(validPaidCharge(charge(800_000), { config, existing: null, planCode: "PLN_pro", checkout }), true);
+  assert.equal(validPaidCharge(charge(800_001), { config, existing: null, planCode: "PLN_pro", checkout }), false);
+  assert.equal(validPaidCharge(charge(799_999), { config, existing: null, planCode: "PLN_pro", checkout }), false);
   assert.equal(
-    validProCharge(charge(800_000), { config, existing: null, planCode: "PLN_pro", checkout: { ...checkout, currency: "GHS" } }),
+    validPaidCharge(charge(800_000), { config, existing: null, planCode: "PLN_pro", checkout: { ...checkout, currency: "GHS" } }),
     false,
   );
   assert.equal(
-    validProCharge(
+    validPaidCharge(
       { ...charge(800_000), plan: { plan_code: "PLN_other" } },
       { config, existing: null, planCode: "PLN_pro", checkout },
     ),
+    false,
+  );
+});
+
+test("a Power checkout takes the Power price, not the Starter price", () => {
+  const config = billingConfig({});
+  const checkout = { amount: 2_240_000, currency: "NGN", plan_code: "PLN_power" };
+  const charge = (amount) => ({
+    status: "success",
+    amount,
+    currency: "NGN",
+    metadata: { plan_key: "power" },
+  });
+
+  assert.equal(
+    validPaidCharge(charge(2_240_000), {
+      config,
+      existing: null,
+      planCode: "PLN_power",
+      checkout,
+      tier: config.power,
+    }),
+    true,
+  );
+  assert.equal(
+    validPaidCharge(charge(980_000), {
+      config,
+      existing: null,
+      planCode: "PLN_power",
+      checkout,
+      tier: config.power,
+    }),
     false,
   );
 });

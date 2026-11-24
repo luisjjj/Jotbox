@@ -120,12 +120,12 @@ test("partner invite carries both links and the commission share", async () => {
   assert.match(body.text, /Hi Cephas Omorogbe/);
   assert.match(body.text, /https:\/\/www\.jotbox\.online\/r\/cephas/);
   assert.match(body.text, /https:\/\/www\.jotbox\.online\/partner\/token123/);
-  assert.match(body.text, /20% of every Pro payment/);
+  assert.match(body.text, /20% of every paid plan payment/);
   assert.match(body.html, /Open your dashboard/);
   assert.match(body.html, /apple-touch-icon\.png/);
 });
 
-test("renewal reminder names the date, the charge and the period key", async () => {
+test("renewal reminder names the date, the charge and the plan", async () => {
   const result = await sendRenewalReminderEmail(
     { id: "user-1", email: "ada@example.com", name: "Ada Lovelace" },
     { amount: 980_000, currency: "NGN", nextPaymentAt: "2026-12-01T10:00:00.000Z" },
@@ -134,11 +134,28 @@ test("renewal reminder names the date, the charge and the period key", async () 
   assert.equal(result.delivered, true);
   const { init, body } = calls[0];
   assert.equal(init.headers["Idempotency-Key"], `renewal-user-1-${new Date("2026-12-01T10:00:00.000Z").getTime()}`);
-  assert.match(body.subject, /Ada Lovelace, JotBox Pro renews on 1 December 2026/);
+  assert.match(body.subject, /Ada Lovelace, JotBox Starter Pro renews on 1 December 2026/);
   assert.match(body.text, /Hi Ada Lovelace/);
   assert.match(body.text, /9,800/);
   assert.match(body.text, /cancel before 1 December 2026/);
   assert.match(body.html, /Manage your plan/);
+});
+
+test("a legacy Pro renewal keeps its own label and allowance", async () => {
+  const result = await sendRenewalReminderEmail(
+    { id: "user-2", email: "grace@example.com", name: "Grace Hopper" },
+    {
+      amount: 980_000,
+      currency: "NGN",
+      nextPaymentAt: "2026-12-01T10:00:00.000Z",
+      planKey: "pro",
+    },
+  );
+
+  assert.equal(result.delivered, true);
+  const { body } = calls[0];
+  assert.match(body.subject, /JotBox Pro renews on 1 December 2026/);
+  assert.match(body.text, /20 hours/);
 });
 
 test("founder note is personal, mentions usage and sets reply-to", async () => {
