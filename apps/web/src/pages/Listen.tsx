@@ -6,7 +6,6 @@ import {
   AudioLines,
   CalendarDays,
   Check,
-  FileAudio,
   Loader2,
   Megaphone,
   Mic,
@@ -23,7 +22,6 @@ import {
   UserRound,
   Users,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -103,44 +101,6 @@ function KindSelector({ kind, onChange }: { kind: SessionKind; onChange: (kind: 
     </div>
   );
 }
-
-function SourceCard({
-  Icon,
-  title,
-  body,
-  action,
-  note,
-  onClick,
-  busy,
-  disabled,
-}: {
-  Icon: LucideIcon;
-  title: string;
-  body: string;
-  action: string;
-  note: string;
-  onClick: () => void;
-  busy: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="card flex flex-col p-4 sm:p-5">
-      <div className="flex items-start justify-between">
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
-          <Icon className="h-5 w-5" strokeWidth={1.8} />
-        </span>
-        <span className="chip text-[12px]">{note}</span>
-      </div>
-      <h3 className="mt-4 text-[17px] font-semibold tracking-[-0.02em] text-ink">{title}</h3>
-      <p className="mt-1.5 flex-1 text-[14.5px] leading-5 text-muted">{body}</p>
-      <button type="button" className="btn btn-line mt-4 w-full justify-between" onClick={onClick} disabled={busy || disabled}>
-        <span>{busy ? "Opening…" : action}</span>
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-      </button>
-    </div>
-  );
-}
-
 
 function Roster({
   people,
@@ -328,182 +288,6 @@ function Setup() {
             </div>
           )}
 
-          <div className="space-y-5">
-        <div>
-          <p className="label">Session type</p>
-          <KindSelector kind={kind} onChange={setKind} />
-        </div>
-
-        <div>
-          <label className="label" htmlFor="capture-title">
-            Name it <span className="font-normal text-faint">(optional)</span>
-          </label>
-          <input
-            id="capture-title"
-            className="field"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder={`e.g. ${kind === "lecture" ? "Constitutional law, Thursday" : kind === "seminar" ? "Climate policy panel" : kind === "voice" ? "Idea for the onboarding flow" : "Weekly product sync"}`}
-            autoComplete="off"
-            maxLength={120}
-          />
-          {prefillTitle && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-faint">
-              <CalendarDays className="h-3 w-3 flex-none" />
-              Prefilled from your calendar.
-            </p>
-          )}
-        </div>
-
-        <PreMeetingBrief
-          title={title}
-          kind={kind}
-          onStart={outOfTime || busy || uploading ? undefined : () => void launch("mic")}
-        />
-
-        <Roster people={people} onChange={setPeople} />
-
-        <div className="rounded-xl border border-line bg-raised p-3.5">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-accent" />
-            <p className="text-[14.5px] font-medium text-ink">Listening</p>
-          </div>
-          <div className="mt-3 grid gap-3.5 sm:grid-cols-2">
-            <div>
-              <p className="label">Session focus</p>
-              <div className="seg mt-1.5 w-full">
-                {FOCUS_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
-                    data-active={focus === option.value}
-                    onClick={() => {
-                      setFocus(option.value);
-                      setFocusMode(option.value);
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
-                {FOCUS_OPTIONS.find((option) => option.value === focus)?.hint}
-              </p>
-            </div>
-            <div>
-              <p className="label">Pickup</p>
-              <div className="seg mt-1.5 w-full">
-                {PICKUP_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
-                    data-active={pickup === option.value}
-                    onClick={() => {
-                      setPickup(option.value);
-                      setPickupMode(option.value);
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
-                {PICKUP_OPTIONS.find((option) => option.value === pickup)?.hint}
-              </p>
-            </div>
-            <div className="sm:col-span-2">
-              <p className="label">Language</p>
-              <Select
-                className="mt-1.5 w-full sm:max-w-[300px]"
-                value={language}
-                onChange={(value) => {
-                  const next = value as SessionLanguage;
-                  setLanguage(next);
-                  setSessionLanguage(next);
-                }}
-                options={LANGUAGE_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                  disabled:
-                    option.value === "ig" && sttLanguages !== null && !sttLanguages.includes("ig"),
-                }))}
-                aria-label="Session language"
-              />
-              <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
-                {sttLanguages !== null && !sttLanguages.includes(language)
-                  ? "The Igbo reader is not connected on this server yet. Pick another language for now."
-                  : LANGUAGE_OPTIONS.find((option) => option.value === language)?.hint}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <p className="label">How should JotBox hear it?</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <SourceCard
-              Icon={Mic}
-              title="In the room"
-              body="Your microphone picks up a meeting, lecture, or seminar. Best for one room and one speaker at a time."
-              action="Use the microphone"
-              note="Mic"
-              onClick={() => void launch("mic")}
-              busy={busy === "mic"}
-              disabled={Boolean(busy) || uploading || outOfTime}
-            />
-            <SourceCard
-              Icon={MonitorUp}
-              title="On a call or a tab"
-              body={
-                onDesktop
-                  ? "Choose the Meet, Zoom, or Teams window. JotBox records the call's sound and mixes in your microphone when you speak."
-                  : "Share a Meet, Zoom, or Teams tab. JotBox records the tab's audio and mixes in your microphone when you speak."
-              }
-              action={onDesktop ? "Share a call" : canShare ? "Share a tab" : "Use a computer"}
-              note="Call audio"
-              onClick={() => void launch("tab")}
-              busy={busy === "tab"}
-              disabled={!canShare || Boolean(busy) || uploading || outOfTime}
-            />
-          </div>
-          {!canShare && (
-            <p className="mt-2 text-[13px] leading-5 text-faint">
-              Sharing a call tab needs a computer. On a phone, use the microphone.
-            </p>
-          )}
-          {studio === false && (
-            <p className="mt-2 text-[13px] leading-5 text-faint">
-              Automatic words are not turned on for this workspace, so call and uploaded audio is saved but not written
-              out. The microphone still shows live words, and you can paste the words after the session.
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-raised px-3.5 py-2.5">
-          <p className="flex items-center gap-2 text-[13px] leading-5 text-muted">
-            <Megaphone className="h-3.5 w-3.5 flex-none text-brass" />
-            Recording other people? Read them a short notice first.
-          </p>
-          <button type="button" className="btn btn-line btn-sm" onClick={() => setNoticeOpen(true)}>
-            Open notice
-          </button>
-        </div>
-
-        <div className="card-quiet flex flex-col items-start justify-between gap-3 p-4 sm:flex-row sm:items-center">
-          <div className="flex items-start gap-3">
-            <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-raised text-muted">
-              <FileAudio className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="text-[15px] font-medium text-ink">Already have a recording?</p>
-              <p className="mt-0.5 text-[13.5px] leading-5 text-muted">
-                {APP_CONFIG.supportedAudioExtensions.join(" ").toUpperCase()} · up to 80 MB.{" "}
-                {studio === false ? "Automatic words are off. You can paste them afterwards." : ""}
-              </p>
-            </div>
-          </div>
           <input
             ref={fileRef}
             type="file"
@@ -511,37 +295,201 @@ function Setup() {
             className="sr-only"
             onChange={(event) => void onFile(event)}
           />
-          <button
-            type="button"
-            className="btn btn-line w-full flex-none sm:w-auto"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading || Boolean(busy) || status === "processing" || outOfTime}
-          >
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            {uploading ? "Reading…" : "Upload audio"}
-          </button>
-        </div>
 
-        <div className="flex items-start gap-2 rounded-xl border border-line bg-raised-2 px-3.5 py-3">
-          <Pin className="mt-0.5 h-3.5 w-3.5 flex-none text-faint" />
-          <p className="text-[13.5px] leading-5 text-muted">
-            {onDesktop ? (
-              <>
-                JotBox floats above your other apps in its island. Start here, then hover the island to pause or stop.
-              </>
-            ) : (
-              <>
-                Need to keep working? Start here, then{" "}
-                <Link to="/float" className="font-medium text-ink underline decoration-line-strong underline-offset-2">
-                  pin the pill
-                </Link>{" "}
-                above your other apps.
-              </>
-            )}{" "}
-            Audio is stored on this device. When JotBox writes the words for you, the recording is sent only for that
-            session.
-          </p>
-        </div>
+          <div className="mb-5 rounded-2xl border border-accent/25 bg-accent-soft p-3.5 sm:p-4 xl:sticky xl:top-9 xl:z-10">
+            <button
+              type="button"
+              className="btn btn-primary min-h-[3.5rem] w-full rounded-xl text-[17px] tracking-[-0.02em]"
+              onClick={() => void launch("mic")}
+              disabled={Boolean(busy) || uploading || outOfTime}
+            >
+              {busy === "mic" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+              {busy === "mic" ? "Opening the microphone…" : "Start recording"}
+            </button>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                className="btn btn-line w-full"
+                onClick={() => void launch("tab")}
+                disabled={!canShare || Boolean(busy) || uploading || outOfTime}
+              >
+                {busy === "tab" ? <Loader2 className="h-4 w-4 animate-spin" /> : <MonitorUp className="h-4 w-4" />}
+                {busy === "tab" ? "Opening…" : onDesktop ? "Share a call" : canShare ? "Share a tab" : "Use a computer"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-line w-full"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading || Boolean(busy) || status === "processing" || outOfTime}
+              >
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {uploading ? "Reading…" : "Upload audio"}
+              </button>
+            </div>
+            <p className="mt-2 text-center text-[12.5px] leading-4 text-muted">
+              {outOfTime
+                ? "This month's listening is used up. Your plan resets at the start of next month."
+                : `Starts a ${KIND_META[kind].label.toLowerCase()} with the microphone. Change the shape below before you start.`}
+            </p>
+            <p className="mt-1 text-center text-[12px] leading-4 text-faint">
+              {APP_CONFIG.supportedAudioExtensions.join(" ").toUpperCase()} for uploads, up to 80 MB.
+            </p>
+          </div>
+
+          {(!canShare || studio === false) && (
+            <div className="mb-5 space-y-1.5 text-[13px] leading-5 text-faint">
+              {!canShare && <p>Sharing a call tab needs a computer. On a phone, use the microphone.</p>}
+              {studio === false && (
+                <p>
+                  Automatic words are not turned on for this workspace, so call and uploaded audio is saved but not written
+                  out. The microphone still shows live words, and you can paste the words after the session.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-5">
+            <div>
+              <p className="label">Session type</p>
+              <KindSelector kind={kind} onChange={setKind} />
+            </div>
+
+            <div>
+              <label className="label" htmlFor="capture-title">
+                Name it <span className="font-normal text-faint">(optional)</span>
+              </label>
+              <input
+                id="capture-title"
+                className="field"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={`e.g. ${kind === "lecture" ? "Constitutional law, Thursday" : kind === "seminar" ? "Climate policy panel" : kind === "voice" ? "Idea for the onboarding flow" : "Weekly product sync"}`}
+                autoComplete="off"
+                maxLength={120}
+              />
+              {prefillTitle && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-faint">
+                  <CalendarDays className="h-3 w-3 flex-none" />
+                  Prefilled from your calendar.
+                </p>
+              )}
+            </div>
+
+            <PreMeetingBrief
+              title={title}
+              kind={kind}
+              onStart={outOfTime || busy || uploading ? undefined : () => void launch("mic")}
+            />
+
+            <Roster people={people} onChange={setPeople} />
+
+            <div className="rounded-xl border border-line bg-raised p-3.5">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-accent" />
+                <p className="text-[14.5px] font-medium text-ink">Listening</p>
+              </div>
+              <div className="mt-3 grid gap-3.5 sm:grid-cols-2">
+                <div>
+                  <p className="label">Session focus</p>
+                  <div className="seg mt-1.5 w-full">
+                    {FOCUS_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
+                        data-active={focus === option.value}
+                        onClick={() => {
+                          setFocus(option.value);
+                          setFocusMode(option.value);
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
+                    {FOCUS_OPTIONS.find((option) => option.value === focus)?.hint}
+                  </p>
+                </div>
+                <div>
+                  <p className="label">Pickup</p>
+                  <div className="seg mt-1.5 w-full">
+                    {PICKUP_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className="seg-item flex-1 whitespace-nowrap text-[12.5px]"
+                        data-active={pickup === option.value}
+                        onClick={() => {
+                          setPickup(option.value);
+                          setPickupMode(option.value);
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
+                    {PICKUP_OPTIONS.find((option) => option.value === pickup)?.hint}
+                  </p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="label">Language</p>
+                  <Select
+                    className="mt-1.5 w-full sm:max-w-[300px]"
+                    value={language}
+                    onChange={(value) => {
+                      const next = value as SessionLanguage;
+                      setLanguage(next);
+                      setSessionLanguage(next);
+                    }}
+                    options={LANGUAGE_OPTIONS.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                      disabled:
+                        option.value === "ig" && sttLanguages !== null && !sttLanguages.includes("ig"),
+                    }))}
+                    aria-label="Session language"
+                  />
+                  <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
+                    {sttLanguages !== null && !sttLanguages.includes(language)
+                      ? "The Igbo reader is not connected on this server yet. Pick another language for now."
+                      : LANGUAGE_OPTIONS.find((option) => option.value === language)?.hint}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-raised px-3.5 py-2.5">
+              <p className="flex items-center gap-2 text-[13px] leading-5 text-muted">
+                <Megaphone className="h-3.5 w-3.5 flex-none text-brass" />
+                Recording other people? Read them a short notice first.
+              </p>
+              <button type="button" className="btn btn-line btn-sm" onClick={() => setNoticeOpen(true)}>
+                Open notice
+              </button>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-xl border border-line bg-raised-2 px-3.5 py-3">
+              <Pin className="mt-0.5 h-3.5 w-3.5 flex-none text-faint" />
+              <p className="text-[13.5px] leading-5 text-muted">
+                {onDesktop ? (
+                  <>
+                    JotBox floats above your other apps in its island. Start here, then hover the island to pause or stop.
+                  </>
+                ) : (
+                  <>
+                    Need to keep working? Start here, then{" "}
+                    <Link to="/float" className="font-medium text-ink underline decoration-line-strong underline-offset-2">
+                      pin the pill
+                    </Link>{" "}
+                    above your other apps.
+                  </>
+                )}{" "}
+                Audio is stored on this device. When JotBox writes the words for you, the recording is sent only for that
+                session.
+              </p>
+            </div>
           </div>
         </div>
       </div>
