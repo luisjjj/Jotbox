@@ -459,7 +459,9 @@ export default function SessionPage() {
   };
 
   const retry = async () => {
-    if (!session.hasAudio) {
+    // Words already in hand only need the notes rewritten; only a session with
+    // no words at all pays for another read of the saved file.
+    if (!session.hasAudio || session.transcript.length > 0) {
       await regenerate();
       return;
     }
