@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BrainCircuit,
   ChevronRight,
+  GraduationCap,
   Home,
   Layers,
   Library,
@@ -19,7 +20,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/auth/AuthProvider";
 import { useEngine } from "@/engine/SessionEngine";
-import { isLeanRole } from "@/lib/roles";
+import { isLeanRole, type DashboardRole } from "@/lib/roles";
 import { loadSampleSessions } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
@@ -33,16 +34,24 @@ import { SessionRow } from "./SessionRow";
 const NAV = [
   { to: "/app", label: "Home", Icon: Home, end: true },
   { to: "/library", label: "Library", Icon: Library, end: false },
+  { to: "/study", label: "Study", Icon: GraduationCap, end: false },
   { to: "/memory", label: "Memory", Icon: BrainCircuit, end: false },
   { to: "/float", label: "Keep on top", Icon: Layers, end: false },
   { to: "/settings", label: "Settings", Icon: Settings, end: false },
 ];
 
-function navItems(lean: boolean) {
-  return NAV.filter((item) => !(lean && item.to === "/memory"));
+function navItems(role: DashboardRole | null | undefined) {
+  const lean = isLeanRole(role);
+  return NAV.filter((item) => {
+    if (lean && item.to === "/memory") return false;
+    // Study groups are for students; the full workspace keeps its own tools.
+    if (item.to === "/study" && role !== "student") return false;
+    return true;
+  });
 }
 
-const MOBILE_NAV = (lean: boolean) => navItems(lean).filter((item) => item.to !== "/settings");
+const MOBILE_NAV = (role: DashboardRole | null | undefined) =>
+  navItems(role).filter((item) => item.to !== "/settings");
 
 function isNavActive(pathname: string, item: (typeof NAV)[number]) {
   if (item.to === "/app") return pathname === "/app";
@@ -59,7 +68,7 @@ function Sidebar() {
   const syncStatus = useSync((state) => state.status);
   const isDark = useIsDark();
   const lean = isLeanRole(user?.role);
-  const nav = navItems(lean);
+  const nav = navItems(user?.role);
 
   const recent = useMemo(
     () => [...sessions].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6),
@@ -253,9 +262,8 @@ function MobileNav() {
   const { status } = useEngine();
   const { user } = useAuth();
   const recording = status === "recording" || status === "paused";
-  const lean = isLeanRole(user?.role);
 
-  const items = MOBILE_NAV(lean);
+  const items = MOBILE_NAV(user?.role);
   const left = items.slice(0, 2);
   const right = items.slice(2);
 
@@ -282,7 +290,7 @@ function MobileNav() {
       className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-raised backdrop-blur-md lg:hidden"
       aria-label="Primary"
     >
-      <div className={clsx("grid items-center px-1.5 pt-1", lean ? "grid-cols-4" : "grid-cols-5")}>
+      <div className={clsx("grid items-center px-1.5 pt-1", items.length >= 4 ? "grid-cols-5" : "grid-cols-4")}>
         {left.map(renderItem)}
         <Link to="/listen" className="flex flex-col items-center gap-0.5 pb-1" aria-label="Start a capture">
           <span

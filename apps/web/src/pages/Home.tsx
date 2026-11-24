@@ -8,6 +8,7 @@ import {
   Copy,
   Download,
   FileText,
+  GraduationCap,
   Layers,
   ListChecks,
   Mic,
@@ -240,6 +241,26 @@ export default function Home() {
             <div className="mt-3.5">
               <UpcomingMeetings />
             </div>
+
+            {user?.role === "student" && (
+              <Link
+                to="/study"
+                className="card mt-3.5 flex items-center justify-between gap-3 p-4 transition-colors hover:border-line-strong sm:p-5"
+              >
+                <span className="flex min-w-0 items-start gap-3">
+                  <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-accent-soft text-accent">
+                    <GraduationCap className="h-5 w-5" strokeWidth={1.8} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[16px] font-medium tracking-[-0.01em] text-ink">Study groups</span>
+                    <span className="mt-0.5 block text-[14px] leading-5 text-muted">
+                      Swap notes, quizzes, and flashcards with your classmates.
+                    </span>
+                  </span>
+                </span>
+                <ArrowRight className="h-4 w-4 flex-none text-faint" />
+              </Link>
+            )}
 
             {latest && <StudyTools session={latest} title={copy.tools} />}
 

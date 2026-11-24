@@ -25,6 +25,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import SessionPage from "@/pages/SessionPage";
 import SharedPage from "@/pages/SharedPage";
 import Settings from "@/pages/Settings";
+import Study from "@/pages/Study";
 import Welcome from "@/pages/Welcome";
 import { isDesktop } from "@/lib/desktop";
 
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="listen" element={<Listen />} />
             <Route path="library" element={<Library />} />
             <Route path="memory" element={<MemoryPage />} />
+            <Route path="study" element={<Study />} />
             <Route path="session/:id" element={<SessionPage />} />
             <Route path="float" element={<FloatPage />} />
             <Route path="settings" element={<Settings />} />
