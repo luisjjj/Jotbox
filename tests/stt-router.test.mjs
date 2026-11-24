@@ -21,8 +21,8 @@ test("unknown plans fall back to free and kinds map to a recording mode", () => 
   assert.equal(modeForKind("voice"), "lecture");
 });
 
-test("free captures use Scribe with no speakers and no paid keyterms", () => {
-  for (const kind of ["meeting", "seminar", "lecture", "voice"]) {
+test("free captures get labels and keyterms on every kind except voice", () => {
+  for (const kind of ["meeting", "seminar", "lecture"]) {
     const route = routeTranscription({
       plan: "free",
       kind,
@@ -31,40 +31,53 @@ test("free captures use Scribe with no speakers and no paid keyterms", () => {
     assert.equal(route.tier, "free");
     assert.equal(route.provider, "elevenlabs");
     assert.equal(route.model, "scribe_v3");
-    assert.equal(route.diarize, false);
-    assert.deepEqual(route.keyterms, []);
-    assert.equal(route.costPerHour, STT_PRICES.scribe);
+    assert.equal(route.diarize, true);
+    assert.deepEqual(route.keyterms, ["Chinedu", "PTI"]);
+    assert.equal(route.costPerHour, STT_PRICES["scribe-keyterms"]);
     assert.equal(route.fallback, false);
   }
+
+  const voice = routeTranscription({
+    plan: "free",
+    kind: "voice",
+    glossary: ["Chinedu", "PTI"],
+  });
+  assert.equal(voice.diarize, false);
+  assert.deepEqual(voice.keyterms, ["Chinedu", "PTI"]);
+  assert.equal(voice.costPerHour, STT_PRICES["scribe-keyterms"]);
 });
 
-test("pro lectures and voice notes use Scribe without speakers", () => {
-  for (const kind of ["lecture", "voice"]) {
-    const route = routeTranscription({ plan: "pro", kind });
-    assert.equal(route.mode, "lecture");
-    assert.equal(route.provider, "elevenlabs");
-    assert.equal(route.model, "scribe_v3");
-    assert.equal(route.diarize, false);
-    assert.deepEqual(route.keyterms, []);
-    assert.equal(route.costPerHour, STT_PRICES.scribe);
-    assert.equal(route.fallback, false);
-  }
+test("pro lectures use Scribe with labels, and voice notes skip labels", () => {
+  const lecture = routeTranscription({ plan: "pro", kind: "lecture" });
+  assert.equal(lecture.mode, "lecture");
+  assert.equal(lecture.provider, "elevenlabs");
+  assert.equal(lecture.model, "scribe_v3");
+  assert.equal(lecture.diarize, true);
+  assert.deepEqual(lecture.keyterms, []);
+  assert.equal(lecture.costPerHour, STT_PRICES.scribe);
+  assert.equal(lecture.fallback, false);
+
+  const voice = routeTranscription({ plan: "pro", kind: "voice" });
+  assert.equal(voice.mode, "lecture");
+  assert.equal(voice.diarize, false);
+  assert.deepEqual(voice.keyterms, []);
+  assert.equal(voice.costPerHour, STT_PRICES.scribe);
 });
 
-test("pro meetings and seminars use Scribe, and only meetings get speakers", () => {
+test("pro meetings and seminars use Scribe and both get speakers", () => {
   const meeting = routeTranscription({ plan: "pro", kind: "meeting", glossary: ["Chinedu"] });
   assert.equal(meeting.mode, "group");
   assert.equal(meeting.provider, "elevenlabs");
   assert.equal(meeting.model, "scribe_v3");
   assert.equal(meeting.diarize, true);
-  assert.deepEqual(meeting.keyterms, []);
-  assert.equal(meeting.costPerHour, STT_PRICES.scribe);
+  assert.deepEqual(meeting.keyterms, ["Chinedu"]);
+  assert.equal(meeting.costPerHour, STT_PRICES["scribe-keyterms"]);
 
   const seminar = routeTranscription({ plan: "pro", kind: "seminar", glossary: ["Chinedu"] });
   assert.equal(seminar.mode, "group");
   assert.equal(seminar.provider, "elevenlabs");
-  assert.equal(seminar.diarize, false);
-  assert.deepEqual(seminar.keyterms, []);
+  assert.equal(seminar.diarize, true);
+  assert.deepEqual(seminar.keyterms, ["Chinedu"]);
 });
 
 test("an explicit mode wins over the kind without moving off Scribe", () => {
@@ -77,7 +90,7 @@ test("an explicit mode wins over the kind without moving off Scribe", () => {
   assert.equal(bad.mode, "lecture");
 });
 
-test("enterprise adds glossary keyterms and diarizes meetings only", () => {
+test("enterprise sends the glossary keyterms and diarizes lectures too", () => {
   const lecture = routeTranscription({
     plan: "enterprise",
     kind: "lecture",
@@ -85,13 +98,23 @@ test("enterprise adds glossary keyterms and diarizes meetings only", () => {
   });
   assert.equal(lecture.tier, "enterprise");
   assert.equal(lecture.provider, "elevenlabs");
-  assert.equal(lecture.diarize, false);
+  assert.equal(lecture.diarize, true);
   assert.deepEqual(lecture.keyterms, ["PTI", "Chinedu", "Ọ̀rẹ́"]);
   assert.equal(lecture.costPerHour, STT_PRICES["scribe-keyterms"]);
 
   const meeting = routeTranscription({ plan: "enterprise", kind: "meeting", glossary: ["PTI"] });
   assert.equal(meeting.diarize, true);
   assert.deepEqual(meeting.keyterms, ["PTI"]);
+});
+
+test("the keyterms price applies only when a keyterm list is sent", () => {
+  const plain = routeTranscription({ plan: "pro", kind: "meeting" });
+  assert.equal(plain.costPerHour, STT_PRICES.scribe);
+  assert.equal(plain.costKey, "scribe");
+
+  const boosted = routeTranscription({ plan: "free", kind: "meeting", glossary: ["Chinedu"] });
+  assert.equal(boosted.costPerHour, STT_PRICES["scribe-keyterms"]);
+  assert.equal(boosted.costKey, "scribe-keyterms");
 });
 
 test("Igbo goes to Scribe first even when the self-hosted reader is configured", () => {
@@ -111,7 +134,7 @@ test("Igbo goes to Scribe first even when the self-hosted reader is configured",
 
   const free = routeTranscription({ plan: "free", kind: "lecture", language: "ig" });
   assert.equal(free.provider, "elevenlabs");
-  assert.equal(free.diarize, false);
+  assert.equal(free.diarize, true);
   assert.equal(free.costPerHour, STT_PRICES.scribe);
 });
 

@@ -5,7 +5,7 @@ This guide covers the provider chain already wired into `/api/transcribe` and
 
 | Path | Use it for | Cost | Limits |
 | --- | --- | --- | --- |
-| ElevenLabs Scribe v3 | Every recording and live caption; speaker labels on paid meetings | Paid by audio hour | No Pidgin language code, so Pidgin runs on auto-detect |
+| ElevenLabs Scribe v3 | Every recording and live caption; speaker labels on every capture except a voice note, and name boosting on every plan | Paid by audio hour | No Pidgin language code, so Pidgin runs on auto-detect |
 | Browser Web Speech + on-device notes | Live words and notes with no provider | Free | Mic only, no upload transcription, no speaker separation |
 | Groq Whisper | Fallback reader when Scribe is not configured | Free tier, then paid | 25 MB per file on the free tier |
 | Speaches + faster-whisper | Long lectures, offline/low-bandwidth setups | Your compute | Model size and CPU/GPU decide speed |
@@ -15,10 +15,12 @@ This guide covers the provider chain already wired into `/api/transcribe` and
 
 Scribe reads every plan, every session shape, and both passes: the live captions,
 cut about every five seconds at a gap in speech, and the final full recording.
-Speaker labels are requested only on Pro and Enterprise meetings; free captures
-and every lecture, seminar and voice note are read without labels. Live chunks
-never ask for labels because a short chunk cannot carry speaker ids that line up
-with the next one.
+Speaker labels are requested on every capture except a voice note, on free as
+well as paid plans. The names on the roster, the room vocabulary and any
+configured terms are sent as keyterms on every plan, which adds $0.05 an audio
+hour on the final pass. Live chunks never ask for labels because a short chunk
+cannot carry speaker ids that line up with the next one, and they stay
+unboosted so the live pass holds its price.
 
 Without Scribe, routing falls back to Groq for speech, then the self-hosted
 worker; Igbo goes straight to the worker because Whisper does not list it.
@@ -335,7 +337,8 @@ XAI_NOTES_MODEL=grok-4.7
 Routing:
 
 1. Speech → ElevenLabs Scribe v3 for live chunks and the full recording when its
-   key is set. Speaker labels are asked for only on Pro and Enterprise meetings.
+   key is set. Speaker labels are asked for on every capture except a voice note,
+   and roster names and room vocabulary are sent as keyterms on every plan.
    Without Scribe, Groq (`/openai/v1/audio/transcriptions`) reads the audio,
    then the Speaches worker. If a fallback provider is not configured or fails,
    the gateway tries the next one, then xAI.

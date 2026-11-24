@@ -715,8 +715,8 @@ async function transcribeWithXai(buffer, contentType, filename, context, options
   const code = sttCode(language);
   if (code) form.append("language", code);
   form.append("format", "true");
-  // Speaker labels are a paid meeting feature, so a free fallback must not
-  // ask xAI for them.
+  // Every capture except a voice note asks for labels, so the fallback keeps
+  // the same rule the routed reader would have used.
   form.append("diarize", options.diarize === false ? "false" : "true");
   const prompt = sttPrompt(context, options);
   if (prompt) form.append("prompt", prompt);
@@ -770,8 +770,9 @@ function scribeBody(buffer, contentType, filename, context, options, language, t
   if (!tuned) return body;
   const code = elevenLabsCode(language);
   if (code) body.languageCode = code;
-  // The router decides whether paid keyterms are part of this plan. An empty
-  // list is deliberate on Pro group calls, not a missing context.
+  // The router decides which keyterms this plan pays for. Names and room
+  // words are sent on every plan; the list is empty only when there is no
+  // roster and no configured vocabulary.
   const terms = Array.isArray(options.keyterms)
     ? options.keyterms.map((term) => plainText(term, 50)).filter((term) => term.length >= 2).slice(0, ELEVENLABS_KEYTERM_LIMIT)
     : sttKeyterms(context);
@@ -861,9 +862,9 @@ export function routingForCapture({ plan = "free", context, live = false, glossa
     mode: context?.mode,
     kind: context?.kind || "meeting",
     language: sttLanguage(context?.language),
-    // Enterprise pays for keyterms, so deployment-level tuning (names, room
-    // vocabulary, configured terms) still rides along with the org glossary.
-    glossary: plan === "enterprise" ? [...terms, ...sttKeyterms(context)] : terms,
+    // Names, room vocabulary and configured terms boost every plan. The org
+    // glossary arrives separately and only for the enterprise tier that owns it.
+    glossary: [...terms, ...sttKeyterms(context)],
     available,
   });
 }

@@ -1828,7 +1828,7 @@ function WorkspacePanel({ org, onChanged }: { org: OrgDetail; onChanged: () => P
 
       <Section
         title="Glossary"
-        description="Names, acronyms and local words the transcription should hear exactly. The strongest terms become keyterms on enterprise meetings."
+        description="Names, acronyms and local words the transcription should hear exactly. They are sent to the reader as keyterms on this workspace's captures."
         aside={<Chip>{glossary.length}</Chip>}
       >
         {glossary.length === 0 ? (

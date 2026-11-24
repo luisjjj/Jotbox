@@ -291,6 +291,18 @@ The prompt files for the winning variants are `eval/prompts/english-mixed.txt` a
 caveats are in
 [golden/transcripts/brekete-consensus.md](golden/transcripts/brekete-consensus.md).
 
+When Scribe is the configured reader, the harness measures the shipped default: speaker
+labels are requested and the roster names are sent as keyterms on every plan. The
+`speakers` field in `predictions.json` records how many ids came back, so a diarized run
+can be checked without opening the audio. A two-clip (three minute) Scribe check is:
+
+```bash
+npm run eval:scribe:brekete
+```
+
+It writes `eval/results/scribe-brekete-names-on` and spends paid audio, so run it when a
+change needs a fresh number rather than on every edit.
+
 ## Comparing changes
 
 A change is only useful if it moves a gate without breaking another. Keep the run folders and compare the reports:
