@@ -145,7 +145,8 @@ export function ShareDialog({
 
             {planLoaded && !pro && (
               <p className="text-[12.5px] leading-4 text-faint">
-                Free keeps one live link per session for 7 days. Pro gives you five links and lets them last 30 days.
+                Free keeps one live link per session for 7 days. Starter Pro and Power User give you five links that
+                last 30 days.
               </p>
             )}
           </>
@@ -238,8 +239,8 @@ export function ShareDialog({
     <PaywallDialog
       open={paywall}
       onClose={() => setPaywall(false)}
-      title="More sharing is part of Pro"
-      description="Free keeps one live link per session for 7 days. Pro gives you five links for up to 30 days."
+      title="More sharing is part of Starter Pro"
+      description="Free keeps one live link per session for 7 days. Starter Pro and Power User give you five links for up to 30 days."
     />
     </>
   );

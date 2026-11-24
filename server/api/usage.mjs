@@ -1,7 +1,12 @@
 import { query } from "./pg.mjs";
+import { ENTERPRISE_PLAN_KEY, POWER_PLAN_KEY, STARTER_PLAN_KEY } from "./plan-keys.mjs";
 
 const DEFAULT_FREE_MINUTES = 100;
-const DEFAULT_PRO_HOURS = 20;
+const DEFAULT_STARTER_HOURS = 10;
+const DEFAULT_POWER_HOURS = 25;
+// The old paid key. Kept at its original 20 hours so anyone already paying
+// keeps what they bought.
+const DEFAULT_LEGACY_PRO_HOURS = 20;
 const DEFAULT_ENTERPRISE_HOURS = 1000;
 const MAX_MONTH_MINUTES = 24 * 60 * 31;
 // The hidden enterprise ceiling is larger than any calendar month, so it is
@@ -14,15 +19,28 @@ function monthHours(env, name, fallback) {
   return hours * 3600;
 }
 
-export function freeMonthlySeconds(env = process.env) {
+/**
+ * The free allowance is lifetime, not monthly. It is counted from
+ * `users.free_allowance_started_at`, which the pricing migration sets to the
+ * rollout time for existing accounts so nobody loses minutes they already had.
+ */
+export function freeAllowanceSeconds(env = process.env) {
   const raw = Number(env.JOTBOX_FREE_MONTH_MINUTES);
   const minutes =
     Number.isFinite(raw) && raw > 0 ? Math.min(Math.round(raw), MAX_MONTH_MINUTES) : DEFAULT_FREE_MINUTES;
   return minutes * 60;
 }
 
-export function proMonthlySeconds(env = process.env) {
-  return monthHours(env, "JOTBOX_PRO_MONTH_HOURS", DEFAULT_PRO_HOURS);
+export function starterMonthlySeconds(env = process.env) {
+  return monthHours(env, "JOTBOX_STARTER_MONTH_HOURS", DEFAULT_STARTER_HOURS);
+}
+
+export function powerMonthlySeconds(env = process.env) {
+  return monthHours(env, "JOTBOX_POWER_MONTH_HOURS", DEFAULT_POWER_HOURS);
+}
+
+export function legacyProMonthlySeconds(env = process.env) {
+  return monthHours(env, "JOTBOX_PRO_MONTH_HOURS", DEFAULT_LEGACY_PRO_HOURS);
 }
 
 export function enterpriseMonthlySeconds(env = process.env) {
@@ -30,12 +48,14 @@ export function enterpriseMonthlySeconds(env = process.env) {
 }
 
 export function planMonthlySeconds(plan, env = process.env) {
-  if (plan === "enterprise") return enterpriseMonthlySeconds(env);
-  if (plan === "pro") return proMonthlySeconds(env);
-  return freeMonthlySeconds(env);
+  if (plan === ENTERPRISE_PLAN_KEY) return enterpriseMonthlySeconds(env);
+  if (plan === POWER_PLAN_KEY) return powerMonthlySeconds(env);
+  if (plan === STARTER_PLAN_KEY) return starterMonthlySeconds(env);
+  if (plan === "pro") return legacyProMonthlySeconds(env);
+  return freeAllowanceSeconds(env);
 }
 
-export function usageSnapshot(usedSeconds, { unlimited = false, limitSeconds = freeMonthlySeconds() } = {}, bounds = {}) {
+export function usageSnapshot(usedSeconds, { unlimited = false, limitSeconds = freeAllowanceSeconds() } = {}, bounds = {}) {
   const used = Math.max(0, Math.ceil(Number(usedSeconds) || 0));
   return {
     unlimited: Boolean(unlimited),
@@ -80,6 +100,18 @@ export async function usageSeconds(db, userId, excludeId = null) {
         and l.recorded_at < bounds.end_at
         and ($2::uuid is null or l.capture_id <> $2::uuid)`,
     [userId, excludeId],
+  );
+  return Number(result.rows[0]?.used) || 0;
+}
+
+export async function usageSecondsSince(db, userId, since, excludeId = null) {
+  const result = await db.query(
+    `select coalesce(sum(l.seconds), 0) as used
+       from usage_ledger l
+      where l.user_id = $1
+        and ($2::timestamptz is null or l.recorded_at >= $2::timestamptz)
+        and ($3::uuid is null or l.capture_id <> $3::uuid)`,
+    [userId, since ?? null, excludeId],
   );
   return Number(result.rows[0]?.used) || 0;
 }

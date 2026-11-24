@@ -165,7 +165,7 @@ export function StudyShareDialog({
             <p className="mt-3 text-[13.5px] leading-5 text-soft">
               Free study sets are used up for this month.{" "}
               <Link to="/account" className="font-medium text-ink underline decoration-line-strong underline-offset-2" onClick={onClose}>
-                Upgrade to Pro
+                Upgrade
               </Link>{" "}
               for unlimited quizzes and cards.
             </p>

@@ -11,7 +11,15 @@ const EMPTY: BillingUsage = {
 };
 
 export function isPaidPlan(plan: Plan) {
-  return plan === "pro" || plan === "enterprise";
+  return plan !== "free";
+}
+
+export function planName(plan: Plan): string {
+  if (plan === "starter") return "Starter Pro";
+  if (plan === "power") return "Power User";
+  if (plan === "pro") return "Pro";
+  if (plan === "enterprise") return "Enterprise";
+  return "Free";
 }
 
 interface UsageState extends BillingUsage {
@@ -74,7 +82,7 @@ export async function ensureUsage() {
   return useUsage.getState();
 }
 
-// Returns whether the person is on Pro, or null when the plan could not be
+// Returns whether the person is on a paid plan, or null when the plan could not be
 // loaded. Callers should only paywall on an explicit false.
 export async function ensurePro(): Promise<boolean | null> {
   if (!useUsage.getState().loaded) await refreshUsage();

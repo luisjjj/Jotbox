@@ -523,19 +523,19 @@ const termsSections: Section[] = [
     body: (
       <>
         <p className="text-[15px] leading-7 text-soft">
-          The free plan has a monthly listening limit. Pro is a monthly subscription that renews automatically until you
-          cancel. Prices are shown in US dollars, and Pro is charged in Naira at checkout through Paystack because the
-          Paystack plan is set in Naira.
+          The free plan has a listening limit. Starter Pro and Power User are monthly subscriptions that renew
+          automatically until you cancel. Prices are shown in US dollars, and paid plans are charged in Naira at
+          checkout through Paystack because the Paystack plan is set in Naira.
         </p>
         <p className="text-[15px] leading-7 text-soft">
           By starting a subscription, you authorise recurring monthly charges to your chosen payment method until you
-          cancel. You are responsible for any taxes that apply. If a renewal fails, Paystack may retry and Pro may stay
-          on briefly while the payment is resolved.
+          cancel. You are responsible for any taxes that apply. If a renewal fails, Paystack may retry and your paid plan
+          may stay on briefly while the payment is resolved.
         </p>
         <p className="text-[15px] leading-7 text-soft">
           Cancellation and refunds are covered by the <DocLink to="/refunds">Cancellation and Refund Policy</DocLink>.
-          If we change the Pro price, we will give reasonable notice. A subscription that is already running keeps the
-          price it was charged until it ends or you start a new subscription.
+          If we change a paid plan price, we will give reasonable notice. A subscription that is already running keeps
+          the price it was charged until it ends or you start a new subscription.
         </p>
       </>
     ),
@@ -545,10 +545,10 @@ const termsSections: Section[] = [
     title: "Free plan and fair use",
     body: (
       <p className="text-[15px] leading-7 text-soft">
-        The free plan includes 100 minutes of listening per calendar month by default, one live share link per session
-        for seven days, and the features shown on the pricing page. Limits are enforced on the server and reset at the
-        start of each calendar month. Do not create extra accounts or manipulate recordings to get around a limit. We
-        may adjust free plan limits with notice.
+        The free plan includes 100 minutes of listening for the life of the account by default, one live share link
+        per session for seven days, and the features shown on the pricing page. Limits are enforced on the server. Do
+        not create extra accounts or manipulate recordings to get around a limit. We may adjust free plan limits with
+        notice.
       </p>
     ),
   },
@@ -697,8 +697,8 @@ const refundSections: Section[] = [
     body: (
       <Bullets
         items={[
-          "Pro is a monthly subscription. You can cancel at any time from the account page.",
-          "When you cancel, you keep Pro until the end of the period you already paid for. It does not renew.",
+          "Starter Pro and Power User are monthly subscriptions. You can cancel at any time from the account page.",
+          "When you cancel, you keep your paid plan until the end of the period you already paid for. It does not renew.",
           "Monthly fees are not refunded for unused time, a change of mind, or forgetting to cancel.",
           "We will refund a duplicate charge, a charge made after a confirmed cancellation, or an unauthorised charge, and we honour refunds required by Nigerian law.",
         ]}
@@ -711,8 +711,9 @@ const refundSections: Section[] = [
     body: (
       <>
         <p className="text-[15px] leading-7 text-soft">
-          Pro is charged in Naira through Paystack. The site shows the US dollar equivalent, but the amount that leaves
-          your account is the Naira price at checkout. Each successful charge pays for the next month of Pro.
+          Paid plans are charged in Naira through Paystack. The site shows the US dollar equivalent, but the amount
+          that leaves your account is the Naira price at checkout. Each successful charge pays for the next month of
+          your plan.
         </p>
         <p className="text-[15px] leading-7 text-soft">
           Your subscription renews automatically each month until you cancel. Paystack processes the payment and may
@@ -728,7 +729,7 @@ const refundSections: Section[] = [
       <>
         <p className="text-[15px] leading-7 text-soft">
           Open <DocLink to="/account">Account</DocLink>, find your plan card, and choose <strong>Cancel renewal</strong>.
-          Confirm the prompt. We call Paystack to disable the subscription and show you the date your Pro access ends.
+          Confirm the prompt. We call Paystack to disable the subscription and show you the date your paid access ends.
         </p>
         <p className="text-[15px] leading-7 text-soft">
           If you cannot sign in, email <MailLink /> from the address on the account and ask us to cancel it. Include the
@@ -747,8 +748,8 @@ const refundSections: Section[] = [
     body: (
       <Bullets
         items={[
-          "You keep Pro features until the end of the current paid period, with no further charges after that.",
-          "At the end of the period, the free plan limits apply again, including the monthly listening allowance and share link limits.",
+          "You keep paid plan features until the end of the current paid period, with no further charges after that.",
+          "At the end of the period, the free plan limits apply again, including the listening allowance and share link limits.",
           "Your notes, transcripts, and jottings stay in your account. Free plan limits do not delete existing content.",
           "Share links you already created stay live until their expiry date unless you revoke them. New links follow the free plan limits.",
           "Audio files remain on your device and follow your audio retention setting.",
@@ -763,7 +764,7 @@ const refundSections: Section[] = [
       <>
         <p className="text-[15px] leading-7 text-soft">
           Monthly fees are generally non-refundable once charged. That includes unused days, months where you did not use
-          JotBox, and renewals you forgot to cancel. Pro access is available for the whole period you paid for, so a
+          JotBox, and renewals you forgot to cancel. Paid access is available for the whole period you paid for, so a
           partial month is not refunded when you cancel.
         </p>
         <p className="text-[15px] leading-7 text-soft">We will refund a charge when:</p>
@@ -819,9 +820,9 @@ const refundSections: Section[] = [
     title: "Failed renewals",
     body: (
       <p className="text-[15px] leading-7 text-soft">
-        If a renewal fails, Paystack may retry the charge. Pro may stay on for a short grace period while that happens.
-        If the payment cannot be completed, Pro ends and the account returns to the free plan. We do not charge a fee
-        for a failed renewal, and we do not refund a period that was not paid for.
+        If a renewal fails, Paystack may retry the charge. Your paid plan may stay on for a short grace period while
+        that happens. If the payment cannot be completed, paid access ends and the account returns to the free plan. We
+        do not charge a fee for a failed renewal, and we do not refund a period that was not paid for.
       </p>
     ),
   },
@@ -831,8 +832,9 @@ const refundSections: Section[] = [
     body: (
       <p className="text-[15px] leading-7 text-soft">
         Please email us before asking your bank or card issuer to reverse a charge. Most problems are quicker to fix
-        directly. If a chargeback is opened, Pro may be suspended while the bank reviews it. If the bank finds the charge
-        was valid, we may ask you to settle the amount and any chargeback fee before Pro is restored.
+        directly. If a chargeback is opened, your paid plan may be suspended while the bank reviews it. If the bank
+        finds the charge was valid, we may ask you to settle the amount and any chargeback fee before paid access is
+        restored.
       </p>
     ),
   },
@@ -841,8 +843,8 @@ const refundSections: Section[] = [
     title: "Price changes",
     body: (
       <p className="text-[15px] leading-7 text-soft">
-        If we change the Pro price, we will give reasonable notice. A subscription that is already running keeps the
-        price it was charged until it ends. The new price applies if you start a new subscription after the change.
+        If we change a paid plan price, we will give reasonable notice. A subscription that is already running keeps
+        the price it was charged until it ends. The new price applies if you start a new subscription after the change.
       </p>
     ),
   },
@@ -893,7 +895,7 @@ export function RefundPolicy() {
   return (
     <LegalLayout
       title="Cancellation and Refund Policy"
-      subtitle="How to stop a Pro renewal, when you keep access, and when a charge can be refunded."
+      subtitle="How to stop a plan renewal, when you keep access, and when a charge can be refunded."
       sections={refundSections}
       current="refunds"
     />

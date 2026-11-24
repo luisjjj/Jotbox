@@ -39,7 +39,7 @@ const ITEM_META: Record<StudyItemKind, { label: string; Icon: typeof BookOpen; t
 
 function quotaText(quota: StudyQuota) {
   if (quota.limit === null) return "Study sets are unlimited on your plan.";
-  if (quota.remaining === 0) return "Free study sets are used up this month. Pro makes them unlimited.";
+  if (quota.remaining === 0) return "Free study sets are used up this month. Any paid plan makes them unlimited.";
   return `${quota.remaining} of ${quota.limit} free study sets left this month. Sharing a note is always free.`;
 }
 

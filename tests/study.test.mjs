@@ -24,7 +24,7 @@ test("free accounts get three sets a month and paid plans are uncapped", () => {
   assert.equal(studyQuota({ plan: "free", used: 3 }).remaining, 0);
   assert.equal(studyQuota({ plan: "free", used: 9 }).remaining, 0);
 
-  for (const plan of ["pro", "enterprise"]) {
+  for (const plan of ["starter", "power", "pro", "enterprise"]) {
     assert.deepEqual(studyQuota({ plan, used: 42 }), {
       plan,
       limit: null,

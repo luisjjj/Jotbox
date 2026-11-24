@@ -40,15 +40,15 @@ The prompts preserve Nigerian Pidgin and tone: Pidgin lines stay as they were sa
 and are quoted inside otherwise clear English notes; names, amounts, dates, and
 decisions stay exact. Scribe does not list Nigerian Pidgin as a language, so
 Pidgin requests are sent without a language code and the model auto-detects the
-English/Pidgin mix. Name accuracy on free and Pro comes from the transcript and
-the naming pass, not from a prompt. Enterprise meetings also send the
-organisation glossary to Scribe as keyterms.
+English/Pidgin mix. Name accuracy comes from the roster and room words sent as
+keyterms, plus the naming pass; Enterprise adds the organisation glossary to
+that same list.
 
 Set `JOTBOX_STT_PROVIDER` to pin the provider order, for example `groq,elevenlabs`,
 when comparing providers on the same recording. A pinned order is tried as
 written; without the pin Scribe goes first and everything else is a fallback.
-The pin does not change the plan rules, so free still runs without speaker
-labels and keyterms stay an Enterprise feature.
+The pin does not change the plan rules: every plan gets the same labels and
+keyterms, and only a voice note skips labels.
 
 ---
 
@@ -72,14 +72,13 @@ labels and keyterms stay an Enterprise feature.
 
 Notes:
 
-- `model_id=scribe_v3` is requested with word timestamps. Meetings on Pro and
-  Enterprise add `diarize=true`; free captures and every lecture, seminar and
-  voice note are read without labels. The app maps Scribe speaker ids to
-  `Speaker 1`, `Speaker 2`, then the existing naming pass assigns real names.
-- `keyterms` are sent only on Enterprise, built from the organisation glossary,
-  the participant roster, `JOTBOX_STT_VOCAB` and `JOTBOX_STT_KEYTERMS`, capped
-  at 100 terms. Free and Pro send none, because keyterms bill Scribe at the
-  higher rate.
+- `model_id=scribe_v3` is requested with word timestamps. Every capture except a
+  voice note adds `diarize=true`, on every plan. The app maps Scribe speaker ids
+  to `Speaker 1`, `Speaker 2`, then the existing naming pass assigns real names.
+- `keyterms` are sent on every plan when there are terms to send, built from the
+  participant roster, the organisation glossary, `JOTBOX_STT_VOCAB` and
+  `JOTBOX_STT_KEYTERMS`, capped at 100 terms. Keyterms bill Scribe at the higher
+  rate, so the final pass is the only one boosted; live chunks stay unboosted.
 - If the account rejects a language code or the keyterm list, the adapter retries
   once with auto-detect and no keyterms so the recording is not lost.
 
@@ -395,7 +394,7 @@ context controls instead. They are already wired into `/api/transcribe`:
 | Model | `GROQ_STT_MODEL`, `XAI_STT_MODEL` | `whisper-large-v3` is more accurate than `turbo` on accented, noisy rooms; `turbo` is faster and cheaper |
 | Live model | `GROQ_LIVE_STT_MODEL` | The Groq model used for live chunks only when Scribe is not configured. Defaults to `whisper-large-v3-turbo` because it trades accuracy for latency. Scribe reads live chunks otherwise |
 | Language | `JOTBOX_STT_LANGUAGE` | `en` is correct for English **and** Nigerian Pidgin, because Pidgin is English-lexified. `auto` omits the language token and lets the model guess; use it only for genuinely other-language meetings |
-| Vocabulary | `JOTBOX_STT_VOCAB` | Comma, semicolon, or newline separated names, places, products and Pidgin spellings. On Groq and the worker the gateway adds them to the speech prompt, which biases spelling without changing the audio. Scribe receives them only on Enterprise meetings, as keyterms; free and Pro send none |
+| Vocabulary | `JOTBOX_STT_VOCAB` | Comma, semicolon, or newline separated names, places, products and Pidgin spellings. On Groq and the worker the gateway adds them to the speech prompt, which biases spelling without changing the audio. Scribe receives them as keyterms on every plan, on the final pass |
 | Prompt | `JOTBOX_STT_PROMPT` | Replaces the built-in verbatim/Pidgin prompt sent to Groq and the worker. Scribe takes no prompt, so this does not affect it. Leave unset unless you have a specific reason |
 | Temperature | fixed at `0` | Keeps transcription deterministic and discourages the model from "tidying" Pidgin |
 | Noise cut | `JOTBOX_STT_NO_SPEECH`, `JOTBOX_STT_LOGPROB`, `JOTBOX_STT_COMPRESSION` | Segment-level confidence thresholds on Groq and the worker. Segments above the no-speech cut, below the log-probability cut, or with an unusually high compression ratio are dropped before the words reach the notes. Defaults are `0.65`, `-1` and `2.4` |
@@ -403,8 +402,9 @@ context controls instead. They are already wired into `/api/transcribe`:
 
 Every capture also sends a short per-session context header (`x-jotbox-stt-context`)
 with the session title, roster names and focus mode. Groq and the worker receive
-it as speech-prompt context; Scribe uses the roster in the naming pass after
-transcription and receives keyterms only on Enterprise. The browser's **Session
+it as speech-prompt context; Scribe receives the roster and the room vocabulary
+as keyterms on the final pass, on every plan, and the naming pass assigns names
+after transcription. The browser's **Session
 focus** (`off`, `balanced`, `strict`) then drops clear asides before the notes
 are written.
 
@@ -438,8 +438,7 @@ Keep the vocabulary under about 60 terms when Scribe is absent. Groq's prompt
 is a short context hint, not a dictionary; a long list crowds out the actual
 audio context. It is also the right place for Nigerian names, towns and
 workplace acronyms that the room shortens in speech. With Scribe configured,
-free and Pro input does not use this list; Enterprise meetings send the same
-names as keyterms, capped at 100.
+the same names go to the final pass as keyterms on every plan, capped at 100.
 
 Groq rejects a speech prompt longer than **896 characters** with
 `invalid_prompt`, and that rejection happens before the audio is decoded. The

@@ -30,7 +30,7 @@ import { useEngine } from "@/engine/SessionEngine";
 import { useStudio } from "@/hooks/useStudio";
 import { defaultTitle, formatAllowance, formatClock, formatMinutes, KIND_META } from "@/lib/format";
 import { isDesktop } from "@/lib/desktop";
-import { useUsage } from "@/lib/usageStore";
+import { planName, useUsage } from "@/lib/usageStore";
 import { limitReachedMessage } from "@/lib/planLimitCopy";
 import {
   FOCUS_OPTIONS,
@@ -277,13 +277,13 @@ function Setup() {
                 <p className="min-w-0 flex-1 text-[13.5px] leading-5 text-soft">
                   {outOfTime
                     ? limitReachedMessage(usage.plan, usage.limitSeconds)
-                    : usage.plan === "pro"
-                      ? `${formatAllowance(timeLeft)} left on Pro this month. It resets at the start of next month.`
-                      : `${formatMinutes(timeLeft)} left on the free plan this month. Pro gives you 20 hours a month.`}
+                    : usage.plan !== "free"
+                      ? `${formatAllowance(timeLeft)} left on ${planName(usage.plan)} this month. It resets at the start of next month.`
+                      : `${formatMinutes(timeLeft)} left on the free plan. Starter Pro and Power User unlock more listening.`}
                 </p>
               </div>
               <Link to="/account" className="btn btn-line btn-sm w-full justify-center sm:w-auto sm:flex-none">
-                {outOfTime && usage.plan === "free" ? "Upgrade to Pro" : "Your plan"}
+                {outOfTime && usage.plan === "free" ? "See plans" : "Your plan"}
               </Link>
             </div>
           )}

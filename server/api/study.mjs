@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getPool, query } from "./pg.mjs";
 import { requireSession } from "./auth.mjs";
 import { planForUser } from "./billing.mjs";
+import { isPaidPlan } from "./plan-keys.mjs";
 import { generateStudySet } from "./study-ai.mjs";
 import { HttpError, assertSameOrigin, readJson, requireMethod, sendJson } from "./http.mjs";
 
@@ -10,8 +11,8 @@ import { HttpError, assertSameOrigin, readJson, requireMethod, sendJson } from "
  *
  * A group is a small circle joined with a six-character code. Members share a
  * finished note as a snapshot, or ask the writer to turn that note into a quiz
- * or a flashcard deck. Free accounts get three generated sets a month; Pro and
- * enterprise accounts are not capped. Sharing a plain note is always free.
+ * or a flashcard deck. Free accounts get three generated sets a month; any paid
+ * plan is not capped. Sharing a plain note is always free.
  */
 
 const uuid = z.string().uuid();
@@ -39,7 +40,7 @@ export function makeGroupCode(random = Math.random) {
 }
 
 export function studyQuota({ plan, used }) {
-  const pro = plan === "pro" || plan === "enterprise";
+  const pro = isPaidPlan(plan);
   const limit = pro ? null : FREE_STUDY_GENERATIONS;
   return {
     plan,
@@ -347,7 +348,7 @@ async function generateForGroup(req, res, groupId) {
   const capture = await captureFor(user.id, captureId);
 
   const plan = await planForUser(user.id).catch(() => "free");
-  const pro = plan === "pro" || plan === "enterprise";
+  const pro = isPaidPlan(plan);
 
   const generationId = await reserveGeneration(user.id, kind, captureId, pro);
 
@@ -385,7 +386,7 @@ async function reserveGeneration(userId, kind, captureId, pro) {
       if (Number(counted.rows[0]?.used ?? 0) >= FREE_STUDY_GENERATIONS) {
         throw new HttpError(
           402,
-          `Free accounts can make ${FREE_STUDY_GENERATIONS} quizzes or card sets a month. Upgrade to Pro for unlimited study sets.`,
+          `Free accounts can make ${FREE_STUDY_GENERATIONS} quizzes or card sets a month. Upgrade to any paid plan for unlimited study sets.`,
         );
       }
     }

@@ -720,3 +720,17 @@ create index if not exists study_generations_user_idx
 insert into schema_migrations (version)
 values ('016_study_exchange')
 on conflict (version) do nothing;
+
+-- Pricing tiers. The free allowance becomes a lifetime 100 minutes, counted
+-- from `free_allowance_started_at`. The default fills existing accounts at
+-- rollout so nobody loses minutes they already had. New checkouts record which
+-- paid tier they belong to; older checkouts stay on the legacy Pro key.
+alter table users
+  add column if not exists free_allowance_started_at timestamptz not null default now();
+
+alter table billing_checkouts
+  add column if not exists plan_key text not null default 'pro';
+
+insert into schema_migrations (version)
+values ('017_pricing_tiers')
+on conflict (version) do nothing;
