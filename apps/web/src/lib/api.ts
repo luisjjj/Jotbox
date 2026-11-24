@@ -1,4 +1,4 @@
-import type { Session, TranscriptLine } from "./types";
+import type { Session, SessionKind, SessionNotes, TranscriptLine } from "./types";
 import type { SpeakerMatch } from "./speakers";
 import type { DashboardRole } from "./roles";
 
@@ -259,8 +259,74 @@ export interface OrgDetail {
   audit: OrgAuditEvent[];
 }
 
-export interface MemorySource {
+export type StudyItemKind = "note" | "quiz" | "cards";
+export type StudyPlan = "free" | "pro" | "enterprise";
+
+export interface StudyQuestion {
+  question: string;
+  options: string[];
+  answer: number;
+  explanation: string;
+}
+
+export interface StudyCard {
+  front: string;
+  back: string;
+}
+
+export type StudyPayload =
+  | { kind: "note"; notes: SessionNotes }
+  | { kind: "quiz"; questions: StudyQuestion[] }
+  | { kind: "cards"; cards: StudyCard[] };
+
+export interface StudyGroup {
   id: string;
+  name: string;
+  code: string;
+  createdAt: number;
+  memberCount: number;
+  itemCount: number;
+  lastItemAt: number | null;
+  isOwner: boolean;
+}
+
+export interface StudyItemSummary {
+  id: string;
+  groupId: string;
+  groupName: string;
+  kind: StudyItemKind;
+  title: string;
+  sourceKind: SessionKind;
+  authorName: string;
+  createdAt: number;
+  canDelete: boolean;
+}
+
+export interface StudyItem extends StudyItemSummary {
+  payload: StudyPayload;
+}
+
+export interface StudyQuota {
+  plan: StudyPlan;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+}
+
+export interface StudyOverview {
+  groups: StudyGroup[];
+  items: StudyItemSummary[];
+  quota: StudyQuota;
+}
+
+export interface StudyGroupDetail {
+  group: StudyGroup;
+  members: { id: string; name: string; joinedAt: number }[];
+  items: StudyItemSummary[];
+  quota: StudyQuota;
+}
+
+export interface MemorySource {  id: string;
   title: string;
   kind: string;
   date: string;
@@ -727,6 +793,40 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ question, history }),
     }),
+  studyOverview: () => request<StudyOverview>("/api/orgs/study"),
+  createStudyGroup: async (name: string) =>
+    (
+      await request<{ group: StudyGroup }>("/api/orgs/study/groups", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      })
+    ).group,
+  joinStudyGroup: async (code: string) =>
+    (
+      await request<{ group: StudyGroup }>("/api/orgs/study/join", {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      })
+    ).group,
+  getStudyGroup: (id: string) => request<StudyGroupDetail>(`/api/orgs/study/groups/${encodeURIComponent(id)}`),
+  leaveStudyGroup: (id: string) =>
+    request<{ left: boolean }>(`/api/orgs/study/groups/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  shareStudyNote: async (groupId: string, captureId: string) =>
+    (
+      await request<{ item: StudyItem }>(`/api/orgs/study/groups/${encodeURIComponent(groupId)}/items`, {
+        method: "POST",
+        body: JSON.stringify({ captureId }),
+      })
+    ).item,
+  generateStudySet: (groupId: string, captureId: string, kind: "quiz" | "cards") =>
+    request<{ item: StudyItem; quota: StudyQuota }>(
+      `/api/orgs/study/groups/${encodeURIComponent(groupId)}/generate`,
+      { method: "POST", body: JSON.stringify({ captureId, kind }) },
+    ),
+  getStudyItem: async (id: string) =>
+    (await request<{ item: StudyItem }>(`/api/orgs/study/items/${encodeURIComponent(id)}`)).item,
+  deleteStudyItem: (id: string) =>
+    request<{ deleted: boolean }>(`/api/orgs/study/items/${encodeURIComponent(id)}`, { method: "DELETE" }),
   listShareLinks: async (captureId: string) =>
     (
       await request<{ links: ShareLink[] }>(

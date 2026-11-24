@@ -11,6 +11,7 @@ import {
   FileDown,
   FilePlus2,
   FileText,
+  GraduationCap,
   Link2,
   Loader2,
   Megaphone,
@@ -27,6 +28,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
+import { useAuth } from "@/auth/AuthProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FollowUpDialog } from "@/components/FollowUpDialog";
@@ -36,6 +38,7 @@ import { PaywallDialog } from "@/components/Paywall";
 import { PeopleCard } from "@/components/PeopleCard";
 import { SessionAsk } from "@/components/SessionAsk";
 import { ShareDialog } from "@/components/ShareDialog";
+import { StudyShareDialog } from "@/components/StudyShareDialog";
 import { KindBadge } from "@/components/KindBadge";
 import { SessionStatusChip } from "@/components/SessionRow";
 import { TranscriptView } from "@/components/TranscriptView";
@@ -257,6 +260,7 @@ export default function SessionPage() {
   const remove = useSessions((state) => state.remove);
   const engine = useEngine();
   const { pro, loaded: planLoaded } = usePlan();
+  const { user } = useAuth();
 
   const [title, setTitle] = useState(session?.title ?? "");
   const [copying, setCopying] = useState(false);
@@ -267,6 +271,7 @@ export default function SessionPage() {
   const [draft, setDraft] = useState("");
   const [savingTranscript, setSavingTranscript] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [studyOpen, setStudyOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [pdfPaywall, setPdfPaywall] = useState(false);
@@ -649,6 +654,18 @@ export default function SessionPage() {
           >
             <Link2 className="h-4 w-4" />
           </button>
+          {user?.role === "student" && !isSample(session.id) && (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setStudyOpen(true)}
+              disabled={!session.notes}
+              title="Share with a study group"
+              aria-label="Share with a study group"
+            >
+              <GraduationCap className="h-4 w-4" />
+            </button>
+          )}
           <button
             type="button"
             className="icon-btn"
@@ -1098,6 +1115,9 @@ export default function SessionPage() {
       </div>
 
       <ShareDialog session={session} open={shareOpen} onClose={() => setShareOpen(false)} />
+      {user?.role === "student" && !isSample(session.id) && (
+        <StudyShareDialog session={session} open={studyOpen} onClose={() => setStudyOpen(false)} />
+      )}
       <FollowUpDialog session={session} open={followUpOpen} onClose={() => setFollowUpOpen(false)} />
       <JiraHandoffDialog
         session={session}

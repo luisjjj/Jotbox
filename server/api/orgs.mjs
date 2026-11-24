@@ -7,6 +7,7 @@ import { answerOrganisationMemory } from "./memory-ai.mjs";
 import { citationsFrom, indexCapture, retrieveChunks, scheduleChunkEmbedding } from "./memory-index.mjs";
 import { openInsights } from "./meeting-insights.mjs";
 import { cleanGlossaryTerm, listGlossary } from "./org-glossary.mjs";
+import { handleStudy } from "./study.mjs";
 import {
   decodeHeaderFilename,
   documentBytes,
@@ -1379,6 +1380,9 @@ export async function handleOrgs(req, res) {
     if (req.method === "POST") return createOrg(req, res);
     requireMethod(req, ["GET", "POST"]);
   }
+
+  // Study groups live on the same function so the serverless count stays put.
+  if (parts[2] === "study") return handleStudy(req, res, parts.slice(2));
 
   const orgId = parse(uuid, parts[2]);
   const tail = parts.slice(3);

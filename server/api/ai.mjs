@@ -328,7 +328,7 @@ export function sttPrompt(context, options = {}) {
   return [lead, names].filter(Boolean).join(" ").slice(0, STT_PROMPT_LIMIT).trim();
 }
 
-function mockEnabled() {
+export function mockEnabled() {
   if (!enabled("JOTBOX_AI_MOCK")) return false;
   if (process.env.VERCEL) {
     console.error("[jotbox-ai] JOTBOX_AI_MOCK is ignored on Vercel deployments.");
@@ -1639,7 +1639,7 @@ function assistantProviders() {
   return providers;
 }
 
-async function chatJson({ messages, maxTokens = 900, temperature = 0.2 }) {
+export async function chatJson({ messages, maxTokens = 900, temperature = 0.2 }) {
   const providers = assistantProviders();
   if (!providers.length) {
     throw new HttpError(503, "JotBox cannot answer on this server yet. Use the answer from this device.");
