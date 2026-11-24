@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { LIVE_SPEECH_RMS, chunkHasSpeech, createLevelWindow, noteLevel } from "./liveGate";
+import {
+  LIVE_SPEECH_RMS,
+  chunkHasSpeech,
+  createLevelWindow,
+  isPauseForBoundary,
+  noteLevel,
+} from "./liveGate";
 
 describe("live silence gate", () => {
   it("keeps a segment that contains a voice", () => {
@@ -41,5 +47,27 @@ describe("live silence gate", () => {
     noteLevel(window, 0.02);
     expect(chunkHasSpeech(window, 0.03)).toBe(false);
     expect(chunkHasSpeech(window, 0.01)).toBe(true);
+  });
+});
+
+describe("live segment boundary", () => {
+  it("cuts in a gap below the speech level", () => {
+    expect(isPauseForBoundary(0.002)).toBe(true);
+    expect(isPauseForBoundary(LIVE_SPEECH_RMS / 2)).toBe(true);
+  });
+
+  it("never cuts while speech is at or above the gate", () => {
+    expect(isPauseForBoundary(LIVE_SPEECH_RMS)).toBe(false);
+    expect(isPauseForBoundary(0.08)).toBe(false);
+  });
+
+  it("does not treat a missing level as a pause", () => {
+    expect(isPauseForBoundary(Number.NaN)).toBe(false);
+    expect(isPauseForBoundary(Number.POSITIVE_INFINITY)).toBe(false);
+  });
+
+  it("accepts a custom threshold", () => {
+    expect(isPauseForBoundary(0.02, 0.03)).toBe(true);
+    expect(isPauseForBoundary(0.02, 0.01)).toBe(false);
   });
 });

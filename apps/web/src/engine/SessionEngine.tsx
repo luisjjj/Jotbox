@@ -19,7 +19,7 @@ import { desktopBridge } from "@/lib/desktop";
 import { defaultTitle, formatClock } from "@/lib/format";
 import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/lib/insights";
 import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
-import { chunkHasSpeech, createLevelWindow, noteLevel, type LiveLevelWindow } from "@/lib/liveGate";
+import { chunkHasSpeech, createLevelWindow, isPauseForBoundary, noteLevel, type LiveLevelWindow } from "@/lib/liveGate";
 import { transcribeChunk } from "@/lib/liveTranscribe";
 import {
   focusContext,
@@ -194,8 +194,10 @@ function audioDuration(file: File) {
 // Electron has no Web Speech API, so the desktop app sends short standalone
 // chunks to the same transcription endpoint the final pass uses. Five seconds
 // keeps the committed lines close to the room without cutting so much context
-// that the reader loses accuracy.
+// that the reader loses accuracy. At the five second mark the segment waits for
+// the next gap in speech, up to the hard cap, so a word is not sliced in half.
 const LIVE_SEGMENT_MS = 5_000;
+const LIVE_BOUNDARY_WINDOW_MS = 1_200;
 const LIVE_QUEUE_LIMIT = 3;
 // Server chunks arrive as a whole sentence. Reveal them a word at a time so
 // the transcript keeps the rhythm of the room instead of jumping.
@@ -206,6 +208,7 @@ interface ServerLive {
   generation: number;
   recorder: MediaRecorder | null;
   timer: number;
+  closing: boolean;
   queue: Blob[];
   sending: boolean;
   failures: number;
@@ -267,6 +270,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     generation: 0,
     recorder: null,
     timer: 0,
+    closing: false,
     queue: [],
     sending: false,
     failures: 0,
@@ -564,6 +568,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     const live = serverLiveRef.current;
     live.active = false;
     live.generation += 1;
+    live.closing = false;
     if (live.timer) {
       window.clearTimeout(live.timer);
       live.timer = 0;
@@ -578,6 +583,22 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       }
     }
     live.queue = [];
+  };
+
+  const closeLiveSegment = (live: ServerLive) => {
+    live.closing = false;
+    if (live.timer) {
+      window.clearTimeout(live.timer);
+      live.timer = 0;
+    }
+    const recorder = live.recorder;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        /* already stopped */
+      }
+    }
   };
 
   const pumpServerLive = async (generation: number) => {
@@ -647,6 +668,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       if (live.active && live.generation === generation) startServerSegment();
     };
     live.recorder = recorder;
+    live.closing = false;
     try {
       recorder.start();
     } catch {
@@ -655,13 +677,13 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       return;
     }
     live.timer = window.setTimeout(() => {
-      if (live.recorder === recorder && recorder.state !== "inactive") {
-        try {
-          recorder.stop();
-        } catch {
-          /* already stopped */
+      if (live.recorder !== recorder || recorder.state === "inactive") return;
+      live.closing = true;
+      live.timer = window.setTimeout(() => {
+        if (live.recorder === recorder && recorder.state !== "inactive") {
+          closeLiveSegment(live);
         }
-      }
+      }, LIVE_BOUNDARY_WINDOW_MS);
     }, LIVE_SEGMENT_MS);
   };
 
@@ -1463,7 +1485,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         const rms = Math.sqrt(sum / data.length);
         levelRef.current = Math.min(1, rms * 3.4);
         const live = serverLiveRef.current;
-        if (live.active && live.recorder) noteLevel(live.level, rms);
+        if (live.active && live.recorder) {
+          noteLevel(live.level, rms);
+          if (live.closing && isPauseForBoundary(rms)) closeLiveSegment(live);
+        }
       } else {
         levelRef.current *= 0.85;
       }

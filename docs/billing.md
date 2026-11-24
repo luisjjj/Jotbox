@@ -174,14 +174,14 @@ The free cap is enforced by the app and the server, not by the provider, so clea
 Scribe is the only path while `ELEVENLABS_API_KEY` is set. The fallbacks exist for a server without the key:
 
 - `WHISPER_BASE_URL` runs the self-hosted reader when Scribe is not configured, with no per-hour provider bill.
-- `GROQ_API_KEY` is the Groq fallback. Its free-plan quotas (20 requests a minute, 2,000 a day, 2 audio-hours an hour, 8 audio-hours a day per model) only matter on such a server. At 5-second chunks one live session sends 12 requests a minute.
+- `GROQ_API_KEY` is the Groq fallback. Its free-plan quotas (20 requests a minute, 2,000 a day, 2 audio-hours an hour, 8 audio-hours a day per model) only matter on such a server. At chunks averaging about five seconds one live session sends about 12 requests a minute.
 - `XAI_API_KEY` and the demo reader run after those.
 
 `JOTBOX_STT_PROVIDER` pins the fallback order for a provider benchmark. It never changes the plan rules: free stays without speaker labels and only paid meetings ask for them.
 
 ### Levers that move the number further
 
-- **Live chunk size.** 5-second chunks keep captions close to the room and make the live pass the second full read of the same audio. Longer chunks cut request count but make lines arrive later; the final pass still rebuilds the transcript from the full audio.
+- **Live chunk size.** Segments target five seconds and close at the next gap in speech, up to a 6.2 second cap, so captions stay close to the room without slicing words on a fixed grid. Longer chunks cut request count but make lines arrive later; the final pass still rebuilds the transcript from the full audio.
 - **Silence gate.** Each live segment is sampled from the same analyser that drives the level meter. If the loudest sample in the segment stays below `LIVE_SPEECH_RMS` (0.012 of full scale), the segment is dropped before it reaches Scribe, which saves both audio seconds and a request. Peak level decides, not the average, so one soft word in five quiet seconds still goes through. The final pass is unaffected and still reads the full recording.
 - **Retries.** A retry on a session that already has words rebuilds the notes only, with no new audio read. Only a retry with no words at all sends the saved file through the final pass again.
 - **Self-hosted worker.** `WHISPER_BASE_URL` can carry long or heavy recordings at flat cost, but the router currently prefers Scribe whenever it is configured.

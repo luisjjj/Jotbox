@@ -24,3 +24,11 @@ export function noteLevel(window: LiveLevelWindow, rms: number) {
 export function chunkHasSpeech(window: LiveLevelWindow, threshold = LIVE_SPEECH_RMS) {
   return window.samples === 0 || window.peak >= threshold;
 }
+
+// A cut through a word costs accuracy in both halves, so the segment keeps
+// recording past its target until the room drops below speech level and the
+// cut lands in that gap. Speech that never pauses is closed by the engine's
+// hard deadline instead.
+export function isPauseForBoundary(rms: number, threshold = LIVE_SPEECH_RMS) {
+  return Number.isFinite(rms) && rms < threshold;
+}
