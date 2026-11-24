@@ -383,6 +383,12 @@ for (const clip of clips) {
     entry.seconds = Number(((Date.now() - started) / 1000).toFixed(1));
     entry.transcript = result.text || "";
     entry.words = result.words?.length ?? (entry.transcript.trim() ? entry.transcript.trim().split(/\s+/).length : 0);
+    // The scorer reads text only, so record whether the reader returned speaker
+    // ids at all. A diarized run on a multi-speaker clip should show more than
+    // one speaker here.
+    entry.speakers = new Set(
+      (result.words ?? []).map((word) => word.speaker).filter((value) => value !== undefined && value !== null),
+    ).size;
     entry.provider = result.provider;
     entry.promptCoverage = coverage(clip, entry.prompt);
 

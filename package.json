@@ -30,6 +30,7 @@
     "eval:setup": "python -m venv eval/.venv && node eval/py.mjs -m pip install -r eval/requirements.txt",
     "eval:run": "node --env-file-if-exists=.env --env-file-if-exists=.env.local eval/run_pipeline.mjs",
     "eval:glossary": "node --env-file-if-exists=.env --env-file-if-exists=.env.local eval/run_pipeline.mjs --glossary",
+    "eval:scribe:brekete": "node --env-file-if-exists=.env --env-file-if-exists=.env.local eval/run_pipeline.mjs --id brekete-mixed-1490,brekete-pidgin-3440 --no-notes --pause 3200 --out eval/results/scribe-brekete-names-on",
     "eval:normalize": "node --env-file-if-exists=.env --env-file-if-exists=.env.local eval/run_pipeline.mjs --normalize",
     "eval:score": "node eval/py.mjs eval/score.py",
     "eval:check": "node eval/py.mjs eval/score.py --check",

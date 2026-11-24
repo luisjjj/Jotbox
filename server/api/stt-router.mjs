@@ -2,9 +2,11 @@
  * Deterministic speech routing.
  *
  * The plan and the recording mode decide the provider before any audio is
- * sent, so a free capture can never drift onto a paid model and a group
- * meeting always gets speaker labels on a paid plan. Prices are public list
- * prices per hour of audio and are used only to estimate spend.
+ * sent, so a free capture can never drift onto a paid model. Every capture
+ * except a voice note asks for speaker labels, and names ride along as
+ * keyterms, because a wrong name is the mistake a listener notices first.
+ * Prices are public list prices per hour of audio and are used only to
+ * estimate spend.
  */
 
 export const STT_PRICES = {
@@ -89,8 +91,10 @@ function workerRoute({ fallback = false, requestedProvider = "worker" }) {
 /**
  * Decide the provider for one full recording. Scribe is the reader on every
  * plan because the free tier is the demo that has to earn the upgrade. Groq
- * and the self-hosted worker stay as fallbacks. Speaker labels are a paid
- * meeting feature: meeting kind only, and never on free.
+ * and the self-hosted worker stay as fallbacks. Every kind except a voice
+ * note asks for speaker labels, and the names and room words in `glossary`
+ * are sent as keyterms on every plan: a name read wrong is the mistake that
+ * costs a student notes, and diarization carries no extra per-hour charge.
  *
  * `available` is filled from the server keys; a rule is still returned when
  * its first choice is missing so the caller can see what was intended and
@@ -112,7 +116,9 @@ export function routeTranscription({
   const hasXai = available.xai === true;
   const hasDemo = available.demo === true;
   const terms = cleanTerms(glossary);
-  const diarize = tier !== "free" && kind === "meeting";
+  // A voice note has one speaker by definition, so labels would only add
+  // noise. Lectures can still carry a lecturer and questions from the room.
+  const diarize = kind !== "voice";
 
   const finish = (rule, reason) => ({
     tier,
@@ -123,9 +129,10 @@ export function routeTranscription({
 
   const scribeForPlan = () =>
     scribeRoute({
-      keyterms: tier === "enterprise" ? terms : [],
+      keyterms: terms,
       diarize,
-      price: tier === "enterprise" ? STT_PRICES["scribe-keyterms"] : STT_PRICES.scribe,
+      // Scribe charges the keyterm rate only when a keyterm list is sent.
+      price: terms.length ? STT_PRICES["scribe-keyterms"] : STT_PRICES.scribe,
     });
 
   // Igbo is not on Whisper's hosted language list, and Scribe reads it. The
@@ -138,10 +145,8 @@ export function routeTranscription({
     return finish(
       scribeForPlan(),
       tier === "enterprise"
-        ? "Scribe reads with the organisation glossary and labels speakers in meetings."
-        : diarize
-          ? "Scribe reads the meeting and labels speakers."
-          : "Scribe reads with the best accuracy. Speaker labels are a Pro meeting feature.",
+        ? "Scribe reads with the organisation glossary and labels speakers."
+        : "Scribe reads on every plan, with names boosted and speakers labelled.",
     );
   }
 

@@ -104,7 +104,8 @@ Every feature is visible on the free plan. The paid ones show a paywall with a w
 | Feature | Free | Pro | Enterprise |
 | --- | --- | --- | --- |
 | Listening | 100 minutes a calendar month | 20 hours a calendar month | 1,000 hours a calendar month, shown as unlimited |
-| Speaker labels | No | Meetings only | Meetings only |
+| Speaker labels | Every capture except a voice note | Same | Same |
+| Name boosting | Names and room words on every capture | Same | Same, plus the organisation glossary |
 | Notes, jottings, transcript, copy, Markdown, print | Yes | Yes | Yes |
 | Share links | 1 live link per session, 7 days | 5 live links, up to 30 days | 5 live links, up to 30 days |
 | Branded PDF | Paywall | Yes | Yes |
@@ -139,33 +140,35 @@ Activation writes a manual subscription row with `plan_key = enterprise` and `pr
 
 ## What listening costs
 
-Scribe v3 reads every plan and both passes: the five-second live captions and the final full-recording pass. Scribe bills by audio duration at $0.20 per audio hour, so an hour of listening costs about $0.40 because the same audio is sent twice. A live segment that never rises above the speech gate is not sent, so a room with normal pauses costs less than this ceiling; the final pass still reads the whole file. Enterprise keyterms add $0.05 an hour on the final pass.
+Scribe v3 reads every plan and both passes: the five-second live captions and the final full-recording pass. Scribe bills by audio duration at $0.20 per audio hour, so an hour of listening costs about $0.40 because the same audio is sent twice. A live segment that never rises above the speech gate is not sent, so a room with normal pauses costs less than this ceiling; the final pass still reads the whole file.
 
-Speaker labels are requested only on Pro and Enterprise meetings. Labels do not change the per-hour price; they only add speaker ids to the final pass. Free captures, and every lecture, seminar and voice note, are read without labels.
+When the roster or the configured vocabulary gives Scribe names and room words to boost, the final pass adds $0.05 an hour, so a named hour costs about $0.45. Live captions stay unboosted: a five-second chunk cannot carry speaker ids, and adding keyterms to the live pass would raise every hour by another $0.05 for little gain. A session with no names at all stays at $0.40.
+
+Speaker labels are requested on every capture except a voice note, on every plan, including free. Labels do not change the per-hour price; they only add speaker ids to the final pass.
 
 | Session | Live plus final |
 | --- | --- |
-| 15 min | $0.10 |
-| 30 min | $0.20 |
-| 60 min | $0.40 |
-| 90 min | $0.60 |
-| 120 min | $0.80 |
+| 15 min | $0.11 |
+| 30 min | $0.23 |
+| 60 min | $0.45 |
+| 90 min | $0.68 |
+| 120 min | $0.90 |
 
 | Monthly listening | Scribe cost |
 | --- | --- |
-| 5 h | $2.00 |
-| 10 h | $4.00 |
-| 20 h | $8.00 |
+| 5 h | $2.25 |
+| 10 h | $4.50 |
+| 20 h | $9.00 |
 
-On a $7 Pro plan, speech alone breaks even at about 17.0 hours. The 20-hour cap is deliberately set past that line: a Pro user who fills the cap costs about $8.00 in speech, against about $6.82 left after Paystack fees, so the heaviest month loses about $1.18. That is the trade for accuracy on the free plan and for giving Pro a real ceiling. Most Pro users listen for far less than 20 hours, and a heavy user is refused before the spend passes the cap.
+On a $7 Pro plan, speech alone breaks even at about 15.2 hours when names are boosted. The 20-hour cap sits past that line: a Pro user who fills the cap costs about $9.00 in speech, against about $6.82 left after Paystack fees, so the heaviest month loses about $2.18. That is the trade for accuracy on the free plan and for giving Pro a real ceiling. Most Pro users listen for far less than 20 hours, and a heavy user is refused before the spend passes the cap.
 
-A realistic mix is far below the cap. Take 40% of Pro users listening 2 hours, 35% at 5 hours, 18% at 10 hours and 7% at the full 20 hours. That averages about 5.75 hours a month, or about $2.30 in speech, leaving about $4.52 of the $6.82 after fees. The cap sets the worst case, not the expected cost.
+A realistic mix is far below the cap. Take 40% of Pro users listening 2 hours, 35% at 5 hours, 18% at 10 hours and 7% at the full 20 hours. That averages about 5.75 hours a month, or about $2.59 in speech, leaving about $4.23 of the $6.82 after fees. The cap sets the worst case, not the expected cost.
 
 Prices are public list prices at the time of writing; confirm them in the ElevenLabs console before relying on them.
 
 ### Free tier carries the cost of the demo
 
-Free gets the same Scribe reader because the free experience is the pitch. At 100 minutes a month, a free user who uses all of it costs at most about $0.67. That spend is accepted as acquisition cost. A short first session costs a few cents, which is the point: the person hears the real accuracy before deciding to pay.
+Free gets the same Scribe reader because the free experience is the pitch. At 100 minutes a month, a free user who uses all of it costs at most about $0.75 with names boosted. That spend is accepted as acquisition cost. A short first session costs a few cents, which is the point: the person hears the real accuracy before deciding to pay.
 
 The free cap is enforced by the app and the server, not by the provider, so clearing local data does not move a free user onto a paid plan.
 
@@ -177,7 +180,7 @@ Scribe is the only path while `ELEVENLABS_API_KEY` is set. The fallbacks exist f
 - `GROQ_API_KEY` is the Groq fallback. Its free-plan quotas (20 requests a minute, 2,000 a day, 2 audio-hours an hour, 8 audio-hours a day per model) only matter on such a server. At chunks averaging about five seconds one live session sends about 12 requests a minute.
 - `XAI_API_KEY` and the demo reader run after those.
 
-`JOTBOX_STT_PROVIDER` pins the fallback order for a provider benchmark. It never changes the plan rules: free stays without speaker labels and only paid meetings ask for them.
+`JOTBOX_STT_PROVIDER` pins the fallback order for a provider benchmark. It never changes the plan rules: every plan gets the same labels and name boosting, and only a voice note skips labels.
 
 ### Levers that move the number further
 
