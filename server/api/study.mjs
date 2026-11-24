@@ -152,7 +152,7 @@ async function overview(req, res) {
             (select max(created_at) from study_items i where i.group_id = g.id) as last_item_at
        from study_groups g
        join study_group_members me on me.group_id = g.id and me.user_id = $1
-      order by coalesce(last_item_at, g.created_at) desc`,
+      order by coalesce((select max(created_at) from study_items i where i.group_id = g.id), g.created_at) desc`,
     [user.id],
   );
   const items = await query(
