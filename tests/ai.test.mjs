@@ -670,6 +670,66 @@ test("notes parse fenced JSON, drop empty items and fail over between models", a
   assert.deepEqual(result.sections, [{ heading: "Decisions", bullets: ["Pause the promise"] }]);
 });
 
+test("a draft report skips the cleanup pass so the first report lands sooner", async () => {
+  process.env.GROQ_API_KEY = "test-groq";
+  const calls = [];
+  const transcript = [
+    "Speaker 1: The bank acknowledged the payout file late on Friday afternoon.",
+    "Speaker 2: We agreed to pause the same-day promise until the cutoff holds.",
+    "Speaker 1: Ada will send the merchant note before four o'clock today.",
+    "Speaker 2: Chinedu will confirm the batch totals with the finance desk.",
+    "Speaker 1: Nobody should quote a new payout time until the bank replies.",
+    "Speaker 2: The support team will draft a short update for the merchants.",
+    "Speaker 1: We will review the window again on Monday morning at nine.",
+  ].join("\n");
+  const notes = {
+    title: "Payout window slipped",
+    summary: "The bank received the file late, so the promise paused.",
+    highlights: ["The window moved"],
+    decisions: [],
+    blockers: [],
+    actions: [],
+    followUps: [],
+    sections: [{ heading: "Decisions", bullets: ["Pause the promise"] }],
+  };
+
+  globalThis.fetch = async (_url, init = {}) => {
+    const body = JSON.parse(String(init.body));
+    calls.push(body);
+    const content =
+      body.max_tokens === 3000 ? JSON.stringify({ transcript }) : JSON.stringify(notes);
+    return Response.json({ choices: [{ message: { content } }] });
+  };
+
+  const draft = await ai.enhanceSession({
+    kind: "meeting",
+    title: "Payout review",
+    scratch: "",
+    transcript,
+    tone: "warm-direct",
+    skipCleanup: true,
+  });
+
+  assert.equal(draft.provider, "groq");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].max_tokens, 4000);
+  assert.match(calls[0].messages[1].content, /Transcript:\nSpeaker 1: The bank acknowledged/);
+
+  calls.length = 0;
+  await ai.enhanceSession({
+    kind: "meeting",
+    title: "Payout review",
+    scratch: "",
+    transcript,
+    tone: "warm-direct",
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].max_tokens, 3000);
+  assert.match(calls[0].messages[0].content, /Only fix punctuation/);
+  assert.equal(calls[1].max_tokens, 4000);
+});
+
 test("notes try free Groq GPT-OSS first, then OpenRouter's free models", async () => {
   process.env.OPENROUTER_API_KEY = "test-openrouter";
   process.env.GROQ_API_KEY = "test-groq";

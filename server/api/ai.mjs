@@ -1333,15 +1333,29 @@ function orderedNotesProviders() {
   });
 }
 
-export async function enhanceSession({ kind, title, scratch, transcript, tone, participants = [] }) {
+export async function enhanceSession({
+  kind,
+  title,
+  scratch,
+  transcript,
+  tone,
+  participants = [],
+  skipCleanup = false,
+}) {
+  const rawTranscript = String(transcript || "").slice(0, MAX_TRANSCRIPT);
+  // A draft report trades the cleanup pass for speed. The transcript still gets
+  // the cheap tidy, and the full pass replaces the report moments later.
+  const cleanTranscript = skipCleanup
+    ? tidyTranscript(rawTranscript)
+    : await cleanTranscriptForNotes({
+        transcript: rawTranscript,
+        participants: Array.isArray(participants) ? participants.slice(0, 20) : [],
+      });
   const payload = {
     kind: KIND_LABEL[kind] ? kind : "meeting",
     title: String(title || "").slice(0, 160),
     scratch: String(scratch || "").slice(0, MAX_SCRATCH),
-    transcript: await cleanTranscriptForNotes({
-      transcript: String(transcript || "").slice(0, MAX_TRANSCRIPT),
-      participants: Array.isArray(participants) ? participants.slice(0, 20) : [],
-    }),
+    transcript: cleanTranscript,
     tone: TONE_HINT[tone] ? tone : key("JOTBOX_AI_TONE") || DEFAULT_TONE,
     participants: Array.isArray(participants) ? participants.slice(0, 20) : [],
     today: new Date().toISOString().slice(0, 10),
@@ -2198,10 +2212,11 @@ export async function handleTranscribe(req, res) {
 
 // Small chunks from the desktop live captions. Higher request count, lower
 // size cap, so the hourly audio budget stays below the capture endpoint.
+// Four-second chunks are 900 requests an hour; leave room for retries.
 export async function handleLiveTranscribe(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
-  rateLimit(req, 900, "live");
+  rateLimit(req, 2400, "live");
   const body = await readBody(req, MAX_LIVE_AUDIO);
   if (!body.length) throw new HttpError(400, "No audio was sent.");
   const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
@@ -2223,6 +2238,7 @@ export async function handleEnhance(req, res) {
     transcript: payload.transcript,
     tone: payload.tone,
     participants: Array.isArray(payload.participants) ? payload.participants : [],
+    skipCleanup: payload.draft === true,
   });
   sendJson(res, 200, notes);
 }

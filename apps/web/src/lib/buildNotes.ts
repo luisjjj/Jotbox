@@ -134,6 +134,7 @@ async function studioNotes(input: {
   scratch: string;
   lines: TranscriptLine[];
   participants: Participant[];
+  draft?: boolean;
 }) {
   const response = await timedFetch(
     "/api/enhance",
@@ -147,6 +148,7 @@ async function studioNotes(input: {
         transcript: transcriptText(input.lines).slice(0, 80_000),
         tone: "warm-direct",
         participants: input.participants.map((person) => person.name),
+        ...(input.draft ? { draft: true } : {}),
       }),
     },
     90_000,
@@ -171,6 +173,23 @@ async function studioNotes(input: {
     })),
   };
   return { title: parsed.title, notes };
+}
+
+// A quick first report from the live words, written while the full recording is
+// still being read. The caller shows it, then swaps in the final report.
+export async function draftNotes(input: {
+  kind: SessionKind;
+  title: string;
+  scratch: string;
+  lines: TranscriptLine[];
+  participants?: Participant[];
+}) {
+  if (!input.lines.length && !input.scratch.trim()) return null;
+  try {
+    return await studioNotes({ ...input, participants: input.participants ?? [], draft: true });
+  } catch {
+    return null;
+  }
 }
 
 export async function buildNotes(input: {

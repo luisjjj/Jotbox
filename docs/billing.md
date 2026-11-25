@@ -150,9 +150,9 @@ Activation writes a manual subscription row with `plan_key = enterprise` and `pr
 
 ## What listening costs
 
-Scribe v3 reads every plan and both passes: the five-second live captions and the final full-recording pass. Scribe bills by audio duration at $0.20 per audio hour, so an hour of listening costs about $0.40 because the same audio is sent twice. A live segment that never rises above the speech gate is not sent, so a room with normal pauses costs less than this ceiling; the final pass still reads the whole file.
+Scribe v3 reads every plan and both passes: the short live captions and the final full-recording pass. Scribe bills by audio duration at $0.20 per audio hour, so an hour of listening costs about $0.40 because the same audio is sent twice. A live segment that never rises above the speech gate is not sent, so a room with normal pauses costs less than this ceiling; the final pass still reads the whole file.
 
-When the roster or the configured vocabulary gives Scribe names and room words to boost, the final pass adds $0.05 an hour, so a named hour costs about $0.45. Live captions stay unboosted: a five-second chunk cannot carry speaker ids, and adding keyterms to the live pass would raise every hour by another $0.05 for little gain. A session with no names at all stays at $0.40.
+When the roster or the configured vocabulary gives Scribe names and room words to boost, the final pass adds $0.05 an hour, so a named hour costs about $0.45. Live captions stay unboosted: a short live chunk cannot carry speaker ids, and adding keyterms to the live pass would raise every hour by another $0.05 for little gain. A session with no names at all stays at $0.40.
 
 Speaker labels are requested on every capture except a voice note, on every plan, including free. Labels do not change the per-hour price; they only add speaker ids to the final pass.
 
@@ -192,16 +192,17 @@ The free cap is enforced by the app and the server, not by the provider, so clea
 Scribe is the only path while `ELEVENLABS_API_KEY` is set. The fallbacks exist for a server without the key:
 
 - `WHISPER_BASE_URL` runs the self-hosted reader when Scribe is not configured, with no per-hour provider bill.
-- `GROQ_API_KEY` is the Groq fallback. Its free-plan quotas (20 requests a minute, 2,000 a day, 2 audio-hours an hour, 8 audio-hours a day per model) only matter on such a server. At chunks averaging about five seconds one live session sends about 12 requests a minute.
+- `GROQ_API_KEY` is the Groq fallback. Its free-plan quotas (20 requests a minute, 2,000 a day, 2 audio-hours an hour, 8 audio-hours a day per model) only matter on such a server. At chunks averaging about three seconds one live session sends about 20 requests a minute, so the free Groq tier sits exactly at its limit and a retry needs a paid tier or the self-hosted worker.
 - `XAI_API_KEY` and the demo reader run after those.
 
 `JOTBOX_STT_PROVIDER` pins the fallback order for a provider benchmark. It never changes the plan rules: every plan gets the same labels and name boosting, and only a voice note skips labels.
 
 ### Levers that move the number further
 
-- **Live chunk size.** Segments target five seconds and close at the next gap in speech, up to a 6.2 second cap, so captions stay close to the room without slicing words on a fixed grid. Longer chunks cut request count but make lines arrive later; the final pass still rebuilds the transcript from the full audio.
-- **Silence gate.** Each live segment is sampled from the same analyser that drives the level meter. If the loudest sample in the segment stays below `LIVE_SPEECH_RMS` (0.012 of full scale), the segment is dropped before it reaches Scribe, which saves both audio seconds and a request. Peak level decides, not the average, so one soft word in five quiet seconds still goes through. The final pass is unaffected and still reads the full recording.
+- **Live chunk size.** Segments target four seconds and close at the next gap in speech, up to a 4.6 second cap, so captions stay close to the room without slicing words on a fixed grid. Two chunks may be in flight at once to hide provider latency. Longer chunks cut request count but make lines arrive later; the final pass still rebuilds the transcript from the full audio. A fixed-grid check on the 3-minute Adichie lecture scored 9.9% WER at 3s and 4.8% at 5s against the same Scribe batch transcript, so shorter chunks cost some live accuracy while the final report keeps batch accuracy. Four seconds sits between those two measurements: more context per chunk than 3s, less lag than 5s.
+- **Silence gate.** Each live segment is sampled from the same analyser that drives the level meter. If the loudest sample in the segment stays below `LIVE_SPEECH_RMS` (0.012 of full scale), the segment is dropped before it reaches Scribe, which saves both audio seconds and a request. Peak level decides, not the average, so one soft word in a mostly quiet chunk still goes through. The final pass is unaffected and still reads the full recording.
 - **Retries.** A retry on a session that already has words rebuilds the notes only, with no new audio read. Only a retry with no words at all sends the saved file through the final pass again.
 - **Self-hosted worker.** `WHISPER_BASE_URL` can carry long or heavy recordings at flat cost, but the router currently prefers Scribe whenever it is configured.
 - **Plan caps.** Starter Pro is 10 hours, Power User 25, and legacy Pro 20. Each is hard, reserved before a recording starts and settled on save, so a heavy user cannot erode the margin beyond the planned subsidy. `JOTBOX_STARTER_MONTH_HOURS`, `JOTBOX_POWER_MONTH_HOURS`, and `JOTBOX_PRO_MONTH_HOURS` can raise or lower them.
+- **Session length.** A single capture stops at four hours, enforced in the app and in the server reservation. The monthly allowance is the tighter ceiling: Free is 100 lifetime minutes, Starter 10 hours a month, Power 25, legacy Pro 20, enterprise 1000. One- and two-hour recordings fit on a paid plan, but without the R2/S3 storage keys the fallback uploads the whole file in one request, and the Vercel body limit holds that to about nine minutes at 64 kbps. Long sessions need the storage keys so the job queue can take the file.
 
