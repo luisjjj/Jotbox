@@ -466,6 +466,8 @@ function AskPanel({
       typeof MediaRecorder !== "undefined",
   );
   const endRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const pinnedRef = useRef(true);
   const nextId = useRef(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -582,8 +584,15 @@ function AskPanel({
 
   useEffect(() => {
     if (!turns.length && !asking) return;
+    if (!pinnedRef.current) return;
     endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [turns, asking]);
+
+  const trackPinned = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  };
 
   const ask = async (text: string) => {
     const clean = text.trim();
@@ -603,6 +612,7 @@ function AskPanel({
 
     nextId.current += 1;
     const id = `turn-${nextId.current}`;
+    pinnedRef.current = true;
     setTurns((current) => [...current, { id, question: clean, answer: null, error: "" }]);
     setDraft("");
     setError("");
@@ -698,7 +708,12 @@ function AskPanel({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5" aria-live="polite">
+        <div
+          ref={scrollRef}
+          onScroll={trackPinned}
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5"
+          aria-live="polite"
+        >
           {turns.length === 0 ? (
             <div className="flex h-full min-h-[22rem] flex-col items-center justify-center px-2 text-center">
               <MemoryOrb className="memory-orb-idle h-14 w-14" iconClassName="h-5 w-5" />

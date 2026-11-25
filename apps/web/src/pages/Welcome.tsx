@@ -614,8 +614,9 @@ export default function Welcome() {
                           </div>
                           <button
                             type="button"
-                            className="text-[12px] font-medium text-accent underline-offset-2 hover:underline"
+                            className="tap-link text-[12px] font-medium text-accent underline-offset-2 hover:underline"
                             onClick={() => setStep(row.edit)}
+                            aria-label={`Edit ${row.label.toLowerCase()}`}
                           >
                             Edit
                           </button>

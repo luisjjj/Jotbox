@@ -728,6 +728,8 @@ export default function SessionPage() {
             }
           }}
           aria-label="Session title"
+          title="Rename this session"
+          enterKeyHint="done"
           spellCheck={false}
         />
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-faint">

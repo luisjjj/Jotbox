@@ -163,8 +163,21 @@ export function IntegrationsCard() {
         )}
 
         {loading ? (
-          <div className="mt-4 grid place-items-center rounded-xl border border-line bg-raised-2 p-6">
-            <Loader2 className="h-4 w-4 animate-spin text-faint" />
+          <div
+            className="mt-4 divide-y divide-line overflow-hidden rounded-xl border border-line bg-raised-2"
+            role="status"
+            aria-label="Loading connections"
+          >
+            {[0, 1, 2].map((row) => (
+              <div key={row} className="flex items-start gap-3 px-3.5 py-3.5" aria-hidden="true">
+                <div className="skeleton h-9 w-9 flex-none rounded-xl" />
+                <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+                  <div className="skeleton h-3.5 w-28 max-w-[45%]" />
+                  <div className="skeleton h-2.5 w-52 max-w-[80%]" />
+                </div>
+                <div className="skeleton hidden h-8 w-[4.75rem] flex-none rounded-full sm:block" />
+              </div>
+            ))}
           </div>
         ) : (
           <ul className="mt-4 divide-y divide-line overflow-hidden rounded-xl border border-line bg-raised-2">

@@ -18,6 +18,17 @@
   font-display: swap;
 }
 
+/* Only regular, medium, and bold faces ship with the app. Map semibold to the
+   bold face explicitly so 600 text resolves the same way on every platform
+   instead of depending on browser weight matching. */
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/SFPRODISPLAYBOLD.woff") format("woff");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "SF Pro Display";
   src: url("/fonts/SFPRODISPLAYBOLD.woff") format("woff");
@@ -164,7 +175,7 @@
     background: transparent;
     color: var(--ink);
     font-size: 1rem;
-    font-weight: 550;
+    font-weight: 600;
     letter-spacing: -0.01em;
     white-space: nowrap;
     cursor: pointer;
@@ -335,6 +346,28 @@
     }
   }
 
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    background: var(--raised-2);
+  }
+
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 7%, transparent), transparent);
+    animation: jot-shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes jot-shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
   .card {
     background: var(--raised);
     border: 1px solid var(--line);
@@ -398,7 +431,7 @@
     display: block;
     margin-bottom: 0.45rem;
     font-size: 0.905rem;
-    font-weight: 550;
+    font-weight: 600;
     color: var(--soft);
   }
 

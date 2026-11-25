@@ -268,6 +268,12 @@ function PlanCard() {
                 </span>
               </div>
               <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-muted">{summary}</p>
+              {loading && (
+                <div className="mt-2 max-w-[320px]" aria-hidden="true">
+                  <div className="skeleton h-1.5 w-full rounded-full" />
+                  <div className="skeleton mt-1.5 h-2.5 w-40" />
+                </div>
+              )}
               {left !== null && limitMinutes !== null && (
                 <div className="mt-2 max-w-[320px]">
                   <div className="h-1.5 overflow-hidden rounded-full bg-raised-2">
@@ -354,14 +360,12 @@ function PlanCard() {
               )}
             </div>
           )}
-
-          {loading && (
-            <span className="flex items-center gap-2 self-start rounded-full border border-line bg-raised-2 px-3 py-1.5 text-[12.5px] text-muted">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Checking
-            </span>
-          )}
         </div>
+        {loading && (
+          <span className="sr-only" role="status">
+            Checking your plan
+          </span>
+        )}
 
         {billing && !billing.configured && !paid && (
           <div className="mt-4 rounded-xl border border-line bg-raised-2 p-3.5">
