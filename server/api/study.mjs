@@ -80,7 +80,7 @@ export function groupView(row, userId) {
 }
 
 async function requireMember(userId, groupId) {
-  const result = await query("select role from study_group_members where group_id = $1 and user_id = $2", [
+  const result = await query("select user_id from study_group_members where group_id = $1 and user_id = $2", [
     groupId,
     userId,
   ]);
