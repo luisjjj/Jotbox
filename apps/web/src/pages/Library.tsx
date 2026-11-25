@@ -124,7 +124,7 @@ export default function Library() {
                 onClick={() => setFilter(item.value)}
                 aria-pressed={active}
                 className={clsx(
-                  "rounded-full border px-3 py-1.5 text-[14px] font-medium transition-colors",
+                  "min-h-[2.75rem] min-w-11 rounded-full border px-3 text-[14px] font-medium transition-colors lg:min-h-0 lg:py-1.5",
                   active
                     ? "border-accent bg-accent-soft text-accent"
                     : "border-line bg-raised text-muted hover:border-line-strong hover:text-ink",

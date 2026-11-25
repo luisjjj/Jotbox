@@ -62,7 +62,7 @@ export function TranscriptView({
                 <button
                   type="button"
                   onClick={() => onSeek(line.at)}
-                  className="-ml-1 rounded px-1 py-0.5 text-left text-faint transition-colors hover:bg-raised-2 hover:text-ink"
+                  className="time-seek -ml-1 rounded px-1 py-0.5 text-left text-faint transition-colors hover:bg-raised-2 hover:text-ink"
                   aria-label={`Play from ${formatClock(line.at)}`}
                 >
                   {formatClock(line.at)}

@@ -89,7 +89,7 @@ export function SessionRow({
           </p>
         )}
         {!compact && showPreview && (
-          <p className="mt-1 line-clamp-1 text-[14.5px] leading-5 text-faint">{previewFor(session)}</p>
+          <p className="mt-1 line-clamp-1 max-w-[70ch] text-[14.5px] leading-5 text-faint">{previewFor(session)}</p>
         )}
       </div>
       {showStatus && session.status !== "ready" && <SessionStatusChip session={session} />}

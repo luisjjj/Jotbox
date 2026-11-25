@@ -717,7 +717,7 @@ export default function SessionPage() {
         </div>
         <h1 className="sr-only">{session.title}</h1>
         <input
-          className="mt-2.5 w-full min-w-0 rounded-md border-b border-transparent bg-transparent pb-1 text-[28px] font-semibold leading-tight tracking-[-0.04em] text-ink outline-none transition-colors hover:border-line focus:border-accent sm:text-[34px]"
+          className="mt-2.5 min-h-11 w-full min-w-0 rounded-md border-b border-transparent bg-transparent pb-1 text-[28px] font-semibold leading-tight tracking-[-0.04em] text-ink outline-none transition-colors hover:border-line focus:border-accent sm:text-[34px]"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           onBlur={commitTitle}
@@ -855,7 +855,7 @@ export default function SessionPage() {
                     {session.notes.highlights.map((highlight) => (
                       <li key={highlight} className="flex gap-3">
                         <span className="bullet-dot" />
-                        <p className="text-[16px] leading-6 text-soft">{highlight}</p>
+                        <p className="max-w-[68ch] text-[16px] leading-6 text-soft">{highlight}</p>
                       </li>
                     ))}
                   </ul>
@@ -1000,7 +1000,7 @@ export default function SessionPage() {
                             <Copy className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                        <p className="mt-2 whitespace-pre-line text-[14.5px] leading-6 text-soft">{draft.body}</p>
+                        <p className="mt-2 max-w-[68ch] whitespace-pre-line text-[14.5px] leading-6 text-soft">{draft.body}</p>
                       </li>
                     ))}
                   </ul>
@@ -1014,7 +1014,7 @@ export default function SessionPage() {
                     {section.bullets.map((bullet) => (
                       <li key={bullet} className="flex gap-3">
                         <span className="bullet-dot" />
-                        <p className="text-[16px] leading-6 text-soft">{bullet}</p>
+                        <p className="max-w-[68ch] text-[16px] leading-6 text-soft">{bullet}</p>
                       </li>
                     ))}
                   </ul>
