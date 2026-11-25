@@ -284,8 +284,8 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-dvh bg-paper">
-      <header className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-dvh flex-col bg-paper">
+      <header className="mx-auto flex h-16 w-full max-w-[1280px] flex-none items-center justify-between px-4 sm:px-6 lg:px-8">
         <Brand />
         <Link to="/" className="btn btn-ghost btn-sm">
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -293,7 +293,7 @@ export default function Auth() {
         </Link>
       </header>
 
-      <main className="page-enter mx-auto grid max-w-[1120px] gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-12 lg:py-12 lg:px-8">
+      <main className="page-enter mx-auto grid w-full max-w-[1120px] flex-1 gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-12 lg:py-12 lg:px-8">
         <div className="hero-ink relative hidden overflow-hidden rounded-[1.6rem] p-8 shadow-float lg:block lg:min-h-[560px]">
           <div className="hero-grid pointer-events-none absolute inset-0" />
           <div className="relative flex h-full flex-col justify-between">
