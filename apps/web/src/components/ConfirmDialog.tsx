@@ -1,5 +1,5 @@
-import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useDialogFocus } from "@/lib/useDialogFocus";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -20,14 +20,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
+  const dialogRef = useDialogFocus(open, onCancel);
 
   if (!open) return null;
 
@@ -39,10 +32,12 @@ export function ConfirmDialog({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-description"
+        tabIndex={-1}
         className="fade-up w-full max-w-[400px] rounded-2xl border border-line bg-raised p-5 shadow-float"
       >
         <h2 id="confirm-title" className="text-[17px] font-semibold tracking-[-0.01em] text-ink">
@@ -52,7 +47,7 @@ export function ConfirmDialog({
           {description}
         </p>
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" className="btn btn-line" onClick={onCancel} autoFocus>
+          <button type="button" className="btn btn-line" onClick={onCancel} data-autofocus>
             Cancel
           </button>
           <button

@@ -382,7 +382,7 @@ export default function Landing() {
                 </div>
                 <a
                   href={WINDOWS_DOWNLOAD}
-                  className="mt-3 inline-flex items-center gap-2 text-[13.5px] font-medium text-[#dcc69b] transition-colors hover:text-[#f5f1e4]"
+                  className="mt-3 tap-link gap-2 text-[13.5px] font-medium text-[#dcc69b] transition-colors hover:text-[#f5f1e4]"
                 >
                   <MonitorDown className="h-4 w-4" />
                   Download JotBox for Windows
@@ -945,28 +945,28 @@ export default function Landing() {
           <Brand />
           <p className="text-[12.5px] text-faint">Notes for the room and the call. Built for the way we meet.</p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] font-medium text-muted">
-            <a href="#how" className="transition-colors hover:text-ink">
+            <a href="#how" className="tap-link transition-colors hover:text-ink">
               How it works
             </a>
-            <a href="#pricing" className="transition-colors hover:text-ink">
+            <a href="#pricing" className="tap-link transition-colors hover:text-ink">
               Pricing
             </a>
-            <a href={WINDOWS_DOWNLOAD} className="transition-colors hover:text-ink">
+            <a href={WINDOWS_DOWNLOAD} className="tap-link transition-colors hover:text-ink">
               Download for Windows
             </a>
-            <Link to={signedIn ? "/app" : authHref} className="transition-colors hover:text-ink">
+            <Link to={signedIn ? "/app" : authHref} className="tap-link transition-colors hover:text-ink">
               {signedIn ? "Open JotBox" : "Sign in"}
             </Link>
-            <a href="https://github.com/luisjjj/Jotbox" className="transition-colors hover:text-ink">
+            <a href="https://github.com/luisjjj/Jotbox" className="tap-link transition-colors hover:text-ink">
               GitHub
             </a>
-            <Link to="/privacy" className="transition-colors hover:text-ink">
+            <Link to="/privacy" className="tap-link transition-colors hover:text-ink">
               Privacy policy
             </Link>
-            <Link to="/terms" className="transition-colors hover:text-ink">
+            <Link to="/terms" className="tap-link transition-colors hover:text-ink">
               Terms
             </Link>
-            <Link to="/refunds" className="transition-colors hover:text-ink">
+            <Link to="/refunds" className="tap-link transition-colors hover:text-ink">
               Refunds
             </Link>
           </div>

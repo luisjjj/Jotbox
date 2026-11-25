@@ -276,7 +276,7 @@ export default function Home() {
                 </div>
                 <Link
                   to="/library"
-                  className="inline-flex flex-none items-center gap-1 whitespace-nowrap text-[14px] font-medium text-muted transition-colors hover:text-ink"
+                  className="tap-link flex-none gap-1 whitespace-nowrap text-[14px] font-medium text-muted transition-colors hover:text-ink"
                 >
                   View library
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -370,7 +370,7 @@ export default function Home() {
               </div>
               <Link
                 to="/library"
-                className="inline-flex flex-none items-center gap-1 whitespace-nowrap text-[14px] font-medium text-muted transition-colors hover:text-ink"
+                className="tap-link flex-none gap-1 whitespace-nowrap text-[14px] font-medium text-muted transition-colors hover:text-ink"
               >
                 View library
                 <ArrowRight className="h-3.5 w-3.5" />
