@@ -1,7 +1,7 @@
 // Live chunks with no speech in them still bill as audio if they are sent, so
 // the engine watches the room level of each segment and keeps the paid pass for
 // segments that actually carry a voice. The peak, not the average, decides:
-// one soft word inside five seconds of quiet must not be dropped.
+// one soft word inside a short, mostly quiet chunk must not be dropped.
 export const LIVE_SPEECH_RMS = 0.012;
 
 export interface LiveLevelWindow {

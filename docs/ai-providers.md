@@ -14,7 +14,7 @@ This guide covers the provider chain already wired into `/api/transcribe` and
 | xAI | One-key premium speech and notes | Paid | Provider pricing and rate limits |
 
 Scribe reads every plan, every session shape, and both passes: the live captions,
-cut about every five seconds at a gap in speech, and the final full recording.
+cut about every three seconds at a gap in speech, and the final full recording.
 Speaker labels are requested on every capture except a voice note, on free as
 well as paid plans. The names on the roster, the room vocabulary and any
 configured terms are sent as keyterms on every plan, which adds $0.05 an audio
@@ -341,13 +341,14 @@ Routing:
    Without Scribe, Groq (`/openai/v1/audio/transcriptions`) reads the audio,
    then the Speaches worker. If a fallback provider is not configured or fails,
    the gateway tries the next one, then xAI.
-2. Live captions → Scribe in chunks of about five seconds, revealed a word at a
-   time on screen. A segment closes at the first gap in speech after the five
-   second mark, up to a 6.2 second hard cap, so a word is not sliced in half. A
-   chunk whose loudest sample never rises above the speech gate is not sent, so
-   silence costs nothing on the live pass. The browser speech service still runs
-   as a web preview, and Groq turbo is the live fallback when Scribe is not
-   configured.
+2. Live captions → Scribe in chunks of about three seconds, revealed a word at a
+   time on screen. A segment closes at the first gap in speech after the three
+   second mark, up to a 3.6 second hard cap, so a word is not sliced in half. Two
+   chunks may be in flight at once; results are re-ordered so lines still appear
+   in spoken order. A chunk whose loudest sample never rises above the speech
+   gate is not sent, so silence costs nothing on the live pass. The browser
+   speech service still runs as a web preview, and Groq turbo is the live
+   fallback when Scribe is not configured.
 3. Reports, notes, session asks, naming and the pre-meeting brief → Groq
    GPT-OSS `openai/gpt-oss-120b`, then `openai/gpt-oss-20b`, then OpenRouter
    free `google/gemma-4-31b-it:free` and the `openrouter/free` router, then xAI.

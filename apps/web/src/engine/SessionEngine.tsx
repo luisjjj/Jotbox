@@ -13,7 +13,7 @@ import { toast } from "react-hot-toast";
 import { ApiError, api } from "@/lib/api";
 import { saveAudio } from "@/lib/audioStore";
 import { conditionStream, shapeRoomAudio } from "@/lib/audioConditioning";
-import { buildNotes, studioAvailable } from "@/lib/buildNotes";
+import { buildNotes, draftNotes, studioAvailable } from "@/lib/buildNotes";
 import { clearCaptureNotice, showCaptureNotice } from "@/lib/captureNotice";
 import { desktopBridge } from "@/lib/desktop";
 import { defaultTitle, formatClock } from "@/lib/format";
@@ -192,16 +192,24 @@ function audioDuration(file: File) {
 }
 
 // Electron has no Web Speech API, so the desktop app sends short standalone
-// chunks to the same transcription endpoint the final pass uses. Five seconds
-// keeps the committed lines close to the room without cutting so much context
-// that the reader loses accuracy. At the five second mark the segment waits for
-// the next gap in speech, up to the hard cap, so a word is not sliced in half.
-const LIVE_SEGMENT_MS = 5_000;
-const LIVE_BOUNDARY_WINDOW_MS = 1_200;
-const LIVE_QUEUE_LIMIT = 3;
+// chunks to the same transcription endpoint the final pass uses. Three seconds
+// keeps the committed lines close to the room; the short pause-boundary wait
+// still avoids slicing a word in half.
+const LIVE_SEGMENT_MS = 3_000;
+const LIVE_BOUNDARY_WINDOW_MS = 600;
+const LIVE_QUEUE_LIMIT = 4;
+// Two chunks in flight at once keeps the reader from falling a full request
+// behind the speaker. Results are re-ordered by sequence before they show.
+const LIVE_CONCURRENCY = 2;
 // Server chunks arrive as a whole sentence. Reveal them a word at a time so
-// the transcript keeps the rhythm of the room instead of jumping.
-const LIVE_REVEAL_MS = 55;
+// the transcript keeps the rhythm of the room instead of jumping. The pace is
+// short enough to feel immediate, and a backlog is flushed instead of paced.
+const LIVE_REVEAL_MS = 20;
+
+interface LiveChunk {
+  seq: number;
+  blob: Blob;
+}
 
 interface ServerLive {
   active: boolean;
@@ -209,8 +217,11 @@ interface ServerLive {
   recorder: MediaRecorder | null;
   timer: number;
   closing: boolean;
-  queue: Blob[];
-  sending: boolean;
+  queue: LiveChunk[];
+  inFlight: number;
+  nextSeq: number;
+  displaySeq: number;
+  buffered: Map<number, string>;
   failures: number;
   level: LiveLevelWindow;
 }
@@ -272,7 +283,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     timer: 0,
     closing: false,
     queue: [],
-    sending: false,
+    inFlight: 0,
+    nextSeq: 0,
+    displaySeq: 0,
+    buffered: new Map(),
     failures: 0,
     level: createLevelWindow(),
   });
@@ -536,6 +550,16 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       return;
     }
     reveal.active = true;
+    // Chunks overlap while two requests run, so a line can arrive while the
+    // previous one is still writing. Show the backlog at once rather than
+    // pace it and fall further behind the room.
+    if (reveal.queue.length > 0) {
+      reveal.timer = 0;
+      reveal.text = "";
+      appendLiveText(next);
+      revealNext();
+      return;
+    }
     const words = next.split(" ");
     let shown = 0;
     const step = () => {
@@ -564,6 +588,18 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     if (!revealRef.current.active) revealNext();
   };
 
+  // Two chunk requests can finish out of order. Hold each result until every
+  // earlier chunk has been written, so the transcript stays in spoken order.
+  const drainLiveText = () => {
+    const live = serverLiveRef.current;
+    while (live.buffered.has(live.displaySeq)) {
+      const text = live.buffered.get(live.displaySeq) ?? "";
+      live.buffered.delete(live.displaySeq);
+      live.displaySeq += 1;
+      if (text) queueLiveText(text);
+    }
+  };
+
   const stopServerLive = () => {
     const live = serverLiveRef.current;
     live.active = false;
@@ -583,6 +619,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       }
     }
     live.queue = [];
+    live.inFlight = 0;
+    live.buffered.clear();
   };
 
   const closeLiveSegment = (live: ServerLive) => {
@@ -601,37 +639,47 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const pumpServerLive = async (generation: number) => {
+  const pumpServerLive = (generation: number) => {
     const live = serverLiveRef.current;
-    if (live.sending) return;
-    live.sending = true;
-    try {
-      while (live.active && live.generation === generation && live.queue.length) {
-        const blob = live.queue.shift()!;
-        try {
-          const text = await transcribeChunk(blob, {
-            title: titleRef.current || defaultTitle(kindRef.current),
-            kind: kindRef.current,
-            participants: participantsRef.current,
-          });
-          if (!live.active || live.generation !== generation) break;
+    while (
+      live.active &&
+      live.generation === generation &&
+      live.inFlight < LIVE_CONCURRENCY &&
+      live.queue.length
+    ) {
+      const chunk = live.queue.shift()!;
+      live.inFlight += 1;
+      void transcribeChunk(chunk.blob, {
+        title: titleRef.current || defaultTitle(kindRef.current),
+        kind: kindRef.current,
+        participants: participantsRef.current,
+      })
+        .then((text) => {
+          if (live.generation !== generation) return;
           live.failures = 0;
-          queueLiveText(text);
-        } catch {
+          live.buffered.set(chunk.seq, text);
+          drainLiveText();
+        })
+        .catch(() => {
+          if (live.generation !== generation) return;
           live.failures += 1;
+          // Release the slot with an empty line so later chunks are not held
+          // back waiting for words that will never come.
+          live.buffered.set(chunk.seq, "");
+          drainLiveText();
           if (live.failures >= 2) {
             const fallback = liveFallbackRef.current;
             stopServerLive();
             flushReveal();
             if (fallback) fallback();
             else setCaptions(false);
-            break;
           }
-        }
-      }
-    } finally {
-      live.sending = false;
-      if (live.active && live.queue.length) void pumpServerLive(live.generation);
+        })
+        .finally(() => {
+          if (live.generation !== generation) return;
+          live.inFlight = Math.max(0, live.inFlight - 1);
+          if (live.active && live.queue.length) pumpServerLive(live.generation);
+        });
     }
   };
 
@@ -661,9 +709,17 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       // A silent segment would still bill the live pass, so only loud segments
       // go to the queue. The final pass still reads the whole recording.
       if (live.generation === generation && parts.length && chunkHasSpeech(live.level)) {
-        live.queue.push(new Blob(parts, { type: recorder.mimeType || mime || "audio/webm" }));
-        if (live.queue.length > LIVE_QUEUE_LIMIT) live.queue.shift();
-        void pumpServerLive(generation);
+        const seq = live.nextSeq;
+        live.nextSeq += 1;
+        live.queue.push({ seq, blob: new Blob(parts, { type: recorder.mimeType || mime || "audio/webm" }) });
+        if (live.queue.length > LIVE_QUEUE_LIMIT) {
+          // Drop the oldest waiting chunk but leave a gap marker so the writer
+          // never waits on a sequence number that will not arrive.
+          const dropped = live.queue.shift();
+          if (dropped) live.buffered.set(dropped.seq, "");
+        }
+        pumpServerLive(generation);
+        drainLiveText();
       }
       if (live.active && live.generation === generation) startServerSegment();
     };
@@ -693,6 +749,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     liveFallbackRef.current = onExhausted ?? null;
     live.active = true;
     live.failures = 0;
+    live.nextSeq = 0;
+    live.displaySeq = 0;
     startServerSegment();
   };
 
@@ -769,7 +827,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const armSpeech = () => {
     // The server reader writes the committed lines. On the web, the browser
     // speech service runs alongside it as an instant preview, so words keep
-    // writing while the fresh five-second chunk is still being read.
+    // writing while the fresh three-second chunk is still being read.
     stopSpeech(previewRef);
     stopSpeech(speechRef);
     armServerSpeech(() => {
@@ -943,6 +1001,33 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     };
     useSessions.getState().upsert(base);
     navigate(`/session/${id}`);
+    // Write a first report from the live words right away, while the full
+    // recording is still being read. The final report replaces it when ready.
+    const participantsNow = participantsRef.current;
+    const liveText = linesNow.map((line) => line.text).join(" ").trim();
+    let finalApplied = false;
+    let draftApplied = false;
+    const draft =
+      linesNow.length >= 3 && liveText.length >= 80
+        ? draftNotes({
+            kind: kindNow,
+            title: titleNow,
+            scratch: scratchNow,
+            lines: linesNow,
+            participants: participantsNow,
+          })
+        : null;
+    void draft?.then((quick) => {
+      if (!quick || finalApplied) return;
+      useSessions.getState().upsert({
+        ...base,
+        title: titleIsDefault && quick.title.trim() ? quick.title.trim() : titleNow,
+        status: "ready",
+        transcript: linesNow,
+        notes: quick.notes,
+      });
+      draftApplied = true;
+    });
     if (blob && blob.size > 0) {
       const outcome = await runServerJob({
         session: base,
@@ -957,6 +1042,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (outcome.state === "done") {
+        finalApplied = true;
         useSessions.getState().upsert({
           ...base,
           title: outcome.title,
@@ -969,11 +1055,16 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (outcome.state === "failed") {
-        useSessions.getState().upsert({
-          ...base,
-          status: "failed",
-          error: outcome.message,
-        });
+        // Give the draft its chance to land before declaring the session failed.
+        await draft;
+        finalApplied = true;
+        if (!draftApplied) {
+          useSessions.getState().upsert({
+            ...base,
+            status: "failed",
+            error: outcome.message,
+          });
+        }
         reset();
         return;
       }
@@ -992,9 +1083,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           lines: fallbackLines,
           audio: blob,
           ai,
-          participants: participantsRef.current,
+          participants: participantsNow,
         }),
       );
+      finalApplied = true;
       useSessions.getState().upsert({
         ...base,
         title: result.title,
@@ -1009,11 +1101,16 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch (caught) {
-      useSessions.getState().upsert({
-        ...base,
-        status: "failed",
-        error: caught instanceof Error ? caught.message : "The notes could not be written.",
-      });
+      // A late draft is still better than a failed screen, so let it land first.
+      await draft;
+      finalApplied = true;
+      if (!draftApplied) {
+        useSessions.getState().upsert({
+          ...base,
+          status: "failed",
+          error: caught instanceof Error ? caught.message : "The notes could not be written.",
+        });
+      }
     }
     reset();
   }, [navigate, runServerJob]);
