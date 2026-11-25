@@ -34,7 +34,6 @@ import { planName, useUsage } from "@/lib/usageStore";
 import { limitReachedMessage } from "@/lib/planLimitCopy";
 import {
   FOCUS_OPTIONS,
-  LANGUAGE_OPTIONS,
   PICKUP_OPTIONS,
   getFocusMode,
   guestParticipants,
@@ -47,6 +46,13 @@ import {
   type PickupMode,
   type SessionLanguage,
 } from "@/lib/listening";
+import {
+  getRegion,
+  getSavedPeople,
+  languageOptionsForRegion,
+  normalizeLanguage,
+  takePendingKind,
+} from "@/lib/onboarding";
 import { useSttLanguages } from "@/hooks/useSttLanguages";
 import { Select } from "@/components/Select";
 import type { Participant, SessionKind } from "@/lib/types";
@@ -194,10 +200,16 @@ function Setup() {
   const timeLeft = usage.loaded && !usage.unlimited ? usage.remainingSeconds : null;
   const outOfTime = timeLeft !== null && timeLeft <= 0;
   const [title, setTitle] = useState(prefillTitle);
-  const [people, setPeople] = useState<Participant[]>(() => guestParticipants(params.getAll("guest")));
+  const [people, setPeople] = useState<Participant[]>(() => {
+    const guests = guestParticipants(params.getAll("guest"));
+    return guests.length ? guests : getSavedPeople();
+  });
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
   const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
-  const [language, setLanguage] = useState<SessionLanguage>(() => getSessionLanguage());
+  const [language, setLanguage] = useState<SessionLanguage>(() =>
+    normalizeLanguage(getSessionLanguage(), getRegion()),
+  );
+  const languageOptions = languageOptionsForRegion(getRegion());
   const sttLanguages = useSttLanguages();
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [busy, setBusy] = useState<"mic" | "tab" | null>(null);
@@ -211,8 +223,17 @@ function Setup() {
   useEffect(() => {
     if (prefillKind && (KINDS as string[]).includes(prefillKind)) {
       setKind(prefillKind as SessionKind);
+      return;
     }
+    const pending = takePendingKind();
+    if (pending) setKind(pending);
   }, [prefillKind, setKind]);
+
+  useEffect(() => {
+    const current = getSessionLanguage();
+    const normalized = normalizeLanguage(current, getRegion());
+    if (normalized !== current) setSessionLanguage(normalized);
+  }, []);
 
   const launch = async (source: "mic" | "tab") => {
     setBusy(source);
@@ -443,7 +464,7 @@ function Setup() {
                       setLanguage(next);
                       setSessionLanguage(next);
                     }}
-                    options={LANGUAGE_OPTIONS.map((option) => ({
+                    options={languageOptions.map((option) => ({
                       value: option.value,
                       label: option.label,
                       disabled:
@@ -454,7 +475,7 @@ function Setup() {
                   <p className="mt-1.5 text-[12.5px] leading-4 text-muted">
                     {sttLanguages !== null && !sttLanguages.includes(language)
                       ? "The Igbo reader is not connected on this server yet. Pick another language for now."
-                      : LANGUAGE_OPTIONS.find((option) => option.value === language)?.hint}
+                      : languageOptions.find((option) => option.value === language)?.hint}
                   </p>
                 </div>
               </div>
