@@ -7,7 +7,6 @@ import { APP_CONFIG } from "@jotbox/config";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   FOCUS_OPTIONS,
-  LANGUAGE_OPTIONS,
   PICKUP_OPTIONS,
   getFocusMode,
   getPickupMode,
@@ -19,6 +18,7 @@ import {
   type PickupMode,
   type SessionLanguage,
 } from "@/lib/listening";
+import { getRegion, languageOptionsForRegion, normalizeLanguage } from "@/lib/onboarding";
 import { useSttLanguages } from "@/hooks/useSttLanguages";
 import {
   captureNoticeEnabled,
@@ -82,10 +82,19 @@ export default function Settings() {
   const [retention, setRetention] = useState<AudioRetention>(() => getAudioRetention());
   const [focus, setFocus] = useState<FocusMode>(() => getFocusMode());
   const [pickup, setPickup] = useState<PickupMode>(() => getPickupMode());
-  const [language, setLanguage] = useState<SessionLanguage>(() => getSessionLanguage());
+  const [language, setLanguage] = useState<SessionLanguage>(() =>
+    normalizeLanguage(getSessionLanguage(), getRegion()),
+  );
+  const languageOptions = languageOptionsForRegion(getRegion());
   const [notice, setNotice] = useState(() => captureNoticeEnabled());
   const sttLanguages = useSttLanguages();
   const [savingRole, setSavingRole] = useState<DashboardRole | null>(null);
+
+  useEffect(() => {
+    const current = getSessionLanguage();
+    const normalized = normalizeLanguage(current, getRegion());
+    if (normalized !== current) setSessionLanguage(normalized);
+  }, []);
 
   const audioCount = sessions.filter((session) => session.hasAudio).length;
 
@@ -306,7 +315,7 @@ export default function Settings() {
                   setLanguage(next);
                   setSessionLanguage(next);
                 }}
-                options={LANGUAGE_OPTIONS.map((option) => ({
+                options={languageOptions.map((option) => ({
                   value: option.value,
                   label: option.label,
                   disabled:
@@ -317,7 +326,7 @@ export default function Settings() {
               <p className="mt-2 text-[12.5px] leading-4 text-muted">
                 {sttLanguages !== null && !sttLanguages.includes(language)
                   ? "The Igbo reader is not connected on this server yet. Pick another language for now."
-                  : LANGUAGE_OPTIONS.find((option) => option.value === language)?.hint}
+                  : languageOptions.find((option) => option.value === language)?.hint}
               </p>
             </div>
             <div className="sm:col-span-2">
