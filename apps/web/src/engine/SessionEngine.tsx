@@ -192,10 +192,11 @@ function audioDuration(file: File) {
 }
 
 // Electron has no Web Speech API, so the desktop app sends short standalone
-// chunks to the same transcription endpoint the final pass uses. Three seconds
-// keeps the committed lines close to the room; the short pause-boundary wait
-// still avoids slicing a word in half.
-const LIVE_SEGMENT_MS = 3_000;
+// chunks to the same transcription endpoint the final pass uses. Four seconds
+// keeps the committed lines close to the room while leaving the reader long
+// enough context to hold its accuracy; the short pause-boundary wait still
+// avoids slicing a word in half.
+const LIVE_SEGMENT_MS = 4_000;
 const LIVE_BOUNDARY_WINDOW_MS = 600;
 const LIVE_QUEUE_LIMIT = 4;
 // Two chunks in flight at once keeps the reader from falling a full request
@@ -827,7 +828,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const armSpeech = () => {
     // The server reader writes the committed lines. On the web, the browser
     // speech service runs alongside it as an instant preview, so words keep
-    // writing while the fresh three-second chunk is still being read.
+    // writing while the fresh four-second chunk is still being read.
     stopSpeech(previewRef);
     stopSpeech(speechRef);
     armServerSpeech(() => {

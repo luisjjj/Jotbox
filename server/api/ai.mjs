@@ -2212,7 +2212,7 @@ export async function handleTranscribe(req, res) {
 
 // Small chunks from the desktop live captions. Higher request count, lower
 // size cap, so the hourly audio budget stays below the capture endpoint.
-// Three-second chunks are 1,200 requests an hour; leave room for retries.
+// Four-second chunks are 900 requests an hour; leave room for retries.
 export async function handleLiveTranscribe(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);

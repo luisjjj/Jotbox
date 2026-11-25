@@ -341,9 +341,9 @@ Routing:
    Without Scribe, Groq (`/openai/v1/audio/transcriptions`) reads the audio,
    then the Speaches worker. If a fallback provider is not configured or fails,
    the gateway tries the next one, then xAI.
-2. Live captions → Scribe in chunks of about three seconds, revealed a word at a
-   time on screen. A segment closes at the first gap in speech after the three
-   second mark, up to a 3.6 second hard cap, so a word is not sliced in half. Two
+2. Live captions → Scribe in chunks of about four seconds, revealed a word at a
+   time on screen. A segment closes at the first gap in speech after the four
+   second mark, up to a 4.6 second hard cap, so a word is not sliced in half. Two
    chunks may be in flight at once; results are re-ordered so lines still appear
    in spoken order. A chunk whose loudest sample never rises above the speech
    gate is not sent, so silence costs nothing on the live pass. The browser
