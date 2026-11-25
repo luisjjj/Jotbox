@@ -355,7 +355,9 @@ Routing:
    Organisation memory answers follow the same order. Set
    `JOTBOX_NOTES_PROVIDER` to force one provider ahead of the rest.
    If none are configured, the app writes notes on the device from the spoken
-   words and jottings.
+   words and jottings. At stop, the app asks for a draft report from the live
+   words first, with the cleanup pass skipped, shows it, then replaces it with
+   the full-audio report when the batch pass finishes.
 4. `JOTBOX_AI_MOCK=1` runs the deterministic demo provider locally. It is ignored
    on Vercel so demo content cannot reach production.
 
