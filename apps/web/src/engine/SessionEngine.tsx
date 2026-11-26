@@ -198,8 +198,17 @@ function audioDuration(file: File) {
 // that the reader loses accuracy. At the five second mark the segment waits for
 // the next gap in speech, up to the hard cap, so a word is not sliced in half.
 const LIVE_SEGMENT_MS = 5_000;
+// When a chunk is still waiting to be read, the next segment records longer so
+// the request rate drops until the reader catches up instead of losing audio.
+const LIVE_SEGMENT_LONG_MS = 8_000;
 const LIVE_BOUNDARY_WINDOW_MS = 1_200;
-const LIVE_QUEUE_LIMIT = 3;
+// A minute of audio can wait, so a slow spell does not silently drop speech.
+const LIVE_QUEUE_LIMIT = 12;
+// Writing the whole growing transcript on every line makes long sessions
+// slower. Save at most this often, with a final write after the last line.
+const LIVE_PERSIST_MS = 12_000;
+const LIVE_RETRY_MS = 30_000;
+const LIVE_FAILURE_LIMIT = 3;
 // Server chunks arrive as a whole sentence. Reveal them a word at a time so
 // the transcript keeps the rhythm of the room instead of jumping.
 const LIVE_REVEAL_MS = 55;
@@ -213,6 +222,7 @@ interface ServerLive {
   queue: Blob[];
   sending: boolean;
   failures: number;
+  retry: number;
   level: LiveLevelWindow;
 }
 
@@ -275,6 +285,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     queue: [],
     sending: false,
     failures: 0,
+    retry: 0,
     level: createLevelWindow(),
   });
   const speechRef = useRef<SpeechRec | null>(null);
@@ -293,6 +304,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const insightAt = useRef(0);
   const insightCount = useRef(0);
   const allowanceRef = useRef<{ limit: number; baseline: number } | null>(null);
+  const livePersistRef = useRef({ at: 0, timer: 0 });
 
   const setStatusBoth = (next: EngineStatus) => {
     statusRef.current = next;
@@ -312,6 +324,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const persistLive = useCallback(() => {
     const id = idRef.current;
     if (!id || (statusRef.current !== "recording" && statusRef.current !== "paused")) return;
+    if (livePersistRef.current.timer) {
+      window.clearTimeout(livePersistRef.current.timer);
+      livePersistRef.current.timer = 0;
+    }
+    livePersistRef.current.at = Date.now();
     useSessions.getState().upsert({
       id,
       title: titleRef.current || defaultTitle(kindRef.current),
@@ -328,7 +345,25 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const persistLiveSoon = useCallback(() => {
+    const state = livePersistRef.current;
+    const wait = LIVE_PERSIST_MS - (Date.now() - state.at);
+    if (wait <= 0) {
+      persistLive();
+      return;
+    }
+    if (state.timer) return;
+    state.timer = window.setTimeout(() => {
+      state.timer = 0;
+      persistLive();
+    }, wait);
+  }, [persistLive]);
+
   const reset = () => {
+    if (livePersistRef.current.timer) {
+      window.clearTimeout(livePersistRef.current.timer);
+    }
+    livePersistRef.current = { at: 0, timer: 0 };
     idRef.current = null;
     titleRef.current = "";
     titleTouched.current = false;
@@ -506,7 +541,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     linesRef.current = [...linesRef.current, { id: crypto.randomUUID(), text, at: currentElapsed() }];
     setLines(linesRef.current);
     setInterim("");
-    persistLive();
+    persistLiveSoon();
   };
 
   const clearReveal = () => {
@@ -574,6 +609,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(live.timer);
       live.timer = 0;
     }
+    if (live.retry) {
+      window.clearTimeout(live.retry);
+      live.retry = 0;
+    }
     const recorder = live.recorder;
     live.recorder = null;
     if (recorder && recorder.state !== "inactive") {
@@ -620,7 +659,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           queueLiveText(text);
         } catch {
           live.failures += 1;
-          if (live.failures >= 2) {
+          if (live.failures >= LIVE_FAILURE_LIMIT) {
             const fallback = liveFallbackRef.current;
             stopServerLive();
             flushReveal();
@@ -677,6 +716,9 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       setCaptions(false);
       return;
     }
+    // A waiting chunk means the reader is behind, so record longer and send
+    // less often until it catches up.
+    const target = live.queue.length ? LIVE_SEGMENT_LONG_MS : LIVE_SEGMENT_MS;
     live.timer = window.setTimeout(() => {
       if (live.recorder !== recorder || recorder.state === "inactive") return;
       live.closing = true;
@@ -685,7 +727,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           closeLiveSegment(live);
         }
       }, LIVE_BOUNDARY_WINDOW_MS);
-    }, LIVE_SEGMENT_MS);
+    }, target);
   };
 
   const armServerSpeech = (onExhausted?: () => void) => {
@@ -774,12 +816,19 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     stopSpeech(previewRef);
     stopSpeech(speechRef);
     armServerSpeech(() => {
-      stopSpeech(previewRef);
       if (!desktop) {
-        setInterim("");
-        armWebSpeech();
+        // The browser voice stays a preview. It must not take over the saved
+        // transcript, and the room should know the server reader paused.
+        const live = serverLiveRef.current;
+        toast("Live words paused. The recording is still running.", { id: "live-paused" });
+        if (live.retry) window.clearTimeout(live.retry);
+        live.retry = window.setTimeout(() => {
+          live.retry = 0;
+          if (listenRef.current && statusRef.current === "recording") armSpeech();
+        }, LIVE_RETRY_MS);
         return;
       }
+      stopSpeech(previewRef);
       setCaptions(false);
     });
     if (!desktop) armWebSpeech({ commit: false });

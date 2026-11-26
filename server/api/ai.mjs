@@ -862,16 +862,28 @@ function sttAvailability() {
 
 export function routingForCapture({ plan = "free", context, live = false, glossary = [] }) {
   const available = sttAvailability();
-  if (live) return routeLiveTranscription({ available });
-  const terms = [...(context?.names ?? []), ...(Array.isArray(glossary) ? glossary : [])];
+  // Names, room vocabulary and configured terms boost every plan. The org
+  // glossary arrives separately and only for the enterprise tier that owns it.
+  const terms = [
+    ...new Set([
+      ...(context?.names ?? []),
+      ...(Array.isArray(glossary) ? glossary : []),
+      ...sttKeyterms(context),
+    ]),
+  ];
+  if (live) {
+    const route = routeLiveTranscription({ available });
+    // Scribe takes keyterms without repeating them back like a Whisper prompt,
+    // so live chunks get the same room vocabulary as the final pass. Whisper
+    // still runs without a prompt.
+    return route.provider === "elevenlabs" ? { ...route, keyterms: terms } : route;
+  }
   return routeTranscription({
     plan,
     mode: context?.mode,
     kind: context?.kind || "meeting",
     language: sttLanguage(context?.language),
-    // Names, room vocabulary and configured terms boost every plan. The org
-    // glossary arrives separately and only for the enterprise tier that owns it.
-    glossary: [...terms, ...sttKeyterms(context)],
+    glossary: terms,
     available,
   });
 }
@@ -2216,13 +2228,14 @@ export async function handleTranscribe(req, res) {
   sendJson(res, 200, await transcribeAudio({ buffer: body, contentType, filename, context, plan, glossary }));
 }
 
-// Small chunks from the desktop live captions. Higher request count, lower
-// size cap, so the hourly audio budget stays below the capture endpoint.
-// Five-second chunks are 720 requests an hour; leave room for retries.
+// Small chunks from the live captions. Higher request count, lower size cap,
+// so the hourly audio budget stays below the capture endpoint. A capture can
+// run four hours, which is 2880 five-second chunks, or 1800 eight-second chunks
+// once the client stretches segments to catch up. Leave room for retries.
 export async function handleLiveTranscribe(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
-  rateLimit(req, 900, "live");
+  rateLimit(req, 2400, "live");
   const body = await readBody(req, MAX_LIVE_AUDIO);
   if (!body.length) throw new HttpError(400, "No audio was sent.");
   const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
