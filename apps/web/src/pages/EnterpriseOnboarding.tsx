@@ -10,7 +10,6 @@ import {
   Loader2,
   Lock,
   Mail,
-  Sparkles,
   Users,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
@@ -315,8 +314,7 @@ export default function EnterpriseOnboarding() {
                         )}
                         {hostView && (
                           <div className="mt-3 rounded-lg border border-accent/25 bg-accent-soft px-3 py-2.5">
-                            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">
-                              <Sparkles className="h-3 w-3" />
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">
                               Host talk track
                             </p>
                             <p className="mt-1 text-[13px] leading-5 text-soft">{step.host}</p>

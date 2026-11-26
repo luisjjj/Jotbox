@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { Check, GraduationCap, Loader2, Sparkles } from "lucide-react";
+import { Check, GraduationCap, Loader2, Send } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { Modal } from "./Modal";
@@ -16,15 +16,17 @@ export function StudyShareDialog({
   session,
   open,
   onClose,
+  initialFormat = "note",
 }: {
   session: Session;
   open: boolean;
   onClose: () => void;
+  initialFormat?: "note" | "quiz" | "cards";
 }) {
   const [groups, setGroups] = useState<StudyGroup[]>([]);
   const [quota, setQuota] = useState<StudyQuota | null>(null);
   const [groupId, setGroupId] = useState("");
-  const [format, setFormat] = useState<"note" | "quiz" | "cards">("note");
+  const [format, setFormat] = useState<"note" | "quiz" | "cards">(initialFormat);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -33,6 +35,7 @@ export function StudyShareDialog({
   useEffect(() => {
     if (!open) return;
     let alive = true;
+    setFormat(initialFormat);
     setLoading(true);
     setError("");
     setPaywalled(false);
@@ -55,7 +58,7 @@ export function StudyShareDialog({
     return () => {
       alive = false;
     };
-  }, [open]);
+  }, [open, initialFormat]);
 
   const share = async () => {
     if (!groupId) return;
@@ -176,7 +179,7 @@ export function StudyShareDialog({
               Cancel
             </button>
             <button type="button" className="btn btn-primary" disabled={busy || !groupId} onClick={() => void share()}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {busy ? "Working…" : format === "note" ? "Share note" : format === "quiz" ? "Make the quiz" : "Make the cards"}
             </button>
           </div>

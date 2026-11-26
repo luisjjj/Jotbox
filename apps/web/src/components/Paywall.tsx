@@ -1,4 +1,4 @@
-import { ArrowRight, Lock, Sparkles } from "lucide-react";
+import { ArrowRight, Lock, Unlock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Modal } from "./Modal";
 import { useUsage } from "@/lib/usageStore";
@@ -31,7 +31,7 @@ export function PaywallDialog({
       <div className="space-y-4">
         <div className="flex items-start gap-3 rounded-xl border border-accent bg-accent-soft p-3.5">
           <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-raised text-accent">
-            <Sparkles className="h-4 w-4" />
+            <Unlock className="h-4 w-4" />
           </span>
           <div className="min-w-0">
             <p className="text-[14.5px] font-medium text-ink">Starter Pro opens this up</p>

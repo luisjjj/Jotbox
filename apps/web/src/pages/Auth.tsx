@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Check, Eye, EyeOff, Loader2, Lock, Sparkles, User } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, Eye, EyeOff, FileText, Loader2, Lock, User } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/auth/AuthProvider";
 import { Brand, BrandMark } from "@/components/Brand";
@@ -98,7 +98,7 @@ export default function Auth() {
     <>
       {selectedPlan && (
         <div className="mt-6 flex items-start gap-2 rounded-xl border border-accent/25 bg-accent-soft px-3 py-2.5">
-          <Sparkles className="mt-0.5 h-3.5 w-3.5 flex-none text-accent" />
+          <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-accent" />
           <p className="text-[13px] leading-5 text-accent">
             <span className="font-semibold">{selectedPlan} selected.</span>{" "}
             {mode === "login" ? "Sign in" : "Create your account"} and we will take you to Paystack to finish the payment.
@@ -221,7 +221,7 @@ export default function Auth() {
           ) : mode === "login" ? (
             <User className="h-4 w-4" />
           ) : (
-            <Sparkles className="h-4 w-4" />
+            <Check className="h-4 w-4" />
           )}
           {submitting ? "Working…" : mode === "login" ? "Sign in" : "Create my account"}
         </button>
@@ -313,7 +313,7 @@ export default function Auth() {
               {[
                 { Icon: Check, text: "Notes and jottings stay together" },
                 { Icon: Lock, text: "Recordings stay on your device" },
-                { Icon: Sparkles, text: "JotBox writes the summary and actions" },
+                { Icon: FileText, text: "JotBox writes the summary and actions" },
               ].map((item) => (
                 <div key={item.text} className="flex items-center gap-2.5 text-[13.5px] text-[#d8e2d8]">
                   <span className="grid h-6 w-6 place-items-center rounded-full border border-white/15 bg-white/[0.06]">

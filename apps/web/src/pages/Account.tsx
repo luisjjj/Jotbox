@@ -10,7 +10,6 @@ import {
   LogOut,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -252,7 +251,7 @@ function PlanCard() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3.5">
             <span className="grid h-11 w-11 flex-none place-items-center rounded-2xl bg-accent-soft text-accent">
-              {paid ? <Sparkles className="h-5 w-5" /> : <CreditCard className="h-5 w-5" />}
+              {paid ? <ShieldCheck className="h-5 w-5" /> : <CreditCard className="h-5 w-5" />}
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
