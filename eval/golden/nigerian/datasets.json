@@ -1,0 +1,61 @@
+{
+  "pidgin": {
+    "repo": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+    "revision": "87c615091844ac1b44b91d8831683641b02df447",
+    "license": "CC-BY-4.0",
+    "stats": {
+      "clips": 4277,
+      "seconds": 30814.0,
+      "words": 73096
+    },
+    "files": [
+      {
+        "path": "data/train-00000-of-00002-06caf65bef6a8834.parquet",
+        "bytes": 298848257,
+        "sha256": "8f5578d97529de95d3eb6406a1ca32adb59cde0e701e0d36d2620d29194ca39d"
+      },
+      {
+        "path": "data/train-00001-of-00002-541a3212bc85a73b.parquet",
+        "bytes": 307844694,
+        "sha256": "b84bd673a5510ef12fa524216509daf32ed533a6eb437ee921fcfcc13f574eee"
+      },
+      {
+        "path": "data/validation-00000-of-00001-b91747625e760fc5.parquet",
+        "bytes": 153689547,
+        "sha256": "5ddbf9a25ad4193993e44e3233019738792e5a829fa2689f22661a328a43cfe4"
+      },
+      {
+        "path": "data/test-00000-of-00001-16c049b6814bb7ff.parquet",
+        "bytes": 195493858,
+        "sha256": "b441e2c00fc5386d60675e2db89af092e985e10d32341c7524e61ed37a2510d7"
+      }
+    ]
+  },
+  "english": {
+    "repo": "benjaminogbonna/nigerian_accented_english_dataset",
+    "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+    "license": "apache-2.0",
+    "stats": {
+      "clips": 3402,
+      "seconds": 40000.0,
+      "words": 80920
+    },
+    "files": [
+      {
+        "path": "data/train-00000-of-00001.parquet",
+        "bytes": 98009421,
+        "sha256": "4120a67cdcda72090d7ac1d988c88d8b610c257dd535305fcce16169347c1757"
+      },
+      {
+        "path": "data/validation-00000-of-00001.parquet",
+        "bytes": 12014644,
+        "sha256": "263a63761821f271defb3cf3065270f685e12061650ac6064071c5bc48f4fa00"
+      },
+      {
+        "path": "data/test-00000-of-00001.parquet",
+        "bytes": 11485921,
+        "sha256": "05a1b85ba72a1521fff4c2789d558ccf4170e7f2c75bdb79f2f6d9b3d1cddc59"
+      }
+    ]
+  }
+}
