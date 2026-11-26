@@ -7,7 +7,7 @@ let inflight: Promise<string[]> | null = null;
 
 function check() {
   if (!inflight) {
-    inflight = fetch("/api/health")
+    inflight = fetch("/api/health?fast=1", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) return FALLBACK;
         const data = (await response.json()) as { languages?: unknown };
