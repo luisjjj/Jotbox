@@ -267,6 +267,29 @@ test("live captions use Scribe too when it is configured", async () => {
   assert.equal(calls[0].diarize, null);
 });
 
+test("live Scribe chunks keep the room names and vocabulary as keyterms", () => {
+  process.env.ELEVENLABS_API_KEY = "test-scribe";
+  process.env.JOTBOX_STT_VOCAB = "NIPOST, KYC";
+
+  const route = ai.routingForCapture({
+    live: true,
+    context: { title: "Weekly sync", kind: "meeting", names: ["Ada", "Chinedu"], focus: "balanced" },
+  });
+
+  assert.equal(route.provider, "elevenlabs");
+  assert.equal(route.prompt, "none");
+  assert.deepEqual(route.keyterms, ["Ada", "Chinedu", "NIPOST", "KYC"]);
+});
+
+test("live chunks on a fallback reader stay keyterm free", () => {
+  process.env.GROQ_API_KEY = "test-groq";
+
+  const route = ai.routingForCapture({ live: true, context: { names: ["Ada"] } });
+
+  assert.equal(route.provider, "groq");
+  assert.deepEqual(route.keyterms, []);
+});
+
 test("JOTBOX_STT_PROVIDER pins the order for a provider benchmark", async () => {
   process.env.ELEVENLABS_API_KEY = "test-scribe";
   process.env.GROQ_API_KEY = "test-groq";
