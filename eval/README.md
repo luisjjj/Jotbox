@@ -303,6 +303,34 @@ npm run eval:scribe:brekete
 It writes `eval/results/scribe-brekete-names-on` and spends paid audio, so run it when a
 change needs a fresh number rather than on every edit.
 
+## Nigerian golden sets
+
+[golden/nigerian/](golden/nigerian/) holds the fixed corpora for the two Nigerian speech
+modes: 4,277 Pidgin clips from the public Nigerian Pidgin ASR corpus and 3,402 Nigerian
+accented English clips. The full reference manifests and pinned dataset revisions are
+committed. The audio stays in the local cache because the Pidgin shards are larger than
+GitHub's file limit, and `prepare_goldenset.py` restores it at the pinned revision.
+
+Paid Scribe runs use short bench slices so the three minute cap holds: 17 Pidgin clips
+(116.2 s) and 26 English clips (167.8 s). On 26 November 2026 Scribe v3 scored 6.6% WER on
+the English slice, 20.1% on the Pidgin slice and 12.9% combined over 627 words. The
+combined report reuses the Pidgin run, so it adds no paid audio.
+
+```bash
+python eval/golden/nigerian/prepare_goldenset.py --download --build --extract benches
+node --env-file-if-exists=.env --env-file-if-exists=.env.local eval/run_pipeline.mjs --manifest eval/golden/nigerian/bench-english.json --out eval/results/scribe-nigerian-english --no-notes --language en
+python eval/golden/nigerian/combine_bench.py --pidgin eval/results/scribe-pidgin-fresh-17/predictions.json --english eval/results/scribe-nigerian-english/predictions.json
+```
+
+The same runs are wired as `npm run eval:nigerian:prepare`, `eval:nigerian:english`,
+`eval:nigerian:score:english`, `eval:nigerian:pidgin`, `eval:nigerian:score:pidgin` and
+`eval:nigerian:combined`.
+
+Scribe is hosted and cannot be fine-tuned on these files. The sets are for regression,
+for the `corrections.txt` matcher table and for choosing session keyterms. Method, results
+and caveats are in [golden/nigerian/README.md](golden/nigerian/README.md) and
+[golden/nigerian/reports/scribe-2026-11-26.md](golden/nigerian/reports/scribe-2026-11-26.md).
+
 ## Comparing changes
 
 A change is only useful if it moves a gate without breaking another. Keep the run folders and compare the reports:
@@ -324,7 +352,7 @@ The harness is ready for these, but they are not wired into the product yet:
 1. **Silero VAD.** Run Silero on the decoded audio before the reader, keep only speech segments, and join them with short pauses. The gate is the hallucination rate on `noise` clips, plus a check that clipped sentence starts do not raise WER. `ffmpeg` alone is not a VAD; do not label an energy filter as one in a report.
 2. **Context-aware glossary correction.** The matcher in `eval/glossary_match.py` is the first pass: it fixes names, amounts and explicit Pidgin aliases without touching the reader. The next step is to make it context-aware, so `local government` is not rewritten to `local govment`, and to feed the runner's output back into the product behind the same raw-text guarantee. Score the first pass for WER and the second for keyword recall. Never overwrite the verbatim text in the product.
 3. **Speaker diarization.** Try pyannote or sherpa-onnx. Score speaker assignment separately from WER, for example by checking that each named owner in the notes matches the person who spoke. Diarization must not change the transcript wording.
-4. **Self-hosted Whisper.** The runner already works with `WHISPER_BASE_URL`; compare it against Groq on the same golden set before switching a provider.
+4. **Self-hosted Whisper.** The runner already works with `WHISPER_BASE_URL`; compare it against Groq on the same golden set before switching a provider. The [open model sandbox](sandbox/README.md) already scores three Pidgin checkpoints offline. On 20 fresh clips, NaijaVox-2.0 gets 16.5% WER, African Voices Naija turbo 21.0%, and base Whisper large-v3-turbo 48.6%. All three need a GPU worker before they can serve the app.
 
 ## Public data banks
 

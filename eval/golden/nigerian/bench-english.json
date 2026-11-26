@@ -1,0 +1,445 @@
+{
+  "version": 1,
+  "name": "Nigerian accented English Scribe bench",
+  "description": "Deterministic slice of the accented English test split, capped for paid Scribe runs.",
+  "license": "apache-2.0",
+  "source": {
+    "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+    "revision": "23063ce074a2e7b930475d7e776e505c2027d69d"
+  },
+  "thresholds": {
+    "wer": 0.12,
+    "categoryWer": 0.35,
+    "keywordRecall": 0.95
+  },
+  "categories": {
+    "nigerian_english": {
+      "label": "Nigerian accented English, read sentences",
+      "target": 26
+    }
+  },
+  "stats": {
+    "clips": 26,
+    "seconds": 167.8,
+    "words": 333,
+    "budgetSeconds": 170.0
+  },
+  "clips": [
+    {
+      "id": "english-test-000",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-000.wav",
+      "reference": "Niger Delta is sometimes called the Oil Rivers because it was once a major producer of palm oil",
+      "seconds": 7.51,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 0,
+        "path": "clips/audio_sample_1003.mp3"
+      }
+    },
+    {
+      "id": "english-test-007",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-007.wav",
+      "reference": "Ashes and Embers is the story of a moody and disillusioned Black veteran of the Vietnam War.",
+      "seconds": 7.59,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 7,
+        "path": "clips/audio_sample_1037.mp3"
+      }
+    },
+    {
+      "id": "english-test-011",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-011.wav",
+      "reference": "Parts of the village remain flooded, hindering rescue efforts",
+      "seconds": 4.1,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 11,
+        "path": "clips/audio_sample_1079.mp3"
+      }
+    },
+    {
+      "id": "english-test-017",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-017.wav",
+      "reference": "The shortest flight from Kanpur to Munich is about ten hours and four minutes long",
+      "seconds": 7.0,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 17,
+        "path": "clips/audio_sample_1150.mp3"
+      }
+    },
+    {
+      "id": "english-test-021",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-021.wav",
+      "reference": "It is twenty five degrees with a chance of storms in Akpawfu.",
+      "seconds": 4.52,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 21,
+        "path": "clips/audio_sample_1193.mp3"
+      }
+    },
+    {
+      "id": "english-test-024",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-024.wav",
+      "reference": "Cross River State with Akwa Ibom State was formerly one of the original twelve states of Nigeria known as the Southeastern State.",
+      "seconds": 9.47,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 24,
+        "path": "clips/audio_sample_1215.mp3"
+      }
+    },
+    {
+      "id": "english-test-029",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-029.wav",
+      "reference": "Kokoro is a fried dry snack made from corn and garri",
+      "seconds": 9.98,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 29,
+        "path": "clips/audio_sample_127.mp3"
+      }
+    },
+    {
+      "id": "english-test-033",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-033.wav",
+      "reference": "Use fingerprint for future purchases.",
+      "seconds": 4.35,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 33,
+        "path": "clips/audio_sample_1304.mp3"
+      }
+    },
+    {
+      "id": "english-test-039",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-039.wav",
+      "reference": "The chiffchaff's song is given from a favoured prominent vantage point.",
+      "seconds": 5.46,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 39,
+        "path": "clips/audio_sample_1412.mp3"
+      }
+    },
+    {
+      "id": "english-test-043",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-043.wav",
+      "reference": "Turn left onto Olaniyi Street",
+      "seconds": 4.27,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 43,
+        "path": "clips/audio_sample_1422.mp3"
+      }
+    },
+    {
+      "id": "english-test-048",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-048.wav",
+      "reference": "The best goose feathers for quill pens were the primary feathers of the left wing, whose curvature bent away from the eyes of the right-handed writers.",
+      "seconds": 9.47,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 48,
+        "path": "clips/audio_sample_1446.mp3"
+      }
+    },
+    {
+      "id": "english-test-051",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-051.wav",
+      "reference": "Direct actions employ specialized military capabilities to seize, destroy, capture, exploit, recover, or damage designated targets.",
+      "seconds": 9.98,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 51,
+        "path": "clips/audio_sample_1465.mp3"
+      }
+    },
+    {
+      "id": "english-test-054",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-054.wav",
+      "reference": "Surface designs for body paintings were easily converted to embroidery designs for table linens in the Igbo town of Arochukwu.",
+      "seconds": 8.36,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 54,
+        "path": "clips/audio_sample_1489.mp3"
+      }
+    },
+    {
+      "id": "english-test-058",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-058.wav",
+      "reference": "Please redeploy your app once it is in a complete state.",
+      "seconds": 4.01,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 58,
+        "path": "clips/audio_sample_1556.mp3"
+      }
+    },
+    {
+      "id": "english-test-062",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-062.wav",
+      "reference": "Alice glanced rather anxiously at the cook",
+      "seconds": 5.46,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 62,
+        "path": "clips/audio_sample_160.mp3"
+      }
+    },
+    {
+      "id": "english-test-069",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-069.wav",
+      "reference": "Here is information for flights from Casablanca to Rome",
+      "seconds": 7.17,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 69,
+        "path": "clips/audio_sample_1636.mp3"
+      }
+    },
+    {
+      "id": "english-test-073",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-073.wav",
+      "reference": "Edikaikong is a vegetable soup which originated with the Annang Ibibio and Efik people",
+      "seconds": 5.97,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 73,
+        "path": "clips/audio_sample_1688.mp3"
+      }
+    },
+    {
+      "id": "english-test-079",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-079.wav",
+      "reference": "Is there any such thing as a National Doughnut Day?",
+      "seconds": 4.52,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 79,
+        "path": "clips/audio_sample_1754.mp3"
+      }
+    },
+    {
+      "id": "english-test-082",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-082.wav",
+      "reference": "In a half mile Take the exit",
+      "seconds": 4.52,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 82,
+        "path": "clips/audio_sample_1768.mp3"
+      }
+    },
+    {
+      "id": "english-test-089",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-089.wav",
+      "reference": "The mellifluous sounds allured all animals.",
+      "seconds": 4.78,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 89,
+        "path": "clips/audio_sample_180.mp3"
+      }
+    },
+    {
+      "id": "english-test-093",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-093.wav",
+      "reference": "The migration pattern of Oron people was similar to that of the Efik Eburutu people.",
+      "seconds": 6.49,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 93,
+        "path": "clips/audio_sample_1812.mp3"
+      }
+    },
+    {
+      "id": "english-test-097",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-097.wav",
+      "reference": "As plague spread, a system of quarantine was introduced.",
+      "seconds": 4.44,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 97,
+        "path": "clips/audio_sample_1837.mp3"
+      }
+    },
+    {
+      "id": "english-test-100",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-100.wav",
+      "reference": "David Ackroyd was casted in Hell hath no fury",
+      "seconds": 4.78,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 100,
+        "path": "clips/audio_sample_1865.mp3"
+      }
+    },
+    {
+      "id": "english-test-106",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-106.wav",
+      "reference": "Candidate financial disclosures raised Barack Obama's estimated January take to thirty seven million dollars.",
+      "seconds": 8.02,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 106,
+        "path": "clips/audio_sample_1930.mp3"
+      }
+    },
+    {
+      "id": "english-test-109",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-109.wav",
+      "reference": "The couple publicly announced that they were dating in June, and announced their engagement on Twitter in January.",
+      "seconds": 8.02,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 109,
+        "path": "clips/audio_sample_1951.mp3"
+      }
+    },
+    {
+      "id": "english-test-114",
+      "category": "nigerian_english",
+      "language": "en",
+      "audio": "../audio/nigerian-english/english-test-114.wav",
+      "reference": "From their new base in West Flanders and the Southwest Netherlands they were raiding the English Channel",
+      "seconds": 7.59,
+      "noise": false,
+      "source": {
+        "dataset": "benjaminogbonna/nigerian_accented_english_dataset",
+        "revision": "23063ce074a2e7b930475d7e776e505c2027d69d",
+        "split": "test",
+        "row": 114,
+        "path": "clips/audio_sample_1987.mp3"
+      }
+    }
+  ]
+}

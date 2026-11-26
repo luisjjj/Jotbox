@@ -1,0 +1,10 @@
+# Sandbox only. eval/requirements.txt stays limited to jiwer for the scorer.
+faster-whisper
+huggingface_hub
+pyarrow
+soundfile
+
+# Needed by ct2-transformers-converter, which turns a transformers checkpoint
+# into the int8 CTranslate2 folder that run_faster_whisper.py loads.
+torch
+transformers
