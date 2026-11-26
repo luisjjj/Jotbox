@@ -5,6 +5,8 @@ import {
   ArrowRight,
   BriefcaseBusiness,
   Check,
+  FileText,
+  Globe2,
   GraduationCap,
   Lightbulb,
   Loader2,
@@ -12,7 +14,6 @@ import {
   Plus,
   Presentation,
   RotateCcw,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -327,7 +328,7 @@ export default function Welcome() {
                   <ChoiceCard
                     active={region === "international"}
                     onClick={() => chooseRegion("international")}
-                    icon={<Sparkles className="h-[19px] w-[19px]" strokeWidth={1.9} />}
+                    icon={<Globe2 className="h-[19px] w-[19px]" strokeWidth={1.9} />}
                     title="Somewhere else"
                     hint="English, with the names and room words you add spelled correctly."
                   />
@@ -488,7 +489,7 @@ export default function Welcome() {
                     {visible >= demo.lines.length ? (
                       <div className="reveal-in">
                         <div className="flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-accent" />
+                          <FileText className="h-4 w-4 text-accent" />
                           <p className="text-[14.5px] font-semibold text-ink">The note, written for you</p>
                         </div>
                         <p className="mt-3 text-[13.5px] leading-6 text-soft">{demo.summary}</p>
@@ -507,7 +508,7 @@ export default function Welcome() {
                     ) : (
                       <div className="flex h-full min-h-[190px] flex-col items-center justify-center text-center">
                         <span className="grid h-11 w-11 place-items-center rounded-2xl bg-raised-2 text-faint">
-                          <Sparkles className="h-5 w-5" />
+                          <FileText className="h-5 w-5" />
                         </span>
                         <p className="mt-3 max-w-[28ch] text-[13px] leading-5 text-faint">
                           Your note appears here when the recording ends.
@@ -637,7 +638,7 @@ export default function Welcome() {
                   ) : intent ? (
                     <div className="rounded-2xl border border-accent/30 bg-accent-soft p-4 sm:p-5">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-accent" />
+                        <Check className="h-4 w-4 text-accent" />
                         <p className="text-[14.5px] font-semibold text-ink">
                           {intent === "starter" ? "Starter Pro" : "Power User"} is ready for you
                         </p>
@@ -745,7 +746,7 @@ export default function Welcome() {
                       disabled={saving}
                       onClick={() => void finish(`/account?plan=${intent}`)}
                     >
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                       Continue to payment
                     </button>
                     <button type="button" className="btn btn-line" disabled={saving} onClick={() => void finish("/app")}>

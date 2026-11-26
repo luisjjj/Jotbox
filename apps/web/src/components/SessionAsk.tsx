@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Loader2, MessageCircle, Send, Sparkles } from "lucide-react";
+import { Loader2, MessageCircle, Send } from "lucide-react";
 import clsx from "clsx";
 import { OUTPUT_PRESETS } from "@/lib/presets";
 import { askSession, type AskTurn } from "@/lib/sessionAsk";
@@ -40,10 +40,7 @@ export function SessionAsk({ session }: { session: Session }) {
           <MessageCircle className="h-4 w-4 text-accent" />
           <h2 className="text-[14px] font-semibold tracking-[-0.01em] text-ink">Ask this session</h2>
         </div>
-        <span className="inline-flex items-center gap-1 text-[12px] text-faint">
-          <Sparkles className="h-3 w-3" />
-          Only this capture
-        </span>
+        <span className="text-[12px] text-faint">Only this capture</span>
       </div>
 
       {turns.length > 0 && (

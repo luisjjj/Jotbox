@@ -1,18 +1,21 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type ChangeEvent, type ElementType, type FocusEvent, type KeyboardEvent } from "react";
 import clsx from "clsx";
 import { format } from "date-fns";
 import {
   AlertCircle,
+  AlignLeft,
   ArrowLeft,
   Check,
+  CircleHelp,
   Copy,
   Download,
   ExternalLink,
   FileDown,
   FilePlus2,
   FileText,
-  GraduationCap,
+  Layers,
   Link2,
+  ListChecks,
   Loader2,
   Megaphone,
   Pause,
@@ -21,8 +24,8 @@ import {
   Plus,
   Printer,
   Send,
-  Sparkles,
   Trash2,
+  Users,
   Wand2,
   X,
 } from "lucide-react";
@@ -36,6 +39,7 @@ import { JiraHandoffDialog } from "@/components/JiraHandoffDialog";
 import { NoticeDialog } from "@/components/NoticeDialog";
 import { PaywallDialog } from "@/components/Paywall";
 import { PeopleCard } from "@/components/PeopleCard";
+import { ReportLoading } from "@/components/ReportLoading";
 import { SessionAsk } from "@/components/SessionAsk";
 import { ShareDialog } from "@/components/ShareDialog";
 import { StudyShareDialog } from "@/components/StudyShareDialog";
@@ -53,7 +57,7 @@ import posthog, { posthogEnabled } from "@/lib/posthog";
 import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { linesFromText } from "@/lib/transcript";
-import type { FollowUpDraft, Session, TranscriptLine } from "@/lib/types";
+import type { FollowUpDraft, Session, SessionNotes, TranscriptLine } from "@/lib/types";
 import { ensurePro, refreshUsage, usePlan } from "@/lib/usageStore";
 import { useEngine } from "@/engine/SessionEngine";
 import { useAudioUrl } from "@/hooks/useAudio";
@@ -65,6 +69,70 @@ interface AudioHandle {
 function dueLabel(due: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return due;
   return format(new Date(`${due}T00:00:00`), "d MMM");
+}
+
+const EMPTY_PLACEHOLDER = "Write here";
+
+function EditableText({
+  value,
+  editing,
+  onCommit,
+  className,
+  as = "p",
+  multiline = false,
+  label,
+}: {
+  value: string;
+  editing: boolean;
+  onCommit: (text: string) => void;
+  className?: string;
+  as?: ElementType;
+  multiline?: boolean;
+  label?: string;
+}) {
+  const Tag = as;
+  return (
+    <Tag
+      className={clsx(
+        className,
+        editing && "rounded-md bg-raised outline-none ring-1 ring-line transition-shadow focus:ring-2 focus:ring-accent",
+      )}
+      contentEditable={editing}
+      suppressContentEditableWarning
+      spellCheck={editing}
+      role={editing ? "textbox" : undefined}
+      aria-label={label}
+      onKeyDown={(event: KeyboardEvent<HTMLElement>) => {
+        if (!editing || multiline || event.key !== "Enter") return;
+        event.preventDefault();
+        event.currentTarget.blur();
+      }}
+      onBlur={(event: FocusEvent<HTMLElement>) => {
+        if (!editing) return;
+        const raw = event.currentTarget.innerText.replace(/\u00a0/g, " ");
+        const text = (multiline ? raw : raw.replace(/\s*\n+\s*/g, " ")).trim();
+        if (text === value) return;
+        onCommit(text);
+      }}
+      data-placeholder={label === "Summary" ? "Write the summary" : EMPTY_PLACEHOLDER}
+    >
+      {value}
+    </Tag>
+  );
+}
+
+function RemoveItem({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      className="icon-btn h-6 w-6 flex-none text-faint hover:text-rec"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+    >
+      <X className="h-3.5 w-3.5" />
+    </button>
+  );
 }
 
 const AudioPlayer = forwardRef<AudioHandle, { src: string; fallbackDuration: number }>(function AudioPlayer(
@@ -231,26 +299,6 @@ function Panel({
   );
 }
 
-function NoteSkeleton() {
-  return (
-    <div className="mt-6" aria-hidden="true">
-      <div className="h-2.5 w-16 rounded-full bg-line" />
-      <div className="mt-4 space-y-2.5">
-        <div className="h-3.5 w-[92%] rounded-full bg-line" />
-        <div className="h-3.5 w-[84%] rounded-full bg-line" />
-        <div className="h-3.5 w-[58%] rounded-full bg-line" />
-      </div>
-      <div className="mt-8 h-2.5 w-20 rounded-full bg-line" />
-      <div className="mt-4 space-y-2.5">
-        <div className="h-3 w-[88%] rounded-full bg-line" />
-        <div className="h-3 w-[76%] rounded-full bg-line" />
-        <div className="h-3 w-[82%] rounded-full bg-line" />
-        <div className="h-3 w-[44%] rounded-full bg-line" />
-      </div>
-    </div>
-  );
-}
-
 export default function SessionPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -277,6 +325,8 @@ export default function SessionPage() {
   const [pdfPaywall, setPdfPaywall] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [handoffs, setHandoffs] = useState<JiraHandoffLink[]>([]);
+  const [editReport, setEditReport] = useState(false);
+  const [studyFormat, setStudyFormat] = useState<"note" | "quiz" | "cards">("note");
 
   useEffect(() => {
     setHandoffs([]);
@@ -298,6 +348,10 @@ export default function SessionPage() {
   }, [session?.id, session?.title]);
 
   useEffect(() => {
+    setEditReport(false);
+  }, [session?.id]);
+
+  useEffect(() => {
     if (session) document.title = `${session.title} · JotBox`;
     return () => {
       document.title = "JotBox: the notes are written while you listen";
@@ -305,8 +359,108 @@ export default function SessionPage() {
   }, [session?.title, session]);
 
   const openCount = session?.notes?.actions.filter((action) => !action.done).length ?? 0;
+  const doneCount = (session?.notes?.actions.length ?? 0) - openCount;
+  const decisionCount = session?.notes?.decisions?.length ?? 0;
+  const blockerCount = session?.notes?.blockers?.length ?? 0;
   const handoffById = useMemo(() => new Map(handoffs.map((link) => [link.actionId, link])), [handoffs]);
   const preset = session ? OUTPUT_PRESETS[session.kind] : OUTPUT_PRESETS.meeting;
+
+  const updateNotes = (mutate: (notes: SessionNotes) => SessionNotes) => {
+    if (!session?.notes) return;
+    patch(session.id, { notes: mutate(session.notes) });
+  };
+
+  const setSummary = (text: string) => {
+    if (!text) return;
+    updateNotes((notes) => ({ ...notes, summary: text }));
+  };
+
+  const setListText = (key: "highlights" | "decisions" | "blockers", index: number, text: string) => {
+    updateNotes((notes) => {
+      const list = [...(notes[key] ?? [])];
+      if (!text) list.splice(index, 1);
+      else list[index] = text;
+      return { ...notes, [key]: list };
+    });
+  };
+
+  const addListText = (key: "highlights" | "decisions" | "blockers") => {
+    updateNotes((notes) => ({ ...notes, [key]: [...(notes[key] ?? []), ""] }));
+  };
+
+  const setActionText = (actionId: string, text: string) => {
+    updateNotes((notes) => {
+      if (!text) return { ...notes, actions: notes.actions.filter((action) => action.id !== actionId) };
+      return {
+        ...notes,
+        actions: notes.actions.map((action) => (action.id === actionId ? { ...action, text } : action)),
+      };
+    });
+  };
+
+  const addActionRow = () => {
+    updateNotes((notes) => ({
+      ...notes,
+      actions: [
+        ...notes.actions,
+        { id: crypto.randomUUID(), text: "", owner: "Unassigned", done: false },
+      ],
+    }));
+  };
+
+  const removeActionRow = (actionId: string) => {
+    updateNotes((notes) => ({ ...notes, actions: notes.actions.filter((action) => action.id !== actionId) }));
+  };
+
+  const setSectionHeading = (index: number, text: string) => {
+    if (!text) return;
+    updateNotes((notes) => ({
+      ...notes,
+      sections: notes.sections.map((section, at) => (at === index ? { ...section, heading: text } : section)),
+    }));
+  };
+
+  const setSectionBullet = (index: number, bulletIndex: number, text: string) => {
+    updateNotes((notes) => ({
+      ...notes,
+      sections: notes.sections.map((section, at) => {
+        if (at !== index) return section;
+        const bullets = [...section.bullets];
+        if (!text) bullets.splice(bulletIndex, 1);
+        else bullets[bulletIndex] = text;
+        return { ...section, bullets };
+      }),
+    }));
+  };
+
+  const addSection = () => {
+    updateNotes((notes) => ({
+      ...notes,
+      sections: [...notes.sections, { heading: "New section", bullets: [""] }],
+    }));
+  };
+
+  const removeSection = (index: number) => {
+    updateNotes((notes) => ({ ...notes, sections: notes.sections.filter((_, at) => at !== index) }));
+  };
+
+  const addSectionBullet = (index: number) => {
+    updateNotes((notes) => ({
+      ...notes,
+      sections: notes.sections.map((section, at) =>
+        at === index ? { ...section, bullets: [...section.bullets, ""] } : section,
+      ),
+    }));
+  };
+
+  const jumpTo = (section: string) => {
+    document.getElementById(`report-${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const openStudy = (format: "note" | "quiz" | "cards") => {
+    setStudyFormat(format);
+    setStudyOpen(true);
+  };
 
   const resumeJobId = session?.status === "processing" ? session.jobId : undefined;
   const engineOwnsJob = engine.status === "processing" && engine.sessionId === session?.id;
@@ -658,12 +812,12 @@ export default function SessionPage() {
             <button
               type="button"
               className="icon-btn"
-              onClick={() => setStudyOpen(true)}
+              onClick={() => openStudy("note")}
               disabled={!session.notes}
               title="Share with a study group"
               aria-label="Share with a study group"
             >
-              <GraduationCap className="h-4 w-4" />
+              <Users className="h-4 w-4" />
             </button>
           )}
           <button
@@ -732,12 +886,12 @@ export default function SessionPage() {
         />
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-faint">
           <span className="inline-flex items-center gap-1.5">
-            <Sparkles className="h-3 w-3" />
+            <FileText className="h-3 w-3" />
             {session.notes?.source === "studio"
-              ? "Written from the spoken words and your jottings"
+              ? "From the recording"
               : session.notes
-                ? "Quick notes · written on this device"
-                : "Notes have not been written yet"}
+                ? "On this device"
+                : "No notes yet"}
           </span>
           {session.notes && <span className="hidden sm:inline">·</span>}
           {session.notes && <span>{openCount} open action{openCount === 1 ? "" : "s"}</span>}
@@ -749,35 +903,17 @@ export default function SessionPage() {
           {!processing && <SessionAsk session={session} />}
 
           {processing && (
-            <div className="card p-5 sm:p-6">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-accent-soft text-accent">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </span>
-                <div>
-                  <p className="text-[16px] font-semibold text-ink">
-                    {session.transcript.length ? "Words are ready" : "Reading the recording"}
-                  </p>
-                  <p className="mt-1 text-[14.5px] leading-5 text-muted">
-                    {session.transcript.length
-                      ? "The spoken words are here. Writing the notes now. You can leave this page."
-                      : "Tidying the spoken words and writing the notes. You can leave this page. It keeps working."}
-                  </p>
+            <div className="space-y-4">
+              <ReportLoading hasWords={session.transcript.length > 0} />
+              {session.transcript.length > 0 && (
+                <div className="card p-4">
+                  <p className="label">Words so far</p>
+                  <TranscriptView
+                    lines={session.transcript}
+                    live
+                    className="mt-2.5 max-h-[min(52vh,30rem)] rounded-lg border border-line px-3.5 py-2"
+                  />
                 </div>
-              </div>
-              {session.transcript.length ? (
-                <TranscriptView
-                  lines={session.transcript}
-                  live
-                  className="mt-4 max-h-[min(52vh,30rem)] rounded-lg border border-line px-3.5 py-2"
-                />
-              ) : (
-                <>
-                  <div className="writing-track mt-5">
-                    <div className="writing-bar" />
-                  </div>
-                  <NoteSkeleton />
-                </>
               )}
             </div>
           )}
@@ -827,78 +963,237 @@ export default function SessionPage() {
 
           {!processing && showNotes && session.notes && (
             <article className="mt-5">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">Report</h2>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm text-[13px]"
+                    onClick={() => void regenerate()}
+                    disabled={rebuilding}
+                    title="Rewrite the notes from the spoken words and jottings"
+                  >
+                    {rebuilding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                    Rewrite
+                  </button>
+                  <button
+                    type="button"
+                    className={clsx("btn btn-sm", editReport ? "btn-primary" : "btn-line")}
+                    onClick={() => setEditReport((current) => !current)}
+                  >
+                    {editReport ? <Check className="h-3.5 w-3.5" /> : <PencilLine className="h-3.5 w-3.5" />}
+                    {editReport ? "Done" : "Edit"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <button
+                  type="button"
+                  className="card p-3.5 text-left transition-colors hover:border-line-strong"
+                  onClick={() => jumpTo("actions")}
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent-soft text-accent">
+                      <ListChecks className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-[20px] font-semibold tabular-nums text-ink">{openCount}</span>
+                  </span>
+                  <span className="mt-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
+                    Next steps
+                  </span>
+                  <span className="mt-0.5 block text-[12.5px] text-muted">
+                    {doneCount} done
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="card p-3.5 text-left transition-colors hover:border-line-strong"
+                  onClick={() => jumpTo("decisions")}
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent-soft text-accent">
+                      <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    </span>
+                    <span className="text-[20px] font-semibold tabular-nums text-ink">{decisionCount}</span>
+                  </span>
+                  <span className="mt-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
+                    Decisions
+                  </span>
+                  <span className="mt-0.5 block text-[12.5px] text-muted">
+                    {decisionCount ? "Agreed" : "None yet"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="card p-3.5 text-left transition-colors hover:border-line-strong"
+                  onClick={() => jumpTo("blockers")}
+                >
+                  <span className="flex items-center justify-between">
+                    <span
+                      className={clsx(
+                        "grid h-7 w-7 place-items-center rounded-lg",
+                        blockerCount ? "bg-rec-soft text-rec" : "bg-accent-soft text-accent",
+                      )}
+                    >
+                      <AlertCircle className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-[20px] font-semibold tabular-nums text-ink">{blockerCount}</span>
+                  </span>
+                  <span className="mt-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
+                    Blockers
+                  </span>
+                  <span className="mt-0.5 block text-[12.5px] text-muted">
+                    {blockerCount ? "Needs attention" : "None"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="card p-3.5 text-left transition-colors hover:border-line-strong"
+                  onClick={() => jumpTo("points")}
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent-soft text-accent">
+                      <AlignLeft className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-[20px] font-semibold tabular-nums text-ink">
+                      {session.notes.highlights.length}
+                    </span>
+                  </span>
+                  <span className="mt-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
+                    Key points
+                  </span>
+                  <span className="mt-0.5 block text-[12.5px] text-muted">
+                    {session.notes.highlights.length === 1 ? "1 point" : `${session.notes.highlights.length} points`}
+                  </span>
+                </button>
+              </div>
+
+              <section className="mt-7">
                 <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                   {preset.summaryLabel}
                 </h2>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm -mr-2 text-[13px]"
-                  onClick={() => void regenerate()}
-                  disabled={rebuilding}
-                  title="Rewrite the notes from the spoken words and jottings"
-                >
-                  {rebuilding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                  Rewrite
-                </button>
-              </div>
-              <p className="mt-2.5 max-w-[70ch] whitespace-pre-line text-[21.5px] font-normal leading-[1.55] tracking-[0.002em] text-soft sm:text-[23px]">
-                {session.notes.summary}
-              </p>
+                <EditableText
+                  as="p"
+                  multiline
+                  value={session.notes.summary}
+                  editing={editReport}
+                  onCommit={setSummary}
+                  label="Summary"
+                  className="mt-2.5 max-w-[70ch] whitespace-pre-line text-[21.5px] font-normal leading-[1.55] tracking-[0.002em] text-soft sm:text-[23px]"
+                />
+              </section>
 
-              {session.notes.highlights.length > 0 && (
-                <section className="mt-8">
+              {(session.notes.highlights.length > 0 || editReport) && (
+                <section className="mt-8" id="report-points">
                   <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                     {preset.highlightsLabel}
                   </h2>
                   <ul className="mt-3 space-y-2.5">
-                    {session.notes.highlights.map((highlight) => (
-                      <li key={highlight} className="flex gap-3">
+                    {session.notes.highlights.map((highlight, index) => (
+                      <li key={`${index}-${highlight.slice(0, 16)}`} className="flex gap-3">
                         <span className="bullet-dot" />
-                        <p className="max-w-[68ch] text-[16px] leading-6 text-soft">{highlight}</p>
+                        <EditableText
+                          value={highlight}
+                          editing={editReport}
+                          onCommit={(text) => setListText("highlights", index, text)}
+                          label="Key point"
+                          className="max-w-[68ch] flex-1 text-[16px] leading-6 text-soft"
+                        />
+                        {editReport && (
+                          <RemoveItem onClick={() => setListText("highlights", index, "")} label="Remove point" />
+                        )}
                       </li>
                     ))}
                   </ul>
+                  {editReport && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm mt-2 -ml-2 text-[13px]"
+                      onClick={() => addListText("highlights")}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add point
+                    </button>
+                  )}
                 </section>
               )}
 
-              {session.notes.decisions && session.notes.decisions.length > 0 && (
-                <section className="mt-8">
+              {(decisionCount > 0 || editReport) && (
+                <section className="mt-8" id="report-decisions">
                   <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                     {preset.decisionsLabel}
                   </h2>
                   <ul className="mt-3 space-y-2.5">
-                    {session.notes.decisions.map((decision) => (
-                      <li key={decision} className="flex gap-3">
+                    {(session.notes.decisions ?? []).map((decision, index) => (
+                      <li key={`${index}-${decision.slice(0, 16)}`} className="flex gap-3">
                         <Check className="mt-1 h-3.5 w-3.5 flex-none text-accent" strokeWidth={2.5} />
-                        <p className="text-[16px] leading-6 text-soft">{decision}</p>
+                        <EditableText
+                          value={decision}
+                          editing={editReport}
+                          onCommit={(text) => setListText("decisions", index, text)}
+                          label="Decision"
+                          className="max-w-[68ch] flex-1 text-[16px] leading-6 text-soft"
+                        />
+                        {editReport && (
+                          <RemoveItem onClick={() => setListText("decisions", index, "")} label="Remove decision" />
+                        )}
                       </li>
                     ))}
                   </ul>
+                  {editReport && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm mt-2 -ml-2 text-[13px]"
+                      onClick={() => addListText("decisions")}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add decision
+                    </button>
+                  )}
                 </section>
               )}
 
-              {session.notes.blockers && session.notes.blockers.length > 0 && (
-                <section className="mt-8">
+              {(blockerCount > 0 || editReport) && (
+                <section className="mt-8" id="report-blockers">
                   <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                     {preset.blockersLabel}
                   </h2>
                   <ul className="mt-3 space-y-2">
-                    {session.notes.blockers.map((blocker) => (
+                    {(session.notes.blockers ?? []).map((blocker, index) => (
                       <li
-                        key={blocker}
+                        key={`${index}-${blocker.slice(0, 16)}`}
                         className="flex gap-2.5 rounded-xl border border-rec-line bg-rec-soft px-3.5 py-3"
                       >
                         <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-rec" />
-                        <p className="text-[15.5px] leading-6 text-soft">{blocker}</p>
+                        <EditableText
+                          value={blocker}
+                          editing={editReport}
+                          onCommit={(text) => setListText("blockers", index, text)}
+                          label="Blocker"
+                          className="flex-1 text-[15.5px] leading-6 text-soft"
+                        />
+                        {editReport && (
+                          <RemoveItem onClick={() => setListText("blockers", index, "")} label="Remove blocker" />
+                        )}
                       </li>
                     ))}
                   </ul>
+                  {editReport && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm mt-2 -ml-2 text-[13px]"
+                      onClick={() => addListText("blockers")}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add blocker
+                    </button>
+                  )}
                 </section>
               )}
 
-              {session.notes.actions.length > 0 && (
-                <section className="mt-8">
+              {(session.notes.actions.length > 0 || editReport) && (
+                <section className="mt-8" id="report-actions">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                       {preset.actionsLabel}
@@ -911,6 +1206,7 @@ export default function SessionPage() {
                         type="button"
                         className="btn btn-line btn-sm"
                         onClick={() => setJiraOpen(true)}
+                        disabled={!session.notes.actions.length}
                       >
                         <Send className="h-3.5 w-3.5" />
                         Send to Jira
@@ -921,54 +1217,103 @@ export default function SessionPage() {
                     {session.notes.actions.map((action) => {
                       const jiraLink = handoffById.get(action.id);
                       return (
-                      <li key={action.id} className="flex items-start gap-3 px-3.5 py-3">
-                        <button
-                          type="button"
-                          className="action-box mt-0.5"
-                          data-done={action.done}
-                          onClick={() => {
-                            toggleAction(session.id, action.id);
-                            if (posthogEnabled) {
-                              posthog.capture("session_action_toggled", {
-                                session_kind: session.kind,
-                                completed: !action.done,
-                              });
-                            }
-                          }}
-                          aria-pressed={action.done}
-                          aria-label={`${action.done ? "Reopen" : "Complete"} action: ${action.text}`}
-                        >
-                          {action.done && <Check className="h-3 w-3" strokeWidth={3} />}
-                        </button>
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className={clsx(
-                              "text-[15.5px] leading-5",
-                              action.done ? "text-faint line-through" : "text-soft",
-                            )}
+                        <li key={action.id} className="flex items-start gap-3 px-3.5 py-3">
+                          <button
+                            type="button"
+                            className="action-box mt-0.5"
+                            data-done={action.done}
+                            onClick={() => {
+                              toggleAction(session.id, action.id);
+                              if (posthogEnabled) {
+                                posthog.capture("session_action_toggled", {
+                                  session_kind: session.kind,
+                                  completed: !action.done,
+                                });
+                              }
+                            }}
+                            aria-pressed={action.done}
+                            aria-label={`${action.done ? "Reopen" : "Complete"} action: ${action.text}`}
                           >
-                            {action.text}
-                          </p>
-                          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-faint">
-                            <span>{action.owner}</span>
-                            {action.due && <span className="text-rec">Due {dueLabel(action.due)}</span>}
-                          </p>
-                          {jiraLink ? (
-                            <a
-                              href={jiraLink.url}
-                              target="_blank"
-                              rel="noreferrer noopener"
-                              className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-accent hover:underline"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              {jiraLink.key}
-                            </a>
-                          ) : null}
-                        </div>
-                      </li>
+                            {action.done && <Check className="h-3 w-3" strokeWidth={3} />}
+                          </button>
+                          <div className="min-w-0 flex-1">
+                            <EditableText
+                              value={action.text}
+                              editing={editReport}
+                              onCommit={(text) => setActionText(action.id, text)}
+                              label="Next step"
+                              className={clsx(
+                                "text-[15.5px] leading-5",
+                                action.done ? "text-faint line-through" : "text-soft",
+                              )}
+                            />
+                            <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-faint">
+                              <span>{action.owner}</span>
+                              {action.due && <span className="text-rec">Due {dueLabel(action.due)}</span>}
+                            </p>
+                            {jiraLink ? (
+                              <a
+                                href={jiraLink.url}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-accent hover:underline"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                {jiraLink.key}
+                              </a>
+                            ) : null}
+                          </div>
+                          {editReport && (
+                            <RemoveItem onClick={() => removeActionRow(action.id)} label="Remove next step" />
+                          )}
+                        </li>
                       );
                     })}
                   </ul>
+                  {editReport && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm mt-2 -ml-2 text-[13px]"
+                      onClick={addActionRow}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add next step
+                    </button>
+                  )}
+                </section>
+              )}
+
+              {user?.role === "student" && !isSample(session.id) && (
+                <section className="mt-8 rounded-xl border border-line bg-accent-soft p-4">
+                  <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
+                    Study tools
+                  </h2>
+                  <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      className="btn btn-line justify-center"
+                      onClick={() => openStudy("cards")}
+                    >
+                      <Layers className="h-4 w-4" />
+                      Flashcards
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-line justify-center"
+                      onClick={() => openStudy("quiz")}
+                    >
+                      <CircleHelp className="h-4 w-4" />
+                      Quiz
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-line justify-center"
+                      onClick={() => openStudy("note")}
+                    >
+                      <Users className="h-4 w-4" />
+                      Share with group
+                    </button>
+                  </div>
                 </section>
               )}
 
@@ -1007,23 +1352,70 @@ export default function SessionPage() {
                 </section>
               )}
 
-              {session.notes.sections.map((section) => (
-                <section key={section.heading} className="mt-8">
-                  <h2 className="text-[17.5px] font-semibold tracking-[-0.02em] text-ink">{section.heading}</h2>
-                  <ul className="mt-2.5 space-y-2">
-                    {section.bullets.map((bullet) => (
-                      <li key={bullet} className="flex gap-3">
-                        <span className="bullet-dot" />
-                        <p className="max-w-[68ch] text-[16px] leading-6 text-soft">{bullet}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
+              {(session.notes.sections.length > 0 || editReport) && (
+                <div id="report-sections">
+                  {session.notes.sections.map((section, index) => (
+                    <section key={index} className="mt-8">
+                      <div className="flex items-start justify-between gap-2">
+                        <EditableText
+                          as="h2"
+                          value={section.heading}
+                          editing={editReport}
+                          onCommit={(text) => setSectionHeading(index, text)}
+                          label="Section heading"
+                          className="text-[17.5px] font-semibold tracking-[-0.02em] text-ink"
+                        />
+                        {editReport && (
+                          <RemoveItem onClick={() => removeSection(index)} label="Remove section" />
+                        )}
+                      </div>
+                      <ul className="mt-2.5 space-y-2">
+                        {section.bullets.map((bullet, bulletIndex) => (
+                          <li key={bulletIndex} className="flex gap-3">
+                            <span className="bullet-dot" />
+                            <EditableText
+                              value={bullet}
+                              editing={editReport}
+                              onCommit={(text) => setSectionBullet(index, bulletIndex, text)}
+                              label="Section detail"
+                              className="max-w-[68ch] flex-1 text-[16px] leading-6 text-soft"
+                            />
+                            {editReport && (
+                              <RemoveItem
+                                onClick={() => setSectionBullet(index, bulletIndex, "")}
+                                label="Remove detail"
+                              />
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                      {editReport && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm mt-2 -ml-2 text-[13px]"
+                          onClick={() => addSectionBullet(index)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Add detail
+                        </button>
+                      )}
+                    </section>
+                  ))}
+                  {editReport && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm mt-4 -ml-2 text-[13px]"
+                      onClick={addSection}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add section
+                    </button>
+                  )}
+                </div>
+              )}
 
               <p className="mt-10 border-t border-line pt-3 text-[12.5px] leading-5 text-faint">
-                Notes are a summary of what was said, not a word-for-word record. Check names, numbers, and owners
-                before you send them on.
+                Check names, numbers and owners before you send this on.
               </p>
             </article>
           )}
@@ -1116,7 +1508,12 @@ export default function SessionPage() {
 
       <ShareDialog session={session} open={shareOpen} onClose={() => setShareOpen(false)} />
       {user?.role === "student" && !isSample(session.id) && (
-        <StudyShareDialog session={session} open={studyOpen} onClose={() => setStudyOpen(false)} />
+        <StudyShareDialog
+          session={session}
+          open={studyOpen}
+          onClose={() => setStudyOpen(false)}
+          initialFormat={studyFormat}
+        />
       )}
       <FollowUpDialog session={session} open={followUpOpen} onClose={() => setFollowUpOpen(false)} />
       <JiraHandoffDialog

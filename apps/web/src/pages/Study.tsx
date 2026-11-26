@@ -15,7 +15,7 @@ import {
   LogOut,
   Plus,
   RotateCcw,
-  Sparkles,
+  Send,
   Trash2,
   Users,
 } from "lucide-react";
@@ -469,7 +469,7 @@ function ShareNoteDialog({
               Cancel
             </button>
             <button type="button" className="btn btn-primary" disabled={busy || !captureId} onClick={() => void share()}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {busy ? "Working…" : format === "note" ? "Share note" : format === "quiz" ? "Make the quiz" : "Make the cards"}
             </button>
           </div>
@@ -633,8 +633,7 @@ export default function Study() {
             yours.
           </p>
           {overview && (
-            <p className="mt-2 flex items-center gap-1.5 text-[13px] leading-5 text-muted">
-              <Sparkles className="h-3.5 w-3.5 flex-none text-brass" />
+            <p className="mt-2 text-[13px] leading-5 text-muted">
               {quotaText(overview.quota)}
             </p>
           )}
@@ -737,7 +736,7 @@ export default function Study() {
                     onClick={() => setShareOpen(true)}
                     disabled={!shareable}
                   >
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <Send className="h-3.5 w-3.5" />
                     Share a note
                   </button>
                   <button
@@ -774,7 +773,7 @@ export default function Study() {
                     onClick={() => setShareOpen(true)}
                     disabled={!shareable}
                   >
-                    <Sparkles className="h-4 w-4" />
+                    <Send className="h-4 w-4" />
                     Share a note
                   </button>
                 </EmptyState>

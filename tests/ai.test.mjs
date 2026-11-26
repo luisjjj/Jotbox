@@ -670,7 +670,7 @@ test("notes parse fenced JSON, drop empty items and fail over between models", a
   assert.deepEqual(result.sections, [{ heading: "Decisions", bullets: ["Pause the promise"] }]);
 });
 
-test("a draft report skips the cleanup pass so the first report lands sooner", async () => {
+test("a report always cleans the transcript first, even with a stale skipCleanup flag", async () => {
   process.env.GROQ_API_KEY = "test-groq";
   const calls = [];
   const transcript = [
@@ -701,7 +701,7 @@ test("a draft report skips the cleanup pass so the first report lands sooner", a
     return Response.json({ choices: [{ message: { content } }] });
   };
 
-  const draft = await ai.enhanceSession({
+  const result = await ai.enhanceSession({
     kind: "meeting",
     title: "Payout review",
     scratch: "",
@@ -710,24 +710,12 @@ test("a draft report skips the cleanup pass so the first report lands sooner", a
     skipCleanup: true,
   });
 
-  assert.equal(draft.provider, "groq");
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].max_tokens, 4000);
-  assert.match(calls[0].messages[1].content, /Transcript:\nSpeaker 1: The bank acknowledged/);
-
-  calls.length = 0;
-  await ai.enhanceSession({
-    kind: "meeting",
-    title: "Payout review",
-    scratch: "",
-    transcript,
-    tone: "warm-direct",
-  });
-
+  assert.equal(result.provider, "groq");
   assert.equal(calls.length, 2);
   assert.equal(calls[0].max_tokens, 3000);
   assert.match(calls[0].messages[0].content, /Only fix punctuation/);
   assert.equal(calls[1].max_tokens, 4000);
+  assert.match(calls[1].messages[1].content, /Transcript:\nSpeaker 1: The bank acknowledged/);
 });
 
 test("notes try free Groq GPT-OSS first, then OpenRouter's free models", async () => {

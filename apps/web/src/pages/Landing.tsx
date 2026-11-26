@@ -6,6 +6,7 @@ import {
   Building2,
   Check,
   Cloud,
+  FileText,
   Globe2,
   Layers,
   Lock,
@@ -14,8 +15,8 @@ import {
   Mic,
   MonitorDown,
   MonitorUp,
+  PenLine,
   ShieldCheck,
-  Sparkles,
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -76,7 +77,7 @@ const STEPS = [
     body: "Use the microphone in the room, or share a Meet, Zoom, or Teams tab and include its sound. JotBox keeps the audio and the live words.",
   },
   {
-    Icon: Sparkles,
+    Icon: PenLine,
     title: "Jot the few lines that matter",
     body: "A decision, a name, a number, something you owe someone. Short lines become the spine of the written notes. Typing is optional.",
   },
@@ -199,7 +200,7 @@ function LivePidginCard() {
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-[0.13em] text-[#a6b5a8]">Writing your notes</span>
             <span className="flex items-center gap-1 text-[11px] text-[#a6b5a8]">
-              <Sparkles className="h-2.5 w-2.5" />
+              <Check className="h-2.5 w-2.5" />
               Tone kept
             </span>
           </div>
@@ -539,7 +540,7 @@ export default function Landing() {
                   <div className="flex items-center justify-between">
                     <p className="text-[12px] font-semibold uppercase tracking-[0.13em] text-faint">What you get</p>
                     <span className="chip !min-h-0 border-transparent !bg-accent-soft !px-2 !py-0.5 !text-[11px] !text-accent">
-                      <Sparkles className="h-2.5 w-2.5" />
+                      <FileText className="h-2.5 w-2.5" />
                       Notes
                     </span>
                   </div>
@@ -793,7 +794,6 @@ export default function Landing() {
                 <div className="flex items-center gap-2">
                   <p className="text-[15px] font-semibold text-ink">Power User</p>
                   <span className="chip !min-h-0 !px-2 !py-0.5 !text-[11px]">
-                    <Sparkles className="h-2.5 w-2.5" />
                     Heavy
                   </span>
                 </div>
@@ -887,7 +887,7 @@ export default function Landing() {
                   {[
                     { Icon: Lock, text: "Recordings stay in this browser, not a JotBox library." },
                     { Icon: Cloud, text: "Notes and jottings follow you only after you sign in." },
-                    { Icon: Sparkles, text: "Notes are written only when you ask for them." },
+                    { Icon: PenLine, text: "Notes are written only when you ask for them." },
                     { Icon: MonitorUp, text: "No meeting bot. No ad tracking. Calendar is opt-in." },
                   ].map((item) => (
                     <div

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ClipboardCheck, Info, Loader2, Mic, Sparkles } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Info, Loader2, Mic } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Modal } from "@/components/Modal";
 import { formatWhen, KIND_META } from "@/lib/format";
@@ -58,7 +58,7 @@ export function PreMeetingBrief({
         className="group flex w-full items-start gap-3 rounded-xl border border-line bg-raised px-3.5 py-3 text-left transition-colors hover:border-line-strong hover:bg-raised-2"
       >
         <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-accent-soft text-accent">
-          <Sparkles className="h-4 w-4" />
+          <ClipboardCheck className="h-4 w-4" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">

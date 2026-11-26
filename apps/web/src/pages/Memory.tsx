@@ -20,7 +20,6 @@ import {
   Plus,
   Search,
   ShieldCheck,
-  Sparkles,
   Square,
   Trash2,
   Upload,
@@ -185,7 +184,7 @@ function MemoryOrb({
   return (
     <span className={clsx("memory-orb flex-none", className)}>
       <span className="memory-orb-core h-full w-full">
-        <Sparkles className={iconClassName} />
+        <BookOpen className={iconClassName} />
       </span>
     </span>
   );
@@ -661,7 +660,7 @@ function AskPanel({
         <header className="flex items-center justify-between gap-2 border-b border-line bg-raised-2 px-4 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-accent-soft text-accent">
-              <Sparkles className="h-4 w-4" />
+              <Search className="h-4 w-4" />
             </span>
             <div className="min-w-0">
               <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Memory chat</h2>
@@ -2108,7 +2107,7 @@ function CreateOrg({ onCreated }: { onCreated: (org: Organisation) => void }) {
         <ul className="mt-3 space-y-3">
           {[
             {
-              icon: <Sparkles className="h-4 w-4" />,
+              icon: <History className="h-4 w-4" />,
               title: "Connects decisions over time",
               body: "Ask what changed and why across months of meetings, not just today's.",
             },
@@ -2272,7 +2271,7 @@ export default function MemoryPage() {
             <div className="seg" role="tablist" aria-label="Memory sections">
               {(
                 [
-                  { value: "ask", label: "Ask", Icon: Sparkles },
+                  { value: "ask", label: "Ask", Icon: Search },
                   { value: "documents", label: "Documents", Icon: FileText },
                   { value: "workspace", label: "Workspace", Icon: Users },
                   { value: "audit", label: "Audit", Icon: History },
