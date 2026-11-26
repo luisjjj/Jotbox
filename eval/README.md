@@ -324,7 +324,7 @@ The harness is ready for these, but they are not wired into the product yet:
 1. **Silero VAD.** Run Silero on the decoded audio before the reader, keep only speech segments, and join them with short pauses. The gate is the hallucination rate on `noise` clips, plus a check that clipped sentence starts do not raise WER. `ffmpeg` alone is not a VAD; do not label an energy filter as one in a report.
 2. **Context-aware glossary correction.** The matcher in `eval/glossary_match.py` is the first pass: it fixes names, amounts and explicit Pidgin aliases without touching the reader. The next step is to make it context-aware, so `local government` is not rewritten to `local govment`, and to feed the runner's output back into the product behind the same raw-text guarantee. Score the first pass for WER and the second for keyword recall. Never overwrite the verbatim text in the product.
 3. **Speaker diarization.** Try pyannote or sherpa-onnx. Score speaker assignment separately from WER, for example by checking that each named owner in the notes matches the person who spoke. Diarization must not change the transcript wording.
-4. **Self-hosted Whisper.** The runner already works with `WHISPER_BASE_URL`; compare it against Groq on the same golden set before switching a provider.
+4. **Self-hosted Whisper.** The runner already works with `WHISPER_BASE_URL`; compare it against Groq on the same golden set before switching a provider. The [open model sandbox](sandbox/README.md) already scores three Pidgin checkpoints offline. On 20 fresh clips, NaijaVox-2.0 gets 16.5% WER, African Voices Naija turbo 21.0%, and base Whisper large-v3-turbo 48.6%. All three need a GPU worker before they can serve the app.
 
 ## Public data banks
 
