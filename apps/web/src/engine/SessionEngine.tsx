@@ -13,7 +13,7 @@ import { toast } from "react-hot-toast";
 import { ApiError, api } from "@/lib/api";
 import { saveAudio } from "@/lib/audioStore";
 import { conditionStream, shapeRoomAudio } from "@/lib/audioConditioning";
-import { buildNotes, draftNotes, studioAvailable } from "@/lib/buildNotes";
+import { buildNotes, studioAvailable } from "@/lib/buildNotes";
 import { clearCaptureNotice, showCaptureNotice } from "@/lib/captureNotice";
 import { desktopBridge } from "@/lib/desktop";
 import { defaultTitle, formatClock } from "@/lib/format";
@@ -21,6 +21,7 @@ import { insightsCount, localInsights, mergeInsights, requestInsights } from "@/
 import { closeLiveSession, liveExpired } from "@/lib/lifecycle";
 import { chunkHasSpeech, createLevelWindow, isPauseForBoundary, noteLevel, type LiveLevelWindow } from "@/lib/liveGate";
 import { transcribeChunk } from "@/lib/liveTranscribe";
+import { stripLiveProfanity } from "@/lib/profanity";
 import {
   focusContext,
   getFocusMode,
@@ -485,7 +486,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   };
 
   const liveLineText = (raw: string) => {
-    const text = raw.replace(/\s+/g, " ").trim();
+    const text = stripLiveProfanity(raw.replace(/\s+/g, " ").trim());
     if (!text) return "";
     const context = focusContext({
       title: titleRef.current,
@@ -943,33 +944,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     };
     useSessions.getState().upsert(base);
     navigate(`/session/${id}`);
-    // Write a first report from the live words right away, while the full
-    // recording is still being read. The final report replaces it when ready.
     const participantsNow = participantsRef.current;
-    const liveText = linesNow.map((line) => line.text).join(" ").trim();
-    let finalApplied = false;
-    let draftApplied = false;
-    const draft =
-      linesNow.length >= 3 && liveText.length >= 80
-        ? draftNotes({
-            kind: kindNow,
-            title: titleNow,
-            scratch: scratchNow,
-            lines: linesNow,
-            participants: participantsNow,
-          })
-        : null;
-    void draft?.then((quick) => {
-      if (!quick || finalApplied) return;
-      useSessions.getState().upsert({
-        ...base,
-        title: titleIsDefault && quick.title.trim() ? quick.title.trim() : titleNow,
-        status: "ready",
-        transcript: linesNow,
-        notes: quick.notes,
-      });
-      draftApplied = true;
-    });
     if (blob && blob.size > 0) {
       const outcome = await runServerJob({
         session: base,
@@ -984,7 +959,6 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (outcome.state === "done") {
-        finalApplied = true;
         useSessions.getState().upsert({
           ...base,
           title: outcome.title,
@@ -997,16 +971,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (outcome.state === "failed") {
-        // Give the draft its chance to land before declaring the session failed.
-        await draft;
-        finalApplied = true;
-        if (!draftApplied) {
-          useSessions.getState().upsert({
-            ...base,
-            status: "failed",
-            error: outcome.message,
-          });
-        }
+        useSessions.getState().upsert({
+          ...base,
+          status: "failed",
+          error: outcome.message,
+        });
         reset();
         return;
       }
@@ -1028,7 +997,6 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           participants: participantsNow,
         }),
       );
-      finalApplied = true;
       useSessions.getState().upsert({
         ...base,
         title: result.title,
@@ -1043,16 +1011,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch (caught) {
-      // A late draft is still better than a failed screen, so let it land first.
-      await draft;
-      finalApplied = true;
-      if (!draftApplied) {
-        useSessions.getState().upsert({
-          ...base,
-          status: "failed",
-          error: caught instanceof Error ? caught.message : "The notes could not be written.",
-        });
-      }
+      useSessions.getState().upsert({
+        ...base,
+        status: "failed",
+        error: caught instanceof Error ? caught.message : "The notes could not be written.",
+      });
     }
     reset();
   }, [navigate, runServerJob]);

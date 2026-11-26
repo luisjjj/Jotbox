@@ -3,6 +3,7 @@ import { z } from "zod";
 import { currentSession, requireSession } from "./auth.mjs";
 import { isProUser, planForUser } from "./billing.mjs";
 import { glossaryForUser } from "./org-glossary.mjs";
+import { suppressProfanity } from "./profanity.mjs";
 import { routeLiveTranscription, routeTranscription } from "./stt-router.mjs";
 import { HttpError, assertSameOrigin, clientIp, readJson, requireMethod, sendJson } from "./http.mjs";
 
@@ -553,11 +554,13 @@ export function normalizeTranscription(data, provider, options = {}) {
           const start = Number(word?.start);
           const end = Number(word?.end);
           const speaker = speakerIndex(word?.speaker ?? word?.speaker_id ?? word?.speakerId);
+          const logprob = Number(word?.logprob ?? word?.logProb);
           return {
             text,
             start: Number.isFinite(start) ? start : 0,
             end: Number.isFinite(end) ? end : Number.isFinite(start) ? start : 0,
             ...(speaker !== undefined ? { speaker } : {}),
+            ...(Number.isFinite(logprob) ? { logprob } : {}),
           };
         })
         .filter((word) => word.text)
@@ -629,6 +632,9 @@ export function normalizeTranscription(data, provider, options = {}) {
     text = "";
     words = [];
   }
+  const profanity = suppressProfanity({ text, words }, { live });
+  text = profanity.text;
+  words = profanity.words;
   text = text.replace(/\s+([,.!?;:])/g, "$1").trim();
 
   return {
@@ -1340,17 +1346,12 @@ export async function enhanceSession({
   transcript,
   tone,
   participants = [],
-  skipCleanup = false,
 }) {
   const rawTranscript = String(transcript || "").slice(0, MAX_TRANSCRIPT);
-  // A draft report trades the cleanup pass for speed. The transcript still gets
-  // the cheap tidy, and the full pass replaces the report moments later.
-  const cleanTranscript = skipCleanup
-    ? tidyTranscript(rawTranscript)
-    : await cleanTranscriptForNotes({
-        transcript: rawTranscript,
-        participants: Array.isArray(participants) ? participants.slice(0, 20) : [],
-      });
+  const cleanTranscript = await cleanTranscriptForNotes({
+    transcript: rawTranscript,
+    participants: Array.isArray(participants) ? participants.slice(0, 20) : [],
+  });
   const payload = {
     kind: KIND_LABEL[kind] ? kind : "meeting",
     title: String(title || "").slice(0, 160),
@@ -2238,7 +2239,6 @@ export async function handleEnhance(req, res) {
     transcript: payload.transcript,
     tone: payload.tone,
     participants: Array.isArray(payload.participants) ? payload.participants : [],
-    skipCleanup: payload.draft === true,
   });
   sendJson(res, 200, notes);
 }

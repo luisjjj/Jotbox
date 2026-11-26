@@ -36,6 +36,7 @@ import { JiraHandoffDialog } from "@/components/JiraHandoffDialog";
 import { NoticeDialog } from "@/components/NoticeDialog";
 import { PaywallDialog } from "@/components/Paywall";
 import { PeopleCard } from "@/components/PeopleCard";
+import { ReportLoading } from "@/components/ReportLoading";
 import { SessionAsk } from "@/components/SessionAsk";
 import { ShareDialog } from "@/components/ShareDialog";
 import { StudyShareDialog } from "@/components/StudyShareDialog";
@@ -226,26 +227,6 @@ function Panel({
             Add or edit spoken words
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function NoteSkeleton() {
-  return (
-    <div className="mt-6" aria-hidden="true">
-      <div className="h-2.5 w-16 rounded-full bg-line" />
-      <div className="mt-4 space-y-2.5">
-        <div className="h-3.5 w-[92%] rounded-full bg-line" />
-        <div className="h-3.5 w-[84%] rounded-full bg-line" />
-        <div className="h-3.5 w-[58%] rounded-full bg-line" />
-      </div>
-      <div className="mt-8 h-2.5 w-20 rounded-full bg-line" />
-      <div className="mt-4 space-y-2.5">
-        <div className="h-3 w-[88%] rounded-full bg-line" />
-        <div className="h-3 w-[76%] rounded-full bg-line" />
-        <div className="h-3 w-[82%] rounded-full bg-line" />
-        <div className="h-3 w-[44%] rounded-full bg-line" />
       </div>
     </div>
   );
@@ -749,35 +730,17 @@ export default function SessionPage() {
           {!processing && <SessionAsk session={session} />}
 
           {processing && (
-            <div className="card p-5 sm:p-6">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-accent-soft text-accent">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </span>
-                <div>
-                  <p className="text-[16px] font-semibold text-ink">
-                    {session.transcript.length ? "Words are ready" : "Reading the recording"}
-                  </p>
-                  <p className="mt-1 text-[14.5px] leading-5 text-muted">
-                    {session.transcript.length
-                      ? "The spoken words are here. Writing the notes now. You can leave this page."
-                      : "Tidying the spoken words and writing the notes. You can leave this page. It keeps working."}
-                  </p>
+            <div className="space-y-4">
+              <ReportLoading hasWords={session.transcript.length > 0} />
+              {session.transcript.length > 0 && (
+                <div className="card p-4">
+                  <p className="label">Words so far</p>
+                  <TranscriptView
+                    lines={session.transcript}
+                    live
+                    className="mt-2.5 max-h-[min(52vh,30rem)] rounded-lg border border-line px-3.5 py-2"
+                  />
                 </div>
-              </div>
-              {session.transcript.length ? (
-                <TranscriptView
-                  lines={session.transcript}
-                  live
-                  className="mt-4 max-h-[min(52vh,30rem)] rounded-lg border border-line px-3.5 py-2"
-                />
-              ) : (
-                <>
-                  <div className="writing-track mt-5">
-                    <div className="writing-bar" />
-                  </div>
-                  <NoteSkeleton />
-                </>
               )}
             </div>
           )}
