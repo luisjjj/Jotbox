@@ -2,7 +2,7 @@
 
 Offline scores for open-weight Nigerian Pidgin readers, measured on 26 November 2026 before any change to the app. Nothing here runs in production and nothing writes to the database.
 
-The shipped reader is hosted. These checkpoints come from Nigerian teams and published fine-tunes, so the question is whether a self-hosted reader would be more accurate and affordable than the hosted path. Answer that with numbers first.
+The shipped reader is hosted. These checkpoints come from Nigerian teams and published fine-tunes, so the question is whether a self-hosted reader would be more accurate and affordable than the hosted path. Answer that with numbers first. That includes a direct head-to-head against Scribe v3 on the same clips, and a small Igbo, Yoruba and Hausa coverage check.
 
 ## Hardware
 
@@ -35,6 +35,41 @@ Per clip spread:
 NaijaVox beats the base turbo on all 20 clips and the African Voices fine-tune on 12 of 20, with 4 ties. The 32 point gap to base turbo is the fine-tune, not the sample: both fine-tunes see the same audio, references and decoder settings.
 
 The best model still misses the 12% release target in `eval/public/pidgin-asr/manifest.json` on this harder sample. Treat that target as aspirational for read Pidgin until a model clears it.
+
+## Head-to-head with the shipped reader
+
+On 26 November 2026 the same 17 fresh clips were sent through the real product gateway, so Scribe v3 ran with `--language pcm` (no language code, Pidgin prompt) exactly as the app does. That is 110.2 seconds of paid audio. All three readers saw the same audio and references. Scoring uses the same `normalize_text` as `eval/score.py`, because raw jiwer makes Scribe look 20 points worse by counting its punctuation and casing.
+
+| Reader | WER | Errors / words | Median clip | Clips won |
+| --- | --- | --- | --- | --- |
+| NaijaVox-2.0 | **16.4%** | 48 / 293 | 18.2% | 9 |
+| Scribe v3 (shipped) | 20.1% | 59 / 293 | 18.2% | 2 |
+| Whisper large-v3-turbo, base | 47.1% | 138 / 293 | 40.0% | 0 |
+
+Scribe and NaijaVox tie on 6 clips, so the 3.7 point gap is real but small. It is not a reason to switch on its own:
+
+- Scribe gets names that the fine-tune misses: `Barca`, `Espanyol`, `Iran` and `Zagros` came back clean where NaijaVox wrote `bar�a`, `nack espanyol`, `race kids` and `paul upward`.
+- Scribe restores punctuation, casing and diacritics, which the notes writer uses, and returns word level speaker ids.
+- Scribe occasionally normalises Pidgin (`On top the injury`, `The best part be say`) where NaijaVox keeps the register exactly. That is a real cost on this product.
+- Scribe needs no GPU server and covers all session languages today.
+
+The case for an open model is cost and control at volume, not a decisive accuracy win on read Pidgin. Prove it on the private golden set and on meeting audio before changing the reader.
+
+## Igbo, Yoruba and Hausa coverage
+
+`prepare_fleurs_sample.py` pulls read sentences from the public [google/fleurs](https://huggingface.co/datasets/google/fleurs) test split (`ig_ng`, `yo_ng`, `ha_ng`, CC-BY-4.0). Two clips per language, 7 to 11 seconds, is a coverage check, not an accuracy claim.
+
+FLEURS references keep Yoruba and Igbo tone marks, so both sides are folded (NFD, strip combining marks, lowercase, punctuation removed) before scoring. A reader that drops diacritics would otherwise score artificially well.
+
+| Language | Words | Scribe v3 | NaijaVox-2.0 |
+| --- | --- | --- | --- |
+| Igbo | 40 | 20.0% | not runnable |
+| Yoruba | 40 | 22.5% | 20.0% |
+| Hausa | 33 | 27.3% | 39.4% |
+
+NaijaVox cannot read Igbo at all: Whisper has no Igbo language token, so faster-whisper rejects `--language ig`. It is competitive on Yoruba and worse on Hausa. Scribe is the only reader here that covers all three, which matches what the product ships.
+
+The pronunciation matcher and the notes prompt were not applied in these runs. They correct names and register after the reader, so they would lift both sides. What matters is that no open model opens a decisive gap on any Nigerian language tested so far.
 
 ## What the transcripts show
 
@@ -83,17 +118,31 @@ ct2-transformers-converter --model Africanvoice/african_voices_naija_turbo --out
 
 Then run `run_faster_whisper.py --model eval/.cache/models/africanvoice-ct2-int8 --feature-size 128`.
 
+The Scribe comparison runs through the real gateway, so it needs the paid key and changes nothing in the app:
+
+```bash
+node --env-file-if-exists=.env --env-file-if-exists=.env.local eval/run_pipeline.mjs --manifest eval/.cache/pidgin-fresh-100/manifest.json --out eval/results/scribe-pidgin-fresh-17 --limit 17 --no-notes --language pcm
+```
+
+Language coverage uses one manifest per language, because the runner takes a single language per run:
+
+```bash
+python eval/sandbox/prepare_fleurs_sample.py --language ig_ng --count 2
+node --env-file-if-exists=.env --env-file-if-exists=.env.local eval/run_pipeline.mjs --manifest eval/.cache/fleurs-ig_ng/manifest.json --out eval/results/scribe-fleurs-ig --no-notes --language ig
+```
+
 ## Caveats
 
-- 20 clips only, all read speech from one public corpus. Meeting rooms, cross-talk and generator noise are untested.
+- 20 clips for the open-model table, 17 for the Scribe head-to-head, all read speech from one public corpus. Meeting rooms, cross-talk and generator noise are untested.
 - No noise clips here, so hallucination is unscored. No keywords either, so entity recall is unscored.
 - The fresh set comes from the same corpus family as the previous 30 clips, so it measures model quality on that corpus, not on JotBox users.
-- `--language en` is deliberate. faster-whisper rejects `pcm` because Pidgin has no Whisper language code; the Pidgin behaviour has to come from the checkpoint.
-- Paid hosted readers were not run on this sample. Comparing against the shipped Scribe path costs audio and needs approval first.
+- `--language en` is deliberate for the open models. faster-whisper rejects `pcm` because Pidgin has no Whisper language code; the Pidgin behaviour has to come from the checkpoint.
+- Scribe audio was 170.9 seconds total under explicit approval (110.2 seconds Pidgin, 60.7 seconds FLEURS). The FLEURS sets are 2 clips per language, so read the language table as coverage evidence, not a measured accuracy level.
 
 ## Next steps
 
 1. Run the full 100 clips for NaijaVox and the African Voices model. Roughly 2 hours each on this hardware.
 2. Add keyword and entity annotations so the models are scored on names, amounts and dates, not only WER.
-3. Test the winning checkpoint on a GPU worker behind `WHISPER_BASE_URL` and measure realtime factor and cost per hour against Scribe.
-4. Keep the private golden set as the release gate. A public corpus cannot approve a production switch.
+3. Widen the FLEURS slices to 20 or more clips per language before quoting any Nigerian language number.
+4. Test the winning checkpoint on a GPU worker behind `WHISPER_BASE_URL` and measure realtime factor and cost per hour against Scribe.
+5. Keep the private golden set as the release gate. Neither a public corpus nor a two clip language probe can approve a production switch.
