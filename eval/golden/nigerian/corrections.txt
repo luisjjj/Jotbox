@@ -1,0 +1,16 @@
+# JotBox Nigerian golden-set corrections
+# term | heard variants | meaning | kind
+# Built from the 26 November 2026 Scribe benches. Names and amounts are corrected
+# by eval/glossary_match.py; word entries only apply with --restore-words.
+# Review before using this as a production table.
+
+Wizkid | wey skit, wiz kid | musician | name
+Arkwright | uppwide | Paul Arkwright | name
+Ogbeh | ogbe | Audu Ogbeh | name
+Obiano | obi annu dumont, obi ano | Willie Obiano | name
+Azzurri | azuri | Italy national team | name
+Kanpur | campo, campor | city in India | name
+Akpawfu | aquafu, akpafu | town in Ebonyi State | name
+Eburutu | ejurutu | Efik group | name
+Edikaikong | edikang ikong, edika ikong | vegetable soup | word
+Chiffchaff | shift shaft, chiff chaff | bird | word

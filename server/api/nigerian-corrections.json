@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "source": "eval/golden/nigerian/reports/scribe-2026-11-26.md",
+  "note": "Only variants that are not ordinary English words. Ambiguous single tokens such as campo, ogbe, obi ano and azuri stay out because they can be real names.",
+  "corrections": [
+    { "to": "Wizkid", "from": ["wey skit"], "kind": "name" },
+    { "to": "Arkwright", "from": ["uppwide"], "kind": "name" },
+    { "to": "Obiano", "from": ["obi annu dumont"], "kind": "name" },
+    { "to": "Akpawfu", "from": ["aquafu", "akpafu"], "kind": "name" },
+    { "to": "Eburutu", "from": ["ejurutu"], "kind": "name" },
+    { "to": "Chiffchaff", "from": ["shift shaft", "chiff chaff"], "kind": "word" },
+    { "to": "Kanpur", "from": ["campor"], "kind": "name" }
+  ]
+}
