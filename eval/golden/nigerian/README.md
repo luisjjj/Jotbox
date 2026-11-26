@@ -31,33 +31,124 @@ The full corpora are for reference and future fine-tuning. Paid Scribe runs use 
 
 ## Scores, 26 November 2026
 
-Scribe v3 through the product gateway, no notes pass, shipped prompts.
+Scribe v3 through the product gateway, no notes pass, shipped prompts. Strict WER is the
+raw scorer. Folded WER treats a spoken number and its digits as the same token on both
+sides, so `twelve states` and `12 states` score as a match. The release gate uses the
+folded production number.
 
-| Set | Raw WER | With corrections | Errors / words (raw) |
-| --- | --- | --- | --- |
-| Accented English | **6.6%** | 6.0% | 22 / 334 |
-| Pidgin | 20.1% | 18.1% | 59 / 293 |
-| Combined | 12.9% | **11.6%** | 81 / 627 |
+| Set | Raw strict | Raw folded | Production strict | Production folded |
+| --- | --- | --- | --- | --- |
+| Accented English | 6.6% | 4.5% | 5.7% | **3.6%** |
+| Pidgin | 20.1% | 19.9% | 18.8% | 18.6% |
+| Combined | 12.9% | 11.7% | 11.8% | **10.6%** |
 
-The English set clears the 12% target on its own. Pidgin does not. The combined figure is word weighted, so the Pidgin half pulls the raw score just above the target. The correction table, built from the errors the first run exposed, moves the combined score below it.
+"Production" applies the shipped name table in `server/api/nigerian-corrections.json`.
+The table is deliberately smaller than the diagnostic table in `corrections.txt`: it keeps
+only variants that are not ordinary English words. Ambiguous readings such as `campo`,
+`ogbe`, `obi ano` and `azuri` stay out because they can be real names.
+
+The English set meets the 5% target once numbers are folded and the shipped names are
+applied. Pidgin does not and cannot with this reader. The combined figure is word
+weighted, so the Pidgin half sets the ceiling.
 
 What the errors are:
 
-- English: 17 of 26 clips are exact. Most misses are number formatting (`ten` for `10`, `four` for `4`, `twenty five` for `25`) and rare names (`Kanpur` read as `campo`, `Akpawfu` as `aquafu`, `Eburutu` as `ejurutu`). Folding spoken numbers before scoring lowers the English rate to about 5%.
-- Pidgin: Scribe often normalises Pidgin to English (`di` to `the`, `moni` to `money`, `pipo` to `people`) and misses names (`Wizkid` as `wey skit`, `Arkwright` as `uppwide`). That is the known register cost of the hosted reader, not a missing word.
-- The combined number is a benchmark, not a meeting-room promise. Both sets are short read speech. Cross-talk and far-field rooms remain untested.
+- English: 19 of 26 clips are exact after production corrections. The remaining misses are
+  word choices (`doughnut` for `donut`), one spelling (`edikang ikong` for `edikaikong`)
+  and a rare bird name. Number formatting is no longer an error because both sides are
+  folded.
+- Pidgin: Scribe often normalises Pidgin to English (`di` to `the`, `moni` to `money`,
+  `pipo` to `people`) and misses names (`Wizkid` as `wey skit`, `Arkwright` as
+  `uppwide`). The name table fixes the names it can prove. The register changes are the
+  known cost of the hosted reader, not a missing word, and a safe string table cannot
+  undo them.
+- The combined number is a benchmark, not a meeting-room promise. Both sets are short read
+  speech. Cross-talk and far-field rooms remain untested.
 
 The detailed report is in [reports/scribe-2026-11-26.md](reports/scribe-2026-11-26.md).
 
-## How Scribe uses the sets
+## How the sets reach production
 
-Scribe is hosted and has no training or fine-tuning endpoint, so saving audio does not make the model learn it. What the saved sets actually do:
+Scribe is hosted and has no training or fine-tuning endpoint, so saving audio does not
+make the model learn it. The sets reach production in three measured ways:
 
-1. Freeze a reference corpus so every reader, prompt, keyterm or matcher change is compared on the same audio.
-2. Feed `corrections.txt`, the heard-name table read by `eval/glossary_match.py`. It is built from the errors above, is applied after the reader, and never replaces the verbatim text. It takes the English bench from 6.6% to 6.0%, Pidgin from 20.1% to 18.1% and the combined score from 12.9% to 11.6%. The matcher is an eval tool today; shipping it in the product is a separate step behind the raw transcript guarantee.
-3. Provide names and places to consider for session keyterms. Scribe accepts up to 100 keyterms, and they should stay names, acronyms and amounts. Earlier tests showed phrase lists make Pidgin worse.
+1. **Name corrections.** `server/api/nigerian-corrections.json` is the shipped table, and
+   `server/api/nigerian-corrections.mjs` applies it to the final transcript for English
+   and Pidgin sessions only. It matches whole words, preserves word timing and trailing
+   punctuation, and skips live caption chunks because a phrase can straddle two chunks.
+   Pidgin register words are never rewritten.
+2. **Regression gate.** The committed baseline and `gate.py` catch a reader, prompt,
+   correction or scoring change that moves WER. This is the automatic check.
+3. **Keyterms.** Scribe accepts up to 100 names and room words. Names and the configured
+   vocabulary are already sent on every plan. A default list of Nigerian terms was not
+   enabled because it would make every session pay the keyterm rate; see the cost note
+   below.
 
-For model-level learning, an open checkpoint such as NaijaVox would have to be fine-tuned on these corpora. That is a separate decision, and Scribe remains the shipped reader.
+For model-level learning, an open checkpoint such as NaijaVox would have to be fine-tuned
+on these corpora. That is a separate decision, and Scribe remains the shipped reader.
+
+## Automatic regression gate
+
+The gate is offline. It reads the committed Scribe baseline, applies the shipped
+corrections, folds numbers and checks per-category WER. It needs no audio, no API key and
+spends nothing:
+
+```bash
+npm run eval:nigerian:gate          # all three sets, exits 1 on a regression
+npm run eval:nigerian:gate:self     # checks the gate's own number and correction logic
+```
+
+The same check runs on every pull request in
+[.github/workflows/nigerian-accuracy.yml](../../../.github/workflows/nigerian-accuracy.yml).
+
+Gates are the measured ceiling plus a small guard, not an aspiration:
+
+| Set | Gate | Measured |
+| --- | --- | --- |
+| Accented English | <= 5.0% folded | 3.6% |
+| Pidgin | <= 19.0% folded | 18.6% |
+| Combined | <= 11.5% folded | 10.6% |
+
+A single 5% target for the combined set is not reachable while Pidgin sits near 19%.
+Scribe translates Pidgin into standard English even when the prompt says not to, and
+reversing that with a string table would corrupt ordinary English. English is the set
+that can hold a 5% gate.
+
+To measure a fresh reader or prompt, run one paid set at a time. Each manifest is under
+the three minute cap, and the script refuses anything longer:
+
+```bash
+ALLOW_PAID_EVAL=1 npm run eval:nigerian:live -- --set english
+ALLOW_PAID_EVAL=1 npm run eval:nigerian:live -- --set pidgin
+```
+
+`live_run.mjs` prints the audio seconds and estimated cost before it calls Scribe. It
+reuses the other set's last run for the combined check, freezes the fresh transcripts
+under `eval/results/naija-live-baseline`, and scores them without overwriting the
+committed baseline. Refresh the committed baseline only when a new score is accepted:
+
+```bash
+npm run eval:nigerian:freeze
+```
+
+## Production path and cost
+
+The final recording takes this path:
+
+1. The client records and uploads the full audio when the session stops
+   (`apps/web/src/engine/SessionEngine.tsx:877`). Live captions are a separate preview.
+2. The server job reads the audio with Scribe v3, using the session language, diarization
+   and the roster keyterms (`server/api/jobs.mjs:163`).
+3. The reader output is normalised, then the Nigerian name table runs on the final
+   transcript (`server/api/ai.mjs:949`).
+4. Words become transcript lines (`server/api/jobs.mjs:22`) and the notes chain runs
+   (`server/api/ai.mjs:1341`).
+
+Cost does not change. The corrections are local string replacements, the score gate is
+offline, and the golden audio never reaches production storage. Scribe already charges the
+keyterm rate on sessions that carry roster names; enabling a default Nigerian keyterm list
+would add $0.05 per final audio hour to sessions that currently have no names. That is why
+the default list stays off. The notes pass is unchanged.
 
 ## Prepare and run
 

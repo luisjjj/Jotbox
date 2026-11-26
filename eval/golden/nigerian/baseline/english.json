@@ -1,0 +1,138 @@
+{
+  "set": "english",
+  "manifest": "bench-english.json",
+  "reader": "scribe_v3",
+  "frozenAt": "2026-11-26",
+  "clips": [
+    {
+      "id": "english-test-000",
+      "category": "nigerian_english",
+      "transcript": "Niger Delta is sometimes called the Oil Rivers because it was once a major producer of palm oil."
+    },
+    {
+      "id": "english-test-007",
+      "category": "nigerian_english",
+      "transcript": "Ashes and Embers is the story of a moody and disillusioned Black veteran of the Vietnam War."
+    },
+    {
+      "id": "english-test-011",
+      "category": "nigerian_english",
+      "transcript": "Parts of the village remain flooded, hindering rescue efforts."
+    },
+    {
+      "id": "english-test-017",
+      "category": "nigerian_english",
+      "transcript": "The shortest flight from Campo to Munich is about 10 hours and 4 minutes long."
+    },
+    {
+      "id": "english-test-021",
+      "category": "nigerian_english",
+      "transcript": "It is 25 degrees with a chance of storms in Aquafu."
+    },
+    {
+      "id": "english-test-024",
+      "category": "nigerian_english",
+      "transcript": "Cross River State with Akwa Ibom State was formerly one of the original 12 states of Nigeria, known as the South Eastern State."
+    },
+    {
+      "id": "english-test-029",
+      "category": "nigerian_english",
+      "transcript": "Kokoro is a fried dry snack made from corn and garri."
+    },
+    {
+      "id": "english-test-033",
+      "category": "nigerian_english",
+      "transcript": "Use fingerprint for future purchases."
+    },
+    {
+      "id": "english-test-039",
+      "category": "nigerian_english",
+      "transcript": "The shift shaft song is given from a favored provenance vantage point."
+    },
+    {
+      "id": "english-test-043",
+      "category": "nigerian_english",
+      "transcript": "Turn left onto Olaniyi Street."
+    },
+    {
+      "id": "english-test-048",
+      "category": "nigerian_english",
+      "transcript": "The best goose feathers for quill pens were the primary feathers of the left wing, whose curvature bent away from the eyes of the right-handed writers."
+    },
+    {
+      "id": "english-test-051",
+      "category": "nigerian_english",
+      "transcript": "Direct actions employ specialized military capabilities to seize, destroy, capture, exploit, recover, or damage designated targets."
+    },
+    {
+      "id": "english-test-054",
+      "category": "nigerian_english",
+      "transcript": "Surface designs for body paintings were easily converted to embroidery designs for table linings in the Igbo town of Arochukwu."
+    },
+    {
+      "id": "english-test-058",
+      "category": "nigerian_english",
+      "transcript": "Please redeploy your app once it is in a complete state."
+    },
+    {
+      "id": "english-test-062",
+      "category": "nigerian_english",
+      "transcript": "Alice glanced rather anxiously at the cook."
+    },
+    {
+      "id": "english-test-069",
+      "category": "nigerian_english",
+      "transcript": "Here is information for flights from Casablanca to Rome."
+    },
+    {
+      "id": "english-test-073",
+      "category": "nigerian_english",
+      "transcript": "Edikang ikong is a vegetable soup which originated with the Annang, Ibibio, and Efik people."
+    },
+    {
+      "id": "english-test-079",
+      "category": "nigerian_english",
+      "transcript": "Is there such a thing as a National Donut Day?"
+    },
+    {
+      "id": "english-test-082",
+      "category": "nigerian_english",
+      "transcript": "In a half mile, take the exit."
+    },
+    {
+      "id": "english-test-089",
+      "category": "nigerian_english",
+      "transcript": "The mellifluous sounds allured all animals."
+    },
+    {
+      "id": "english-test-093",
+      "category": "nigerian_english",
+      "transcript": "The migration pattern of Oron people was similar to that of the Efik/Ejurutu people."
+    },
+    {
+      "id": "english-test-097",
+      "category": "nigerian_english",
+      "transcript": "As plague spread, a system of quarantine was introduced."
+    },
+    {
+      "id": "english-test-100",
+      "category": "nigerian_english",
+      "transcript": "David Ackroyd was casted in \"Hell Hath No Fury.\""
+    },
+    {
+      "id": "english-test-106",
+      "category": "nigerian_english",
+      "transcript": "Candidate financial disclosures raised Barack Obama's estimated January take to 37 million dollars."
+    },
+    {
+      "id": "english-test-109",
+      "category": "nigerian_english",
+      "transcript": "The couple publicly announced that they were dating in June and announced their engagement on Twitter in January."
+    },
+    {
+      "id": "english-test-114",
+      "category": "nigerian_english",
+      "transcript": "From their new base in West Flanders and the southwest Netherlands, they were raiding the English Channel."
+    }
+  ]
+}
