@@ -3,6 +3,7 @@ import { z } from "zod";
 import { currentSession, requireSession } from "./auth.mjs";
 import { isProUser, planForUser } from "./billing.mjs";
 import { glossaryForUser } from "./org-glossary.mjs";
+import { correctNigerianTranscript } from "./nigerian-corrections.mjs";
 import { routeLiveTranscription, routeTranscription } from "./stt-router.mjs";
 import { HttpError, assertSameOrigin, clientIp, readJson, requireMethod, sendJson } from "./http.mjs";
 
@@ -943,11 +944,15 @@ export async function transcribeAudio({
       fallback: provider !== route.provider,
     },
   });
+  // Live chunks are a disposable preview and the same phrase can straddle two
+  // chunks, so corrections only run on the final recording.
+  const finish = (result, provider) =>
+    withRouting(live ? result : correctNigerianTranscript(result, language), provider);
 
   for (const provider of providers) {
     try {
       if (provider === "elevenlabs") {
-        return withRouting(
+        return finish(
           await transcribeWithElevenLabs(
             sourceUrl ? null : await loadAudio(),
             contentType,
@@ -960,24 +965,24 @@ export async function transcribeAudio({
         );
       }
       if (provider === "groq") {
-        return withRouting(
+        return finish(
           await transcribeWithGroq(await loadAudio(), contentType, filename, context, options, language),
           provider,
         );
       }
       if (provider === "worker") {
-        return withRouting(
+        return finish(
           await transcribeWithWorker(await loadAudio(), contentType, filename, context, options, language),
           provider,
         );
       }
       if (provider === "xai") {
-        return withRouting(
+        return finish(
           await transcribeWithXai(await loadAudio(), contentType, filename, context, options, language),
           provider,
         );
       }
-      if (provider === "demo") return withRouting(mockTranscription(), provider);
+      if (provider === "demo") return finish(mockTranscription(), provider);
     } catch (error) {
       attempts.push({ provider, message: error instanceof Error ? error.message : "failed" });
     }
