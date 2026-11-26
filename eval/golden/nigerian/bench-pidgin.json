@@ -1,0 +1,267 @@
+{
+  "version": 1,
+  "name": "Nigerian Pidgin Scribe head-to-head bench",
+  "description": "The exact 17 fresh test-split clips used for the Scribe v3 comparison on 26 November 2026.",
+  "license": "CC-BY-4.0",
+  "source": {
+    "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+    "revision": "87c615091844ac1b44b91d8831683641b02df447",
+    "split": "test"
+  },
+  "thresholds": {
+    "wer": 0.12,
+    "categoryWer": 0.35,
+    "keywordRecall": 0.95
+  },
+  "categories": {
+    "pidgin": {
+      "label": "Nigerian Pidgin, sentence level",
+      "target": 17
+    }
+  },
+  "stats": {
+    "clips": 17,
+    "seconds": 116.2,
+    "words": 292
+  },
+  "clips": [
+    {
+      "id": "pidgin-fresh-001",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-001.wav",
+      "reference": "on top di injury her uncle no even carry her go hospital for treatment",
+      "seconds": 5.81,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 0,
+        "filename": "200906-001838_pcm_5aa_elicit_9"
+      }
+    },
+    {
+      "id": "pidgin-fresh-002",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-002.wav",
+      "reference": "dem play for saturday barça continue dia 100 win as dem knack knack espanyol 5 0 for deir la liga match",
+      "seconds": 8.44,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 6,
+        "filename": "200829-063357_pcm_779_elicit_34"
+      }
+    },
+    {
+      "id": "pidgin-fresh-003",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-003.wav",
+      "reference": "say dem di oda 3 dey give am heat dats why him change him mind",
+      "seconds": 5.08,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 12,
+        "filename": "200916-063510_pcm_779_elicit_8"
+      }
+    },
+    {
+      "id": "pidgin-fresh-004",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-004.wav",
+      "reference": "di best part be say na say you go dey pay as you use am",
+      "seconds": 4.4,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 18,
+        "filename": "200928-175729_pcm_c97_elicit_72"
+      }
+    },
+    {
+      "id": "pidgin-fresh-005",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-005.wav",
+      "reference": "she tok say god no dey make mistake say she go accept am like dat",
+      "seconds": 4.79,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 30,
+        "filename": "200906-000516_pcm_5aa_elicit_5"
+      }
+    },
+    {
+      "id": "pidgin-fresh-006",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-006.wav",
+      "reference": "di next day di baby finally open eyes but di doctors con tell dem say she no get eyes",
+      "seconds": 7.46,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 42,
+        "filename": "200906-000516_pcm_5aa_elicit_0"
+      }
+    },
+    {
+      "id": "pidgin-fresh-007",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-007.wav",
+      "reference": "also read iran don ban english language for dia primary schools she don com again con dey beg wizkid for",
+      "seconds": 9.64,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 48,
+        "filename": "200830-151101_pcm_e8b_elicit_41"
+      }
+    },
+    {
+      "id": "pidgin-fresh-008",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-008.wav",
+      "reference": "alredi britain don alredi announce to return 70 million euro pounds thief money wey corrupt pipo cari from nigeria go uk according to paul arkwright",
+      "seconds": 10.82,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 54,
+        "filename": "200904-182029_pcm_5aa_elicit_31"
+      }
+    },
+    {
+      "id": "pidgin-fresh-009",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-009.wav",
+      "reference": "na im also make moni pass for feem dis 2018 across di world",
+      "seconds": 5.08,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 66,
+        "filename": "200831-075142_pcm_e8b_elicit_64"
+      }
+    },
+    {
+      "id": "pidgin-fresh-010",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-010.wav",
+      "reference": "players like azzurri and di combination of three world cup winning",
+      "seconds": 4.67,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 72,
+        "filename": "200831-075142_pcm_e8b_elicit_42"
+      }
+    },
+    {
+      "id": "pidgin-fresh-011",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-011.wav",
+      "reference": "health workers no get any training on top how to manage pipo wey snake bite",
+      "seconds": 5.08,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 84,
+        "filename": "200831-080620_pcm_e8b_elicit_16"
+      }
+    },
+    {
+      "id": "pidgin-fresh-012",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-012.wav",
+      "reference": "govnor of benue state don turn liability him no be asset",
+      "seconds": 4.54,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 90,
+        "filename": "200906-000516_pcm_5aa_elicit_37"
+      }
+    },
+    {
+      "id": "pidgin-fresh-013",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-013.wav",
+      "reference": "on friday ogbeh claim say thailand tok say na di policy wey president muhammadu buhari",
+      "seconds": 5.83,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 102,
+        "filename": "200831-080620_pcm_e8b_elicit_21"
+      }
+    },
+    {
+      "id": "pidgin-fresh-014",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-014.wav",
+      "reference": "children go laugh dem for school and for road dem no go dey comfortable with demselves and they",
+      "seconds": 7.06,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 108,
+        "filename": "200829-085824_pcm_e8b_elicit_49"
+      }
+    },
+    {
+      "id": "pidgin-fresh-015",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-015.wav",
+      "reference": "im own exam and dat time dem no dey put foto for dia certificate as dis wan na attestation certificate e dey possible say na new certificate dem print for oga presido",
+      "seconds": 13.11,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 114,
+        "filename": "200904-182029_pcm_5aa_elicit_36"
+      }
+    },
+    {
+      "id": "pidgin-fresh-016",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-016.wav",
+      "reference": "for di election win obiano di woman tok say she dey happy when she find out say she go born baby",
+      "seconds": 8.58,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 120,
+        "filename": "200905-235352_pcm_5aa_elicit_51"
+      }
+    },
+    {
+      "id": "pidgin-fresh-017",
+      "category": "pidgin",
+      "audio": "../audio/nigerian-pidgin/pidgin-fresh-017.wav",
+      "reference": "e say nigeria president and theresa may must collabo on top corruption",
+      "seconds": 5.79,
+      "noise": false,
+      "source": {
+        "dataset": "asr-nigerian-pidgin/nigerian-pidgin-1.0",
+        "split": "test",
+        "row": 126,
+        "filename": "200904-182029_pcm_5aa_elicit_25"
+      }
+    }
+  ]
+}

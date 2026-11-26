@@ -303,6 +303,34 @@ npm run eval:scribe:brekete
 It writes `eval/results/scribe-brekete-names-on` and spends paid audio, so run it when a
 change needs a fresh number rather than on every edit.
 
+## Nigerian golden sets
+
+[golden/nigerian/](golden/nigerian/) holds the fixed corpora for the two Nigerian speech
+modes: 4,277 Pidgin clips from the public Nigerian Pidgin ASR corpus and 3,402 Nigerian
+accented English clips. The full reference manifests and pinned dataset revisions are
+committed. The audio stays in the local cache because the Pidgin shards are larger than
+GitHub's file limit, and `prepare_goldenset.py` restores it at the pinned revision.
+
+Paid Scribe runs use short bench slices so the three minute cap holds: 17 Pidgin clips
+(116.2 s) and 26 English clips (167.8 s). On 26 November 2026 Scribe v3 scored 6.6% WER on
+the English slice, 20.1% on the Pidgin slice and 12.9% combined over 627 words. The
+combined report reuses the Pidgin run, so it adds no paid audio.
+
+```bash
+python eval/golden/nigerian/prepare_goldenset.py --download --build --extract benches
+node --env-file-if-exists=.env --env-file-if-exists=.env.local eval/run_pipeline.mjs --manifest eval/golden/nigerian/bench-english.json --out eval/results/scribe-nigerian-english --no-notes --language en
+python eval/golden/nigerian/combine_bench.py --pidgin eval/results/scribe-pidgin-fresh-17/predictions.json --english eval/results/scribe-nigerian-english/predictions.json
+```
+
+The same runs are wired as `npm run eval:nigerian:prepare`, `eval:nigerian:english`,
+`eval:nigerian:score:english`, `eval:nigerian:pidgin`, `eval:nigerian:score:pidgin` and
+`eval:nigerian:combined`.
+
+Scribe is hosted and cannot be fine-tuned on these files. The sets are for regression,
+for the `corrections.txt` matcher table and for choosing session keyterms. Method, results
+and caveats are in [golden/nigerian/README.md](golden/nigerian/README.md) and
+[golden/nigerian/reports/scribe-2026-11-26.md](golden/nigerian/reports/scribe-2026-11-26.md).
+
 ## Comparing changes
 
 A change is only useful if it moves a gate without breaking another. Keep the run folders and compare the reports:
