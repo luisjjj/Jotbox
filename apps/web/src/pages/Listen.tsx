@@ -357,15 +357,12 @@ function Setup() {
             </p>
           </div>
 
-          {(!canShare || studio === false) && (
-            <div className="mb-5 space-y-1.5 text-[13px] leading-5 text-faint">
-              {!canShare && <p>Sharing a call tab needs a computer. On a phone, use the microphone.</p>}
-              {studio === false && (
-                <p>
-                  Automatic words are not turned on for this workspace, so call and uploaded audio is saved but not written
-                  out. The microphone still shows live words, and you can paste the words after the session.
-                </p>
-              )}
+          {studio === false && (
+            <div className="mb-5 text-[13px] leading-5 text-faint">
+              <p>
+                Automatic words are not turned on here, so call and uploaded audio is saved without a written record. You
+                can add the words yourself after the session.
+              </p>
             </div>
           )}
 
