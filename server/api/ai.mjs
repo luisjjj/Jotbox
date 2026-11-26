@@ -2217,11 +2217,11 @@ export async function handleTranscribe(req, res) {
 
 // Small chunks from the desktop live captions. Higher request count, lower
 // size cap, so the hourly audio budget stays below the capture endpoint.
-// Four-second chunks are 900 requests an hour; leave room for retries.
+// Five-second chunks are 720 requests an hour; leave room for retries.
 export async function handleLiveTranscribe(req, res) {
   requireMethod(req, ["POST"]);
   assertSameOrigin(req);
-  rateLimit(req, 2400, "live");
+  rateLimit(req, 900, "live");
   const body = await readBody(req, MAX_LIVE_AUDIO);
   if (!body.length) throw new HttpError(400, "No audio was sent.");
   const contentType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];

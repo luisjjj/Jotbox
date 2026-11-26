@@ -30,7 +30,7 @@ export function CaptureDock() {
         open ? "lg:w-[430px]" : "lg:w-[390px]",
       )}
     >
-      <div className="fade-up overflow-hidden rounded-2xl border border-line bg-raised shadow-float backdrop-blur-md">
+      <div className="fade-up overflow-hidden rounded-2xl border border-line material-raised shadow-float">
         <div className="flex items-center gap-2.5 p-2 pl-3">
           <span className={paused ? "h-2 w-2 flex-none rounded-full bg-faint" : "live-dot"} />
           <button

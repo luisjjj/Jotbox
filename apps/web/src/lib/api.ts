@@ -576,7 +576,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const data = (await response.json().catch(() => null)) as { error?: string } | null;
   if (!response.ok) {
-    throw new ApiError(data?.error ?? "The request could not be completed.", response.status);
+    const message =
+      response.status >= 500
+        ? "JotBox could not complete that. Try again in a moment."
+        : (data?.error ?? "The request could not be completed.");
+    throw new ApiError(message, response.status);
   }
   return data as T;
 }
@@ -604,7 +608,11 @@ async function upload<T>(
   if (response.status === 401) authExpired(path);
   const data = (await response.json().catch(() => null)) as { error?: string } | null;
   if (!response.ok) {
-    throw new ApiError(data?.error ?? fallback, response.status);
+    const message =
+      response.status >= 500
+        ? "JotBox could not complete that. Try again in a moment."
+        : (data?.error ?? fallback);
+    throw new ApiError(message, response.status);
   }
   return data as T;
 }

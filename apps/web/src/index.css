@@ -33,7 +33,7 @@
   --ink: #161816;
   --soft: #343934;
   --muted: #636963;
-  --faint: #91978f;
+  --faint: #686e67;
   --line: #e7e5dd;
   --line-strong: #d8d6cc;
   --accent: #16483a;
@@ -60,7 +60,7 @@
   --ink: #f2f1ea;
   --soft: #d6d8d0;
   --muted: #a0a69d;
-  --faint: #787f75;
+  --faint: #8a9187;
   --line: #2a2f2a;
   --line-strong: #3a413a;
   --accent: #dcead9;
@@ -278,7 +278,8 @@
     transition:
       background 0.15s ease,
       color 0.15s ease,
-      border-color 0.15s ease;
+      border-color 0.15s ease,
+      transform 0.12s ease;
   }
 
   .icon-btn:hover {
@@ -287,12 +288,52 @@
     color: var(--ink);
   }
 
+  .icon-btn:active:not(:disabled) {
+    transform: scale(0.94);
+  }
+
   .icon-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
   }
 
   /* ---------- surfaces ---------- */
+
+  .material-bar {
+    background: var(--paper);
+  }
+
+  .material-raised {
+    background: var(--raised);
+  }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .material-bar {
+      background: color-mix(in srgb, var(--paper) 82%, transparent);
+      -webkit-backdrop-filter: blur(18px) saturate(1.6);
+      backdrop-filter: blur(18px) saturate(1.6);
+    }
+
+    .material-raised {
+      background: color-mix(in srgb, var(--raised) 88%, transparent);
+      -webkit-backdrop-filter: blur(18px) saturate(1.6);
+      backdrop-filter: blur(18px) saturate(1.6);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .material-bar {
+      background: var(--paper);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
+    .material-raised {
+      background: var(--raised);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
 
   .card {
     background: var(--raised);
@@ -321,6 +362,28 @@
     font-weight: 500;
     letter-spacing: 0.01em;
     white-space: nowrap;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease,
+      transform 0.12s ease;
+  }
+
+  button.chip:active,
+  a.chip:active {
+    transform: scale(0.97);
+  }
+
+  .tap-link {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  @media (pointer: coarse), (max-width: 767px) {
+    .tap-link {
+      min-height: 2.75rem;
+      min-width: 2.75rem;
+    }
   }
 
   .kicker {
@@ -401,13 +464,44 @@
     transition:
       background 0.15s ease,
       color 0.15s ease,
-      box-shadow 0.15s ease;
+      box-shadow 0.15s ease,
+      transform 0.12s ease;
+  }
+
+  .seg-item:active {
+    transform: scale(0.97);
   }
 
   .seg-item[data-active="true"] {
     background: var(--raised);
     color: var(--ink);
     box-shadow: var(--shadow-sm);
+  }
+
+  /* Apple's 44pt target applies to touch. Coarse pointers get larger hit
+     areas, and narrow viewports get the same treatment so the layout is
+     honest on phones and small desktop windows. */
+  @media (pointer: coarse), (max-width: 767px) {
+    .btn,
+    .btn-sm {
+      min-height: 2.75rem;
+    }
+
+    .icon-btn {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+
+    button.chip,
+    a.chip {
+      min-height: 2.75rem;
+      padding: 0 0.85rem;
+    }
+
+    .seg-item {
+      min-height: 2.75rem;
+      padding: 0 0.9rem;
+    }
   }
 
   .divider {
@@ -532,7 +626,7 @@
   }
 
   .fade-up {
-    animation: jot-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: jot-fade-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .reveal {
@@ -549,7 +643,7 @@
   }
 
   .page-enter {
-    animation: page-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: page-enter 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .float-soft {
@@ -746,7 +840,7 @@
   }
 
   .stagger-in {
-    animation: jot-stagger 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: jot-stagger 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
     animation-delay: var(--delay, 0ms);
   }
 
@@ -825,11 +919,18 @@
     width: 1.15rem;
     height: 1.15rem;
     flex: none;
+    position: relative;
     border: 1.5px solid var(--line-strong);
     border-radius: 0.35rem;
     background: var(--raised);
     color: transparent;
     transition: all 0.15s ease;
+  }
+
+  .action-box::after {
+    content: "";
+    position: absolute;
+    inset: -0.85rem;
   }
 
   .action-box[data-done="true"] {
@@ -845,6 +946,16 @@
     border-radius: 999px;
     background: var(--line);
     cursor: pointer;
+  }
+
+  .time-seek {
+    position: relative;
+  }
+
+  .time-seek::after {
+    content: "";
+    position: absolute;
+    inset: -0.7rem -0.35rem;
   }
 
   .range::-webkit-slider-thumb {
@@ -1252,13 +1363,33 @@
   }
 }
 
+@media (prefers-contrast: more) {
+  :root {
+    --soft: #20241f;
+    --muted: #3f453f;
+    --faint: #4a504a;
+    --line: #b9b7ac;
+    --line-strong: #9f9d92;
+  }
+
+  .dark {
+    --soft: #f5f4ed;
+    --muted: #cfd3ca;
+    --faint: #b6bcb2;
+    --line: #454c45;
+    --line-strong: #5b635b;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
 }

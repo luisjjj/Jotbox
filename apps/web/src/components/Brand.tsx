@@ -31,7 +31,7 @@ export function Brand({
 }) {
   const onDark = tone === "onDark";
   return (
-    <Link to={to} className="group inline-flex items-center gap-2.5" aria-label="JotBox home">
+    <Link to={to} className="tap-link group gap-2.5" aria-label="JotBox home">
       <BrandMark
         className={clsx(
           "h-8 w-8 transition-transform group-hover:-rotate-3",

@@ -387,13 +387,13 @@ function PlanCard() {
         )}
 
         <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] leading-4 text-faint">
-          <Link to="/refunds" className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">
+          <Link to="/refunds" className="tap-link underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">
             Cancellation and refunds
           </Link>
-          <Link to="/terms" className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">
+          <Link to="/terms" className="tap-link underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">
             Terms
           </Link>
-          <Link to="/privacy" className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">
+          <Link to="/privacy" className="tap-link underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink">
             Privacy
           </Link>
         </p>

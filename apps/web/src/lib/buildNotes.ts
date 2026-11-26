@@ -16,12 +16,14 @@ async function timedFetch(input: string, init: RequestInit, timeoutMs: number) {
 
 export async function studioAvailable() {
   try {
-    const response = await timedFetch("/api/health", {}, 3500);
-    if (!response.ok) return false;
-    const data = (await response.json()) as { ai?: boolean };
-    return Boolean(data.ai);
+    const response = await timedFetch("/api/health?fast=1", { cache: "no-store" }, 3500);
+    if (!response.ok) return true;
+    const data = (await response.json()) as { ai?: unknown };
+    return data.ai !== false;
   } catch {
-    return false;
+    // A slow or offline check says nothing about the server, so try the work
+    // instead of hiding transcription behind a failed status request.
+    return true;
   }
 }
 

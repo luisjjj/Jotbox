@@ -227,7 +227,7 @@ function MobileHeader() {
     : "";
 
   return (
-    <header className="safe-top sticky top-0 z-30 border-b border-line bg-paper backdrop-blur-md lg:hidden">
+    <header className="safe-top sticky top-0 z-30 border-b border-line material-bar lg:hidden">
       <div className="flex h-14 items-center justify-between px-4">
         <Brand to="/app" />
         <div className="flex items-center gap-1">
@@ -287,7 +287,7 @@ function MobileNav() {
 
   return (
     <nav
-      className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-raised backdrop-blur-md lg:hidden"
+      className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line material-raised lg:hidden"
       aria-label="Primary"
     >
       <div className={clsx("grid items-center px-1.5 pt-1", items.length >= 4 ? "grid-cols-5" : "grid-cols-4")}>
@@ -314,7 +314,7 @@ function MobileNav() {
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [pathname]);
   return null;
 }
