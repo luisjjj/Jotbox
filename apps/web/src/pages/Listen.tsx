@@ -297,14 +297,20 @@ function Setup() {
                 <Timer className={clsx("mt-0.5 h-4 w-4 flex-none", outOfTime ? "text-rec" : "text-accent")} />
                 <p className="min-w-0 flex-1 text-[13.5px] leading-5 text-soft">
                   {outOfTime
-                    ? limitReachedMessage(usage.plan, usage.limitSeconds)
-                    : usage.plan !== "free"
-                      ? `${formatAllowance(timeLeft)} left on ${planName(usage.plan)} this month. It resets at the start of next month.`
-                      : `${formatMinutes(timeLeft)} left on the free plan. Starter Pro and Power User unlock more listening.`}
+                    ? limitReachedMessage(usage.plan, usage.limitSeconds, usage.mode)
+                    : usage.mode === "payg"
+                      ? `${formatAllowance(timeLeft)} left in your wallet. You are only charged when a recording saves.`
+                      : usage.plan !== "free"
+                        ? `${formatAllowance(timeLeft)} left on ${planName(usage.plan)} this month. It resets at the start of next month.`
+                        : `${formatMinutes(timeLeft)} left on the free plan. Starter Pro and Power User unlock more listening.`}
                 </p>
               </div>
               <Link to="/account" className="btn btn-line btn-sm w-full justify-center sm:w-auto sm:flex-none">
-                {outOfTime && usage.plan === "free" ? "See plans" : "Your plan"}
+                {outOfTime && usage.mode === "payg"
+                  ? "Top up"
+                  : outOfTime && usage.plan === "free"
+                    ? "See plans"
+                    : "Your plan"}
               </Link>
             </div>
           )}

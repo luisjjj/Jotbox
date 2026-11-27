@@ -1,6 +1,13 @@
-import type { Plan } from "./api";
+import type { BillingMode, Plan } from "./api";
 
-export function limitReachedMessage(plan: Plan, limitSeconds?: number | null): string {
+export function limitReachedMessage(
+  plan: Plan,
+  limitSeconds?: number | null,
+  mode?: BillingMode,
+): string {
+  if (mode === "payg") {
+    return "You have used all the minutes in your wallet. Top up to keep listening.";
+  }
   if (plan === "enterprise") {
     return "This workspace has used its listening time for this month. Your notes are still saved on this device.";
   }
@@ -11,7 +18,10 @@ export function limitReachedMessage(plan: Plan, limitSeconds?: number | null): s
   return "Your 100 free listening minutes are finished. Upgrade to keep listening.";
 }
 
-export function uploadTooLongMessage(plan: Plan): string {
+export function uploadTooLongMessage(plan: Plan, mode?: BillingMode): string {
+  if (mode === "payg") {
+    return "That recording is longer than the minutes in your wallet. Top up to keep listening.";
+  }
   if (plan === "enterprise") {
     return "That recording is longer than the listening time this workspace has left this month.";
   }
