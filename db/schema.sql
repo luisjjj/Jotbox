@@ -734,3 +734,34 @@ alter table billing_checkouts
 insert into schema_migrations (version)
 values ('017_pricing_tiers')
 on conflict (version) do nothing;
+
+-- Pay as you go minutes. A one-time pack purchase adds seconds to a wallet that
+-- never expires, so it is a ledger rather than a column. Reserving a capture
+-- records which pool it draws from, and settling a wallet capture writes the
+-- negative usage row in the same transaction as the capture.
+create table if not exists minute_ledger (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  delta_seconds integer not null,
+  kind text not null check (kind in ('grant', 'purchase', 'usage')),
+  pack_key text,
+  reference text,
+  capture_id uuid,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists minute_ledger_purchase_idx
+  on minute_ledger (reference) where kind = 'purchase';
+create unique index if not exists minute_ledger_grant_idx
+  on minute_ledger (user_id) where kind = 'grant';
+create unique index if not exists minute_ledger_usage_idx
+  on minute_ledger (user_id, capture_id) where kind = 'usage';
+create index if not exists minute_ledger_user_idx on minute_ledger (user_id, created_at);
+
+alter table usage_reservations add column if not exists source text not null default 'plan'
+  check (source in ('plan', 'wallet', 'org'));
+alter table billing_checkouts add column if not exists pack_key text;
+
+insert into schema_migrations (version)
+values ('018_payg_minutes')
+on conflict (version) do nothing;

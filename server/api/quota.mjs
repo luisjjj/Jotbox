@@ -17,7 +17,12 @@ export const OVERAGE_GRACE_SECONDS = 10;
 export const MAX_RESERVATION_SECONDS = 4 * 3600;
 export const RESERVATION_TTL_MINUTES = 6 * 60;
 
-export function overLimitMessage(plan, limitSeconds, exhausted) {
+export function overLimitMessage(plan, limitSeconds, exhausted, mode = "free") {
+  if (mode === "payg") {
+    return exhausted
+      ? "You have used all the minutes in your wallet. Top up to keep listening. Your notes are still saved on this device."
+      : "This capture is longer than the minutes left in your wallet. Top up to keep listening. Your notes are still saved on this device.";
+  }
   if (plan === ENTERPRISE_PLAN_KEY) {
     return "This workspace has used its listening time for this month. Your notes are still saved on this device.";
   }
@@ -79,6 +84,31 @@ async function poolFor(db, userId, plan) {
   return { orgId: row.id, limitSeconds: Number(row.pool_seconds) };
 }
 
+/**
+ * A wallet is the sum of every ledger row: grants, purchases, and the negative
+ * usage rows written when a capture saves. A balance below zero is clamped for
+ * display and for the next reservation, so a slight overrun cannot create debt.
+ */
+async function walletTotals(db, userId) {
+  const result = await db.query(
+    `select coalesce(sum(delta_seconds), 0) as balance,
+            coalesce(sum(case when delta_seconds > 0 then delta_seconds else 0 end), 0) as credited,
+            coalesce(bool_or(kind = 'purchase'), false) as purchased
+       from minute_ledger
+      where user_id = $1`,
+    [userId],
+  );
+  return {
+    balanceSeconds: Math.max(0, Number(result.rows[0]?.balance) || 0),
+    creditedSeconds: Math.max(0, Number(result.rows[0]?.credited) || 0),
+    purchased: Boolean(result.rows[0]?.purchased),
+  };
+}
+
+export async function walletSummary(userId) {
+  return walletTotals(getPool(), userId);
+}
+
 export async function quotaScope(db, userId) {
   const plan = planOf(await planRow(db, userId));
   const pool = await poolFor(db, userId, plan);
@@ -92,7 +122,30 @@ export async function quotaScope(db, userId) {
       unlimited: false,
       pooled: true,
       lifetimeSince: null,
+      mode: "enterprise",
+      wallet: null,
     };
+  }
+  if (plan === FREE_PLAN_KEY) {
+    // A purchase switches a free account onto its wallet. Minutes never expire,
+    // so the wallet is checked before the lifetime free allowance.
+    const wallet = await walletTotals(db, userId);
+    // A user who has bought minutes stays on pay as you go at zero, so the
+    // message asks for a top up instead of offering the free allowance again.
+    if (wallet.balanceSeconds > 0 || wallet.purchased) {
+      return {
+        userId,
+        plan,
+        orgId: null,
+        scopeId: `user:${userId}`,
+        limitSeconds: wallet.balanceSeconds,
+        unlimited: false,
+        pooled: false,
+        lifetimeSince: null,
+        mode: "payg",
+        wallet,
+      };
+    }
   }
   // Free minutes are a lifetime allowance. Paid plans keep the calendar-month
   // window, which is what the quota message promises.
@@ -108,10 +161,13 @@ export async function quotaScope(db, userId) {
     unlimited: plan === ENTERPRISE_PLAN_KEY,
     pooled: false,
     lifetimeSince,
+    mode: plan === FREE_PLAN_KEY ? "free" : "monthly",
+    wallet: null,
   };
 }
 
 async function usedForScope(db, scope) {
+  if (scope.mode === "payg") return 0;
   if (scope.lifetimeSince != null) return usageSecondsSince(db, scope.userId, scope.lifetimeSince);
   if (!scope.pooled) return usageSeconds(db, scope.userId);
   const result = await db.query(
@@ -170,19 +226,24 @@ export async function quotaState(db, userId, { excludeCaptureId = null } = {}) {
     );
     bounds = { start: month.rows[0]?.start_at, end: month.rows[0]?.end_at };
   }
-  const usage = usageSnapshot(
-    used,
-    { unlimited: scope.unlimited, limitSeconds: scope.limitSeconds },
-    bounds,
-  );
+  const usage =
+    scope.mode === "payg"
+      ? usageSnapshot(
+          Math.max(0, scope.wallet.creditedSeconds - scope.wallet.balanceSeconds),
+          { unlimited: false, limitSeconds: scope.wallet.creditedSeconds },
+          {},
+        )
+      : usageSnapshot(used, { unlimited: scope.unlimited, limitSeconds: scope.limitSeconds }, bounds);
   return {
     plan: scope.plan,
+    mode: scope.mode,
     pooled: scope.pooled,
     orgId: scope.orgId,
+    wallet: scope.wallet,
     reservedSeconds: reserved,
     availableSeconds: scope.unlimited
       ? null
-      : Math.max(0, scope.limitSeconds - used - reserved),
+      : Math.max(0, (scope.mode === "payg" ? scope.wallet.balanceSeconds : scope.limitSeconds) - used - reserved),
     limitSeconds: scope.limitSeconds,
     usedSeconds: used,
     usage,
@@ -216,22 +277,33 @@ export async function reserveQuota({ userId, captureId, seconds }) {
       };
     }
     const saved = await client.query(
-      `insert into usage_reservations (user_id, capture_id, org_id, seconds, status, expires_at)
-       values ($1, $2, $3, $4, 'active', now() + ($5::int * interval '1 minute'))
+      `insert into usage_reservations (user_id, capture_id, org_id, seconds, status, expires_at, source)
+       values ($1, $2, $3, $4, 'active', now() + ($5::int * interval '1 minute'), $6)
        on conflict (user_id, capture_id) where status = 'active'
        do update set seconds = excluded.seconds,
                      expires_at = excluded.expires_at,
-                     org_id = excluded.org_id
+                     org_id = excluded.org_id,
+                     source = excluded.source
        returning id, seconds, expires_at`,
-      [userId, captureId, scope.orgId, requested, RESERVATION_TTL_MINUTES],
+      [
+        userId,
+        captureId,
+        scope.orgId,
+        requested,
+        RESERVATION_TTL_MINUTES,
+        scope.mode === "payg" ? "wallet" : scope.pooled ? "org" : "plan",
+      ],
     );
     await client.query("commit");
     return {
       ok: true,
       plan: scope.plan,
+      mode: scope.mode,
       reservation: saved.rows[0],
       state: {
         ...decision,
+        mode: scope.mode,
+        wallet: scope.wallet,
         pooled: scope.pooled,
         orgId: scope.orgId,
         unlimited: scope.unlimited,
@@ -245,13 +317,27 @@ export async function reserveQuota({ userId, captureId, seconds }) {
   }
 }
 
-export async function settleQuota(db, userId, captureId) {
-  await db.query(
+export async function settleQuota(db, userId, captureId, seconds = 0, { wallet = false } = {}) {
+  const settled = await db.query(
     `update usage_reservations
         set status = 'settled', settled_at = now()
-      where user_id = $1 and capture_id = $2 and status = 'active'`,
+      where user_id = $1 and capture_id = $2 and status = 'active'
+      returning source`,
     [userId, captureId],
   );
+  const source = settled.rows[0]?.source;
+  const charged = Math.max(0, Math.ceil(Number(seconds) || 0));
+  // A wallet capture is charged by its real saved duration, not by the estimate
+  // reserved before the recording. The unique capture id makes this safe to
+  // repeat when a session is saved again.
+  if (charged > 0 && (wallet || source === "wallet")) {
+    await db.query(
+      `insert into minute_ledger (user_id, delta_seconds, kind, capture_id)
+       values ($1, -($2)::int, 'usage', $3)
+       on conflict do nothing`,
+      [userId, charged, captureId],
+    );
+  }
 }
 
 export async function releaseQuota(userId, captureId) {

@@ -147,6 +147,16 @@ export interface BillingTierPrice {
   naira: number;
 }
 
+export interface BillingPack {
+  key: string;
+  label: string;
+  minutes: number;
+  naira: number;
+  amountKobo: number;
+  usd: number;
+  perMinuteNaira: number;
+}
+
 export interface BillingPricing {
   usd: number;
   naira: number;
@@ -155,6 +165,7 @@ export interface BillingPricing {
   interval: string;
   starter: BillingTierPrice;
   power: BillingTierPrice;
+  packs: BillingPack[];
 }
 
 export interface BillingSubscription {
@@ -172,6 +183,12 @@ export interface BillingSubscription {
 
 export type Plan = "free" | "starter" | "power" | "pro" | "enterprise";
 export type PurchasePlan = "starter" | "power";
+export type BillingMode = "free" | "monthly" | "payg" | "enterprise";
+
+export interface BillingWallet {
+  balanceSeconds: number;
+  creditedSeconds: number;
+}
 
 export interface BillingUsage {
   unlimited: boolean;
@@ -185,16 +202,26 @@ export interface BillingUsage {
 export interface BillingStatus {
   configured: boolean;
   plan: Plan;
+  mode: BillingMode;
   subscription: BillingSubscription | null;
   pricing: BillingPricing;
+  wallet: BillingWallet | null;
   usage: BillingUsage;
   payment?: string;
+  minutes?: number;
 }
 
 export interface CheckoutSession {
   authorizationUrl: string;
   reference: string;
   planKey: PurchasePlan;
+  pricing: BillingPricing;
+}
+
+export interface MinuteCheckoutSession {
+  authorizationUrl: string;
+  reference: string;
+  packKey: string;
   pricing: BillingPricing;
 }
 
@@ -873,6 +900,12 @@ export const api = {
     request<BillingStatus>("/api/billing?action=verify", {
       method: "POST",
       body: JSON.stringify({ reference }),
+    }),
+  startMinutesCheckout: (pack: string) =>
+    request<MinuteCheckoutSession>("/api/billing?action=minutes", {
+      method: "POST",
+      headers: { "Idempotency-Key": `minutes:${pack}:${crypto.randomUUID()}` },
+      body: JSON.stringify({ pack }),
     }),
   cancelSubscription: () =>
     request<BillingStatus>("/api/billing?action=cancel", { method: "POST" }),

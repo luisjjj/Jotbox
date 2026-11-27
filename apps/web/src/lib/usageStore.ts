@@ -1,5 +1,13 @@
 import { create } from "zustand";
-import { api, type BillingPricing, type BillingStatus, type BillingUsage, type Plan } from "./api";
+import {
+  api,
+  type BillingMode,
+  type BillingPricing,
+  type BillingStatus,
+  type BillingUsage,
+  type BillingWallet,
+  type Plan,
+} from "./api";
 
 const EMPTY: BillingUsage = {
   unlimited: false,
@@ -25,6 +33,8 @@ export function planName(plan: Plan): string {
 interface UsageState extends BillingUsage {
   loaded: boolean;
   plan: Plan;
+  mode: BillingMode;
+  wallet: BillingWallet | null;
   configured: boolean;
   pricing: BillingPricing | null;
   applyStatus: (status: BillingStatus) => void;
@@ -36,12 +46,16 @@ export const useUsage = create<UsageState>()((set) => ({
   ...EMPTY,
   loaded: false,
   plan: "free",
+  mode: "free",
+  wallet: null,
   configured: false,
   pricing: null,
   applyStatus: (status) =>
     set({
       ...status.usage,
       plan: status.plan,
+      mode: status.mode,
+      wallet: status.wallet,
       configured: status.configured,
       pricing: status.pricing,
       loaded: true,
@@ -51,12 +65,23 @@ export const useUsage = create<UsageState>()((set) => ({
     set({
       ...status.usage,
       plan: status.plan,
+      mode: status.mode,
+      wallet: status.wallet,
       configured: status.configured,
       pricing: status.pricing,
       loaded: true,
     });
   },
-  reset: () => set({ ...EMPTY, loaded: false, plan: "free", configured: false, pricing: null }),
+  reset: () =>
+    set({
+      ...EMPTY,
+      loaded: false,
+      plan: "free",
+      mode: "free",
+      wallet: null,
+      configured: false,
+      pricing: null,
+    }),
 }));
 
 export function usePro() {
