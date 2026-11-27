@@ -14,6 +14,7 @@ import {
   FilePlus2,
   FileText,
   Layers,
+  Languages,
   Link2,
   ListChecks,
   Loader2,
@@ -36,6 +37,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { FollowUpDialog } from "@/components/FollowUpDialog";
 import { JiraHandoffDialog } from "@/components/JiraHandoffDialog";
+import { Modal } from "@/components/Modal";
 import { NoticeDialog } from "@/components/NoticeDialog";
 import { PaywallDialog } from "@/components/Paywall";
 import { PeopleCard } from "@/components/PeopleCard";
@@ -48,7 +50,7 @@ import { KindBadge } from "@/components/KindBadge";
 import { SessionStatusChip } from "@/components/SessionRow";
 import { TranscriptView } from "@/components/TranscriptView";
 import { deleteAudio, loadAudio } from "@/lib/audioStore";
-import { api, type JiraHandoffLink } from "@/lib/api";
+import { api, type JiraHandoffLink, type ReportLanguage, type TranslatedReport } from "@/lib/api";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
 import { actionsChecklist, copyNotes, downloadMarkdown, printSession } from "@/lib/exportNotes";
 import type { FollowUpChannel } from "@/lib/followUp";
@@ -56,6 +58,12 @@ import { downloadSessionPdf } from "@/lib/pdf";
 import { formatClock, isDefaultTitle, notesLookEmpty } from "@/lib/format";
 import { OUTPUT_PRESETS } from "@/lib/presets";
 import posthog, { posthogEnabled } from "@/lib/posthog";
+import {
+  mergeTranslatedReport,
+  reportLanguageLabel,
+  reportTranslationInput,
+  REPORT_LANGUAGES,
+} from "@/lib/reportTranslation";
 import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
 import { linesFromText } from "@/lib/transcript";
@@ -330,6 +338,9 @@ export default function SessionPage() {
   const [jiraOpen, setJiraOpen] = useState(false);
   const [handoffs, setHandoffs] = useState<JiraHandoffLink[]>([]);
   const [editReport, setEditReport] = useState(false);
+  const [translateOpen, setTranslateOpen] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [translation, setTranslation] = useState<{ language: ReportLanguage; report: TranslatedReport } | null>(null);
   const [studyFormat, setStudyFormat] = useState<"note" | "quiz" | "cards">("note");
 
   useEffect(() => {
@@ -353,6 +364,8 @@ export default function SessionPage() {
 
   useEffect(() => {
     setEditReport(false);
+    setTranslation(null);
+    setTranslateOpen(false);
   }, [session?.id]);
 
   useEffect(() => {
@@ -362,10 +375,15 @@ export default function SessionPage() {
     };
   }, [session?.title, session]);
 
-  const openCount = session?.notes?.actions.filter((action) => !action.done).length ?? 0;
-  const doneCount = (session?.notes?.actions.length ?? 0) - openCount;
-  const decisionCount = session?.notes?.decisions?.length ?? 0;
-  const blockerCount = session?.notes?.blockers?.length ?? 0;
+  const viewNotes = useMemo(
+    () => (session?.notes ? mergeTranslatedReport(session.notes, translation?.report ?? null) : null),
+    [session?.notes, translation],
+  );
+
+  const openCount = viewNotes?.actions.filter((action) => !action.done).length ?? 0;
+  const doneCount = (viewNotes?.actions.length ?? 0) - openCount;
+  const decisionCount = viewNotes?.decisions?.length ?? 0;
+  const blockerCount = viewNotes?.blockers?.length ?? 0;
   const handoffById = useMemo(() => new Map(handoffs.map((link) => [link.actionId, link])), [handoffs]);
   const preset = session ? OUTPUT_PRESETS[session.kind] : OUTPUT_PRESETS.meeting;
 
@@ -630,6 +648,7 @@ export default function SessionPage() {
         transcript: result.lines,
         title: result.title,
       });
+      setTranslation(null);
       if (posthogEnabled) {
         posthog.capture("session_notes_regenerated", {
           session_kind: session.kind,
@@ -643,6 +662,28 @@ export default function SessionPage() {
       return false;
     } finally {
       setRebuilding(false);
+    }
+  };
+
+  const translateReport = async (language: ReportLanguage) => {
+    if (!session?.notes) return;
+    setTranslating(true);
+    try {
+      const report = await api.translateReport(language, reportTranslationInput(session.notes));
+      setTranslation({ language, report });
+      setTranslateOpen(false);
+      setEditReport(false);
+      toast.success(`Report translated to ${reportLanguageLabel(language)}`);
+      if (posthogEnabled) {
+        posthog.capture("session_report_translated", {
+          session_kind: session.kind,
+          language,
+        });
+      }
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "The report could not be translated.");
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -687,6 +728,7 @@ export default function SessionPage() {
         transcript: result.lines,
         title: result.title,
       });
+      setTranslation(null);
       toast.success("Words and notes are ready");
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "JotBox could not read that recording.");
@@ -1006,11 +1048,21 @@ export default function SessionPage() {
             </div>
           )}
 
-          {!processing && showNotes && session.notes && (
+          {!processing && showNotes && viewNotes && (
             <article className="mt-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">Report</h2>
                 <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    className={clsx("btn btn-sm text-[13px]", translation ? "btn-line" : "btn-ghost")}
+                    onClick={() => setTranslateOpen(true)}
+                    disabled={translating}
+                    title="Read this report in another Nigerian language"
+                  >
+                    {translating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Languages className="h-3.5 w-3.5" />}
+                    {translation ? reportLanguageLabel(translation.language) : "Translate"}
+                  </button>
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm text-[13px]"
@@ -1021,16 +1073,33 @@ export default function SessionPage() {
                     {rebuilding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                     Rewrite
                   </button>
-                  <button
-                    type="button"
-                    className={clsx("btn btn-sm", editReport ? "btn-primary" : "btn-line")}
-                    onClick={() => setEditReport((current) => !current)}
-                  >
-                    {editReport ? <Check className="h-3.5 w-3.5" /> : <PencilLine className="h-3.5 w-3.5" />}
-                    {editReport ? "Done" : "Edit"}
-                  </button>
+                  {!translation && (
+                    <button
+                      type="button"
+                      className={clsx("btn btn-sm", editReport ? "btn-primary" : "btn-line")}
+                      onClick={() => setEditReport((current) => !current)}
+                    >
+                      {editReport ? <Check className="h-3.5 w-3.5" /> : <PencilLine className="h-3.5 w-3.5" />}
+                      {editReport ? "Done" : "Edit"}
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {translation && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-accent-soft px-3.5 py-2.5">
+                  <p className="text-[13px] leading-5 text-soft">
+                    Showing the {reportLanguageLabel(translation.language)} translation. Your report is unchanged.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm text-[12.5px]"
+                    onClick={() => setTranslation(null)}
+                  >
+                    Show original
+                  </button>
+                </div>
+              )}
 
               <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 <button
@@ -1102,14 +1171,14 @@ export default function SessionPage() {
                       <AlignLeft className="h-3.5 w-3.5" />
                     </span>
                     <span className="text-[20px] font-semibold tabular-nums text-ink">
-                      {session.notes.highlights.length}
+                      {viewNotes.highlights.length}
                     </span>
                   </span>
                   <span className="mt-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
                     Key points
                   </span>
                   <span className="mt-0.5 block text-[12.5px] text-muted">
-                    {session.notes.highlights.length === 1 ? "1 point" : `${session.notes.highlights.length} points`}
+                    {viewNotes.highlights.length === 1 ? "1 point" : `${viewNotes.highlights.length} points`}
                   </span>
                 </button>
               </div>
@@ -1121,7 +1190,7 @@ export default function SessionPage() {
                 <EditableText
                   as="p"
                   multiline
-                  value={session.notes.summary}
+                  value={viewNotes.summary}
                   editing={editReport}
                   onCommit={setSummary}
                   label="Summary"
@@ -1129,13 +1198,13 @@ export default function SessionPage() {
                 />
               </section>
 
-              {(session.notes.highlights.length > 0 || editReport) && (
+              {(viewNotes.highlights.length > 0 || editReport) && (
                 <section className="mt-8" id="report-points">
                   <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                     {preset.highlightsLabel}
                   </h2>
                   <ul className="mt-3 space-y-2.5">
-                    {session.notes.highlights.map((highlight, index) => (
+                    {viewNotes.highlights.map((highlight, index) => (
                       <li key={`${index}-${highlight.slice(0, 16)}`} className="flex gap-3">
                         <span className="bullet-dot" />
                         <EditableText
@@ -1170,7 +1239,7 @@ export default function SessionPage() {
                     {preset.decisionsLabel}
                   </h2>
                   <ul className="mt-3 space-y-2.5">
-                    {(session.notes.decisions ?? []).map((decision, index) => (
+                    {(viewNotes.decisions ?? []).map((decision, index) => (
                       <li key={`${index}-${decision.slice(0, 16)}`} className="flex gap-3">
                         <Check className="mt-1 h-3.5 w-3.5 flex-none text-accent" strokeWidth={2.5} />
                         <EditableText
@@ -1205,7 +1274,7 @@ export default function SessionPage() {
                     {preset.blockersLabel}
                   </h2>
                   <ul className="mt-3 space-y-2">
-                    {(session.notes.blockers ?? []).map((blocker, index) => (
+                    {(viewNotes.blockers ?? []).map((blocker, index) => (
                       <li
                         key={`${index}-${blocker.slice(0, 16)}`}
                         className="flex gap-2.5 rounded-xl border border-rec-line bg-rec-soft px-3.5 py-3"
@@ -1237,7 +1306,7 @@ export default function SessionPage() {
                 </section>
               )}
 
-              {(session.notes.actions.length > 0 || editReport) && (
+              {(viewNotes.actions.length > 0 || editReport) && (
                 <section className="mt-8" id="report-actions">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
@@ -1245,13 +1314,13 @@ export default function SessionPage() {
                     </h2>
                     <div className="flex items-center gap-3">
                       <span className="text-[12.5px] tabular-nums text-faint">
-                        {openCount} of {session.notes.actions.length} open
+                        {openCount} of {viewNotes.actions.length} open
                       </span>
                       <button
                         type="button"
                         className="btn btn-line btn-sm"
                         onClick={() => setJiraOpen(true)}
-                        disabled={!session.notes.actions.length}
+                        disabled={!viewNotes.actions.length}
                       >
                         <Send className="h-3.5 w-3.5" />
                         Send to Jira
@@ -1259,7 +1328,7 @@ export default function SessionPage() {
                     </div>
                   </div>
                   <ul className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line bg-raised">
-                    {session.notes.actions.map((action) => {
+                    {viewNotes.actions.map((action) => {
                       const jiraLink = handoffById.get(action.id);
                       return (
                         <li key={action.id} className="flex items-start gap-3 px-3.5 py-3">
@@ -1362,13 +1431,13 @@ export default function SessionPage() {
                 </section>
               )}
 
-              {session.notes.followUps && session.notes.followUps.length > 0 && (
+              {viewNotes.followUps && viewNotes.followUps.length > 0 && (
                 <section className="mt-8">
                   <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                     {preset.followUpsLabel}
                   </h2>
                   <ul className="mt-3 space-y-2.5">
-                    {session.notes.followUps.map((draft, index) => (
+                    {viewNotes.followUps.map((draft, index) => (
                       <li
                         key={`${draft.subject}-${index}`}
                         className="rounded-xl border border-line bg-raised px-3.5 py-3"
@@ -1397,9 +1466,9 @@ export default function SessionPage() {
                 </section>
               )}
 
-              {(session.notes.sections.length > 0 || editReport) && (
+              {(viewNotes.sections.length > 0 || editReport) && (
                 <div id="report-sections">
-                  {session.notes.sections.map((section, index) => (
+                  {viewNotes.sections.map((section, index) => (
                     <section key={index} className="mt-8">
                       <div className="flex items-start justify-between gap-2">
                         <EditableText
@@ -1595,6 +1664,66 @@ export default function SessionPage() {
           participants: session.participants,
         }}
       />
+
+      <Modal
+        open={translateOpen}
+        title="Translate this report"
+        description="Read the same report in another Nigerian language. Your saved report stays as it is."
+        onClose={() => {
+          if (!translating) setTranslateOpen(false);
+        }}
+      >
+        <div className="space-y-2">
+          {translation && (
+            <button
+              type="button"
+              className="flex w-full items-start justify-between gap-3 rounded-xl border border-line bg-raised px-3.5 py-3 text-left transition-colors hover:border-line-strong"
+              onClick={() => {
+                setTranslation(null);
+                setTranslateOpen(false);
+              }}
+            >
+              <span>
+                <span className="block text-[14.5px] font-semibold text-ink">Original</span>
+                <span className="mt-0.5 block text-[12.5px] text-muted">Back to the report as JotBox wrote it</span>
+              </span>
+              <Languages className="mt-0.5 h-4 w-4 flex-none text-faint" />
+            </button>
+          )}
+          {REPORT_LANGUAGES.map((option) => {
+            const active = translation?.language === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                disabled={translating}
+                onClick={() => void translateReport(option.value)}
+                className={clsx(
+                  "flex w-full items-start justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors",
+                  active ? "border-accent bg-accent-soft" : "border-line bg-raised hover:border-line-strong",
+                  translating && "opacity-60",
+                )}
+              >
+                <span>
+                  <span className="block text-[14.5px] font-semibold text-ink">{option.label}</span>
+                  <span className="mt-0.5 block text-[12.5px] leading-5 text-muted">{option.hint}</span>
+                </span>
+                {active ? (
+                  <Check className="mt-0.5 h-4 w-4 flex-none text-accent" strokeWidth={2.5} />
+                ) : (
+                  <Languages className="mt-0.5 h-4 w-4 flex-none text-faint" />
+                )}
+              </button>
+            );
+          })}
+          {translating && (
+            <p className="flex items-center gap-2 pt-1 text-[12.5px] text-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Translating the report...
+            </p>
+          )}
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={confirmDelete}

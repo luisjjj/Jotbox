@@ -15,6 +15,23 @@ export type OrgRole = "owner" | "admin" | "manager" | "member";
 export type CaptureVisibility = "private" | "department" | "organisation";
 export type CaptureSensitivity = "standard" | "confidential";
 
+export type ReportLanguage = "ha" | "ig" | "yo" | "pcm";
+
+export interface TranslatedReport {
+  title: string;
+  summary: string;
+  highlights: string[];
+  decisions: string[];
+  blockers: string[];
+  actions: { text: string; owner: string; due: string }[];
+  followUps: { to: string; subject: string; body: string }[];
+  sections: { heading: string; bullets: string[] }[];
+}
+
+export interface TranslationResult extends TranslatedReport {
+  provider: string;
+}
+
 export type BillingPlanStatus = "active" | "attention" | "non-renewing" | "cancelled" | "completed";
 
 export interface EnterpriseInvite {
@@ -949,5 +966,10 @@ export const api = {
     request<{ matches: SpeakerMatch[] }>("/api/assist", {
       method: "POST",
       body: JSON.stringify({ mode: "names", ...input }),
+    }),
+  translateReport: (language: ReportLanguage, report: TranslatedReport) =>
+    request<TranslationResult>("/api/enhance", {
+      method: "POST",
+      body: JSON.stringify({ mode: "translate", language, report }),
     }),
 };

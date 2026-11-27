@@ -1409,6 +1409,140 @@ export async function enhanceSession({
   );
 }
 
+const TRANSLATE_SYSTEM = `You translate a finished session report into another Nigerian language.
+The report arrives as JSON. Translate every human sentence: title, summary, highlights, decisions, blockers, action text, follow-up subject and body, section headings and bullets.
+Rules:
+- Keep names of people, companies and places exactly as written. Keep amounts, numbers, dates, times, links, product names and acronyms exactly as written.
+- Keep quoted speech in its original words. If a quote is in English or Pidgin, leave the quote as it is and translate only the sentence around it.
+- Do not add, remove, merge or split items. Return the same number of highlights, decisions, blockers, actions, follow-ups, sections and bullets, in the same order.
+- Do not summarise, explain or answer the report. Translate it.
+- Never invent a name, number, decision or owner that is not in the report.
+- Use plain punctuation: commas, colons and full stops. Never use em dashes.
+Return only a JSON object with this exact shape:
+{"title":"string","summary":"string","highlights":["string"],"decisions":["string"],"blockers":["string"],"actions":[{"text":"string","owner":"string","due":"string"}],"followUps":[{"to":"string","subject":"string","body":"string"}],"sections":[{"heading":"string","bullets":["string"]}]}`;
+
+const TRANSLATE_LANGUAGE = {
+  ha: {
+    label: "Hausa",
+    hint: "Write standard Hausa as used in northern Nigeria, with the hooked letters (ɓ, ɗ, ƙ) where the word needs them. Use the Hausa people actually write, not a literal word-for-word copy of English.",
+  },
+  ig: {
+    label: "Igbo",
+    hint: "Write standard Igbo as used in south-east Nigeria, with subdots and tone marks where they prevent confusion (for example ị, ọ, ụ). Use everyday Igbo, not a literal word-for-word copy of English.",
+  },
+  yo: {
+    label: "Yoruba",
+    hint: "Write standard Yoruba as used in south-west Nigeria, with tone marks and subdots (for example ẹ, ọ, ṣ). Use everyday Yoruba, not a literal word-for-word copy of English.",
+  },
+  pcm: {
+    label: "Nigerian Pidgin",
+    hint: "Write the whole report in full, natural Nigerian Pidgin, the way people talk in Lagos and Port Harcourt. Do not write English with a few Pidgin words sprinkled in.",
+  },
+};
+
+const translationReport = z.object({
+  title: z.string().max(300).optional().default(""),
+  summary: z.string().max(20_000).optional().default(""),
+  highlights: z.array(z.string().max(2_000)).max(30).optional().default([]),
+  decisions: z.array(z.string().max(2_000)).max(30).optional().default([]),
+  blockers: z.array(z.string().max(2_000)).max(30).optional().default([]),
+  actions: z
+    .array(
+      z.object({
+        text: z.string().max(1_500),
+        owner: z.string().max(200).optional().default(""),
+        due: z.string().max(40).optional().default(""),
+      }),
+    )
+    .max(40)
+    .optional()
+    .default([]),
+  followUps: z
+    .array(
+      z.object({
+        to: z.string().max(200).optional().default(""),
+        subject: z.string().max(300).optional().default(""),
+        body: z.string().max(4_000).optional().default(""),
+      }),
+    )
+    .max(6)
+    .optional()
+    .default([]),
+  sections: z
+    .array(
+      z.object({
+        heading: z.string().max(300).optional().default(""),
+        bullets: z.array(z.string().max(2_000)).max(30).optional().default([]),
+      }),
+    )
+    .max(16)
+    .optional()
+    .default([]),
+});
+
+function translationMessages({ language, report }) {
+  const style = TRANSLATE_LANGUAGE[language];
+  return [
+    { role: "system", content: TRANSLATE_SYSTEM },
+    {
+      role: "user",
+      content: [`Target language: ${style.label}`, style.hint, "", "Report JSON:", JSON.stringify(report)].join("\n"),
+    },
+  ];
+}
+
+// Items are kept in their original slots even when a line comes back empty, so
+// the client can line the translation up with the source report by index.
+function parseTranslationValue(value) {
+  if (!value || typeof value !== "object") throw new Error("invalid translation");
+  const line = (item) => (typeof item === "string" ? item.trim() : "");
+  const row = (item) => (item && typeof item === "object" ? item : {});
+  return {
+    title: line(value.title),
+    summary: line(value.summary),
+    highlights: Array.isArray(value.highlights) ? value.highlights.slice(0, 30).map(line) : [],
+    decisions: Array.isArray(value.decisions) ? value.decisions.slice(0, 30).map(line) : [],
+    blockers: Array.isArray(value.blockers) ? value.blockers.slice(0, 30).map(line) : [],
+    actions: Array.isArray(value.actions)
+      ? value.actions.slice(0, 40).map((item) => {
+          const action = row(item);
+          return { text: line(action.text), owner: line(action.owner), due: line(action.due) };
+        })
+      : [],
+    followUps: Array.isArray(value.followUps)
+      ? value.followUps.slice(0, 6).map((item) => {
+          const followUp = row(item);
+          return { to: line(followUp.to), subject: line(followUp.subject), body: line(followUp.body) };
+        })
+      : [],
+    sections: Array.isArray(value.sections)
+      ? value.sections.slice(0, 16).map((item) => {
+          const section = row(item);
+          return {
+            heading: line(section.heading),
+            bullets: Array.isArray(section.bullets) ? section.bullets.slice(0, 30).map(line) : [],
+          };
+        })
+      : [],
+  };
+}
+
+export async function translateSessionReport({ language, report }) {
+  if (!TRANSLATE_LANGUAGE[language]) throw new HttpError(400, "Choose a language JotBox can translate into.");
+  if (mockEnabled()) return { ...report, provider: "demo" };
+  const { value, provider } = await chatJson({
+    messages: translationMessages({ language, report }),
+    maxTokens: 3_200,
+    temperature: 0.15,
+    timeoutMs: 90_000,
+  });
+  const translated = parseTranslationValue(value);
+  if (!translated.title && !translated.summary) {
+    throw new HttpError(502, "The translation came back empty. Try again.");
+  }
+  return { ...translated, provider };
+}
+
 const ASK_SYSTEM = `You are JotBox, answering a question about one recorded session.
 Use only the session notes, jottings and spoken words supplied. Never use outside knowledge. Never invent names, numbers, dates, decisions, quotes or owners.
 If the answer is not in the session, say plainly that it was not captured and suggest checking the spoken words. Do not guess.
@@ -1671,7 +1805,7 @@ function assistantProviders() {
   return providers;
 }
 
-export async function chatJson({ messages, maxTokens = 900, temperature = 0.2 }) {
+export async function chatJson({ messages, maxTokens = 900, temperature = 0.2, timeoutMs = 60_000 }) {
   const providers = assistantProviders();
   if (!providers.length) {
     throw new HttpError(503, "JotBox cannot answer on this server yet. Use the answer from this device.");
@@ -1694,7 +1828,7 @@ export async function chatJson({ messages, maxTokens = 900, temperature = 0.2 })
                 messages,
                 response_format: { type: "json_object" },
               }),
-              signal: AbortSignal.timeout(60_000),
+              signal: AbortSignal.timeout(timeoutMs),
             });
             if (!response.ok) throw new Error(`groq ${response.status}`);
             const data = await response.json();
@@ -1724,7 +1858,7 @@ export async function chatJson({ messages, maxTokens = 900, temperature = 0.2 })
                 messages,
                 response_format: { type: "json_object" },
               }),
-              signal: AbortSignal.timeout(60_000),
+              signal: AbortSignal.timeout(timeoutMs),
             });
             if (!response.ok) throw new Error(`openrouter ${response.status}`);
             const data = await response.json();
@@ -1750,7 +1884,7 @@ export async function chatJson({ messages, maxTokens = 900, temperature = 0.2 })
           messages,
           response_format: { type: "json_object" },
         }),
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) throw new Error(`${provider} ${response.status}`);
       const data = await response.json();
@@ -2250,6 +2384,16 @@ export async function handleEnhance(req, res) {
   rateLimit(req);
   const payload = await readJson(req, 2 * 1024 * 1024);
   if (!payload || typeof payload !== "object") throw new HttpError(400, "The notes request was empty.");
+
+  if (payload.mode === "translate") {
+    const language = typeof payload.language === "string" ? payload.language.trim().toLowerCase() : "";
+    if (!TRANSLATE_LANGUAGE[language]) throw new HttpError(400, "Choose a language JotBox can translate into.");
+    const parsed = translationReport.safeParse(payload.report);
+    if (!parsed.success) throw new HttpError(400, "The report could not be read for translation.");
+    sendJson(res, 200, await translateSessionReport({ language, report: parsed.data }));
+    return;
+  }
+
   const notes = await enhanceSession({
     kind: payload.kind,
     title: payload.title,
