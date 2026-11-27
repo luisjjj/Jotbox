@@ -118,12 +118,14 @@ function PlanCard() {
     const planParam = params.get("plan");
     const wantedTier: PurchasePlan | null =
       planParam === "starter" || planParam === "power" ? planParam : null;
+    const wantedPack = planParam === "payg" ? params.get("pack") : null;
 
     // Consume the plan intent before redirecting to Paystack. Pressing Back must
     // land on the account page, not start a second checkout.
     if (planParam) {
       const next = new URL(window.location.href);
       next.searchParams.delete("plan");
+      next.searchParams.delete("pack");
       window.history.replaceState(window.history.state, "", `${next.pathname}${next.search}${next.hash}`);
     }
 
@@ -147,6 +149,25 @@ function PlanCard() {
           setBilling(result);
           useUsage.getState().applyStatus(result);
           if (returning) toast("No payment was made.");
+          const wantedPackPrice = wantedPack
+            ? result.pricing.packs.find((pack) => pack.key === wantedPack)
+            : null;
+          if (wantedPackPrice && !returning && !isPaidPlan(result.plan) && result.configured) {
+            setBusy(true);
+            try {
+              const session = await api.startMinutesCheckout(wantedPackPrice.key);
+              window.location.assign(session.authorizationUrl);
+              return;
+            } catch (checkoutError) {
+              const message = errorText(checkoutError);
+              setError(message);
+              toast.error(message);
+              navigate("/account", { replace: true });
+              return;
+            } finally {
+              setBusy(false);
+            }
+          }
           if (wantedTier && !returning && result.plan === "free" && result.configured) {
             setBusy(true);
             try {
