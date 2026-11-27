@@ -125,6 +125,31 @@ The legacy `pro` plan key is not sold any more. Anyone already paying $7 keeps 2
 
 The server enforces share limits (`server/api/limits.mjs`), the follow-up AI check, and the organisation Ask check. Client paywalls mirror those rules but are not trusted on their own.
 
+## Pay as you go
+
+Listening can also be bought once as a minute pack instead of a month. An account is in one mode at a time: `free`, `monthly`, `payg`, or `enterprise`. `GET /api/billing` returns `mode` plus a `wallet` of `balanceSeconds` and `creditedSeconds`. A monthly plan takes over while it is active; the wallet is untouched and resumes when the subscription ends. Buying a pack is refused while a subscription is entitled.
+
+| Pack | Minutes | Price | Per minute |
+| --- | --- | --- | --- |
+| Small | 100 | ₦2,500 | ₦25 |
+| Standard | 250 | ₦5,500 | ₦22 |
+| Large | 600 | ₦12,000 | ₦20 |
+| Team | 1,500 | ₦27,000 | ₦18 |
+
+The ladder keeps about 41 to 56 percent margin at ₦1,400/USD after the two-pass Scribe cost and the local Paystack fee. The margin falls as the naira weakens, so `JOTBOX_USD_TO_NGN` and the pack amounts are reviewed together. Each pack amount can be overridden with `PAYSTACK_PACK_SMALL_AMOUNT_NGN`, `PAYSTACK_PACK_STANDARD_AMOUNT_NGN`, `PAYSTACK_PACK_LARGE_AMOUNT_NGN`, or `PAYSTACK_PACK_TEAM_AMOUNT_NGN`; the minute count never changes.
+
+Minutes never expire and are held in `minute_ledger`:
+
+- A purchase writes a positive `purchase` row keyed by the Paystack reference, so a webhook retry cannot credit the same pack twice.
+- The first purchase also writes the remaining free allowance as a `grant` row, once per user, so buying a pack never throws away unused free minutes.
+- A saved capture writes a negative `usage` row keyed by the capture id. Because the charge happens at settle time with the real saved duration, a failed or abandoned job costs nothing, which is the **you only pay when a recording saves** promise.
+
+Quota resolution lives in `server/api/quota.mjs`. A payg account is reserved against its wallet balance, not the calendar month. An empty wallet stays in `payg` if the account has ever bought a pack, so the cap message asks for a top up instead of showing the free-tier message. `usage_reservations.source` records whether a reservation drew from `plan`, `wallet`, or an organisation pool.
+
+The checkout is a one-time Paystack transaction, not a plan: `POST /api/billing?action=minutes` with `{ "pack": "standard" }`. Verification uses the same reference-first `billing_transactions` ledger and `?action=reconcile` sweep as subscriptions, and the `charge.success` webhook applies a pack if the callback never arrives.
+
+Pay as you go covers listening only. Branded PDF, AI follow-up drafts, calendar, Jira, and organisation Ask still require a monthly plan. This keeps a heavy payg buyer from getting the same features at a lower effective price and protects subscription ARPU.
+
 ## Listening limits
 
 `GET /api/billing` returns a `usage` object with `usedSeconds`, `limitSeconds`, `remainingSeconds`, and the period. Free returns a lifetime window that starts at `users.free_allowance_started_at`; the migration sets that column to the rollout time for existing accounts, so every current user starts with a fresh 100 minutes rather than losing time already used this month. Starter Pro, Power User, and legacy Pro use the calendar month. Enterprise returns `unlimited: true` so the hidden 1,000-hour cap is not shown.

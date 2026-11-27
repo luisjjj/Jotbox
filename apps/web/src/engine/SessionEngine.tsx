@@ -1082,7 +1082,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const usage = await usageSnapshot();
       if (usage.loaded && !usage.unlimited && (usage.remainingSeconds ?? 0) <= 0) {
         startingRef.current = false;
-        setError(limitReachedMessage(usage.plan, usage.limitSeconds));
+        setError(limitReachedMessage(usage.plan, usage.limitSeconds, usage.mode));
         return;
       }
       const nextAllowance =
@@ -1201,7 +1201,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     if (statusRef.current !== "paused") return;
     const left = allowanceRef.current;
     if (left && left.limit - left.baseline - currentElapsed() <= 0) {
-      toast(limitReachedMessage(useUsage.getState().plan, left.limit), { id: "plan-limit" });
+      const state = useUsage.getState();
+      toast(limitReachedMessage(state.plan, left.limit, state.mode), { id: "plan-limit" });
       return;
     }
     tickStart.current = Date.now();
@@ -1229,7 +1230,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const usage = await usageSnapshot();
       if (usage.loaded && !usage.unlimited && usage.remainingSeconds !== null && usage.remainingSeconds <= 0) {
         startingRef.current = false;
-        setError(limitReachedMessage(usage.plan, usage.limitSeconds));
+        setError(limitReachedMessage(usage.plan, usage.limitSeconds, usage.mode));
         return;
       }
       const duration = await audioDuration(file);
@@ -1240,7 +1241,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         duration > usage.remainingSeconds
       ) {
         startingRef.current = false;
-        setError(uploadTooLongMessage(usage.plan));
+        setError(uploadTooLongMessage(usage.plan, usage.mode));
         return;
       }
       const id = crypto.randomUUID();
@@ -1560,7 +1561,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       const allowance = allowanceRef.current;
       if (allowance && statusRef.current === "recording") {
         if (allowance.limit - allowance.baseline - currentElapsed() <= 0) {
-          toast(limitReachedMessage(useUsage.getState().plan, allowance.limit), { id: "plan-limit" });
+          const state = useUsage.getState();
+          toast(limitReachedMessage(state.plan, allowance.limit, state.mode), { id: "plan-limit" });
           void stopRef.current();
           return;
         }

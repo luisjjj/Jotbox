@@ -20,6 +20,8 @@ import {
   STARTER_PLAN_KEY,
   isPurchasePlan,
 } from "./plan-keys.mjs";
+import { findMinutePack, minutePackList } from "./minute-packs.mjs";
+import { freeAllowanceSeconds } from "./usage.mjs";
 
 /**
  * Pro subscriptions.
@@ -123,6 +125,7 @@ function publicPricing(config = billingConfig()) {
     interval: config.interval,
     starter: { usd: config.starter.usd, naira: config.starter.naira },
     power: { usd: config.power.usd, naira: config.power.naira },
+    packs: minutePackList(process.env, config.ngnPerUsd),
   };
 }
 
@@ -836,10 +839,15 @@ async function statusFor(userId, { reconcile = false } = {}) {
   return {
     configured: config.configured,
     plan,
+    mode: quota.mode,
     subscription: subscriptionView(row),
     pricing: publicPricing(config),
+    wallet: quota.wallet
+      ? { balanceSeconds: quota.wallet.balanceSeconds, creditedSeconds: quota.wallet.creditedSeconds }
+      : null,
     usage: quota.usage,
     quota: {
+      mode: quota.mode,
       pooled: quota.pooled,
       orgId: quota.orgId,
       limitSeconds: quota.limitSeconds,
@@ -1010,6 +1018,228 @@ async function checkout(req, res) {
   sendJson(res, 200, checkoutView(checkoutRow, config));
 }
 
+/**
+ * A minute pack is a one-time charge, so it has no Paystack plan code and it
+ * cannot renew. The wallet it credits is applied by the same reference-first
+ * ledger as subscriptions, so a webhook retry cannot buy the pack twice.
+ */
+async function applyMinutePurchase(transaction, userId, { config, checkout = null }) {
+  const reference = String(transaction?.reference || "").trim();
+  if (!reference) return { applied: false, reason: "missing_reference" };
+  const metadata = metadataOf(transaction);
+  const pack = findMinutePack(metadata?.pack_key || checkout?.pack_key, process.env, config.ngnPerUsd);
+  if (!pack) return { applied: false, reason: "not_a_minute_pack" };
+  if (checkout?.pack_key && checkout.pack_key !== pack.key) {
+    return { applied: false, reason: "not_a_minute_pack" };
+  }
+  const expected = Number(checkout?.amount) || pack.amountKobo;
+  if (
+    Number(transaction?.amount) !== expected ||
+    currencyOf(transaction?.currency) !== "NGN" ||
+    transaction?.status !== "success"
+  ) {
+    return { applied: false, reason: "not_a_paid_charge" };
+  }
+
+  return withTransaction(async (client) => {
+    const recorded = await recordTransaction(client, {
+      reference,
+      userId,
+      planCode: null,
+      subscriptionCode: null,
+      status: "success",
+      amount: transaction.amount,
+      currency: transaction.currency || "NGN",
+      channel: transaction.channel,
+      paidAt: transaction.paid_at || transaction.created_at,
+      metadata: { ...metadata, kind: "minutes", pack_key: pack.key, minutes: pack.minutes },
+    });
+    if (!recorded?.needs_apply) return { applied: false, reason: "already_applied" };
+
+    // The first purchase folds whatever is left of the 100 free minutes into
+    // the wallet, so buying a pack never throws away an unused allowance.
+    const prior = await client.query(
+      "select 1 from minute_ledger where user_id = $1 and kind in ('grant', 'purchase') limit 1",
+      [userId],
+    );
+    if (!prior.rows[0]) {
+      const started = await client.query(
+        "select free_allowance_started_at from users where id = $1 limit 1",
+        [userId],
+      );
+      const used = await client.query(
+        `select coalesce(sum(seconds), 0) as used
+           from usage_ledger
+          where user_id = $1 and recorded_at >= $2`,
+        [userId, started.rows[0]?.free_allowance_started_at ?? new Date(0)],
+      );
+      const remaining = Math.max(0, freeAllowanceSeconds() - (Number(used.rows[0]?.used) || 0));
+      if (remaining > 0) {
+        await client.query(
+          `insert into minute_ledger (user_id, delta_seconds, kind)
+           values ($1, $2, 'grant')
+           on conflict do nothing`,
+          [userId, remaining],
+        );
+      }
+    }
+
+    await client.query(
+      `insert into minute_ledger (user_id, delta_seconds, kind, pack_key, reference)
+       values ($1, $2, 'purchase', $3, $4)
+       on conflict do nothing`,
+      [userId, pack.minutes * 60, pack.key, reference],
+    );
+    await client.query(
+      "update billing_checkouts set status = 'paid', updated_at = now() where reference = $1 and user_id = $2",
+      [reference, userId],
+    );
+    await client.query(
+      "update billing_transactions set applied_at = now(), updated_at = now() where provider = 'paystack' and reference = $1",
+      [reference],
+    );
+    return { applied: true, reason: "", packKey: pack.key, minutes: pack.minutes };
+  });
+}
+
+async function openMinutesCheckout(userId, userEmail, req, key, config, pack) {
+  await query(
+    `delete from billing_checkouts
+      where user_id = $1
+        and (status in ('failed', 'expired')
+          or (status = 'open' and created_at < now() - interval '30 minutes')
+          or (status = 'creating' and created_at < now() - interval '90 seconds'))`,
+    [userId],
+  );
+
+  if (key) {
+    const byKey = await query(
+      "select * from billing_checkouts where user_id = $1 and idempotency_key = $2 limit 1",
+      [userId, key],
+    );
+    const row = byKey.rows[0];
+    if (row && row.plan_key === "minutes" && row.pack_key === pack.key) {
+      if (row.status === "paid") throw new HttpError(409, "That pack is already paid.");
+      if (row.status === "open" && row.authorization_url) return row;
+      if (row.status === "creating" && Date.now() - new Date(row.created_at).getTime() < CHECKOUT_CREATING_MS) {
+        throw new HttpError(409, "Your checkout is still being prepared. Try again in a moment.");
+      }
+    }
+  }
+
+  const open = await query(
+    `select * from billing_checkouts
+      where user_id = $1
+        and status in ('creating', 'open')
+        and plan_key = 'minutes'
+        and pack_key = $2
+        and created_at > now() - interval '30 minutes'
+      order by created_at desc
+      limit 1`,
+    [userId, pack.key],
+  );
+  const row = open.rows[0];
+  if (row) {
+    if (row.status === "open" && row.authorization_url) return row;
+    throw new HttpError(409, "Your checkout is still being prepared. Try again in a moment.");
+  }
+
+  await query(
+    `update billing_checkouts
+        set status = 'expired', updated_at = now()
+      where user_id = $1 and status in ('creating', 'open')`,
+    [userId],
+  );
+
+  const recent = await query(
+    "select count(*)::int as count from billing_checkouts where user_id = $1 and created_at > now() - interval '1 hour'",
+    [userId],
+  );
+  if ((recent.rows[0]?.count ?? 0) >= MAX_CHECKOUTS_PER_HOUR) {
+    throw new HttpError(429, "That is a lot of checkout attempts. Wait a little, then try again.");
+  }
+
+  const reference = `jotbox_${randomUUID().replaceAll("-", "")}`;
+  try {
+    await query(
+      `insert into billing_checkouts
+         (reference, user_id, idempotency_key, amount, currency, plan_code, plan_key, pack_key)
+       values ($1, $2, $3, $4, $5, null, 'minutes', $6)`,
+      [reference, userId, key, pack.amountKobo, config.currency, pack.key],
+    );
+  } catch (error) {
+    if (error?.code === "23505") {
+      const again = await query(
+        `select * from billing_checkouts
+          where user_id = $1 and status in ('creating', 'open') and plan_key = 'minutes' and pack_key = $2
+          order by created_at desc limit 1`,
+        [userId, pack.key],
+      );
+      if (again.rows[0]?.status === "open" && again.rows[0]?.authorization_url) return again.rows[0];
+      throw new HttpError(409, "Your checkout is still being prepared. Try again in a moment.");
+    }
+    throw error;
+  }
+
+  let transaction;
+  try {
+    transaction = await paystack("/transaction/initialize", {
+      method: "POST",
+      body: JSON.stringify({
+        email: userEmail,
+        amount: pack.amountKobo,
+        currency: config.currency,
+        reference,
+        callback_url: `${publicOrigin(req)}/account?billing=callback`,
+        metadata: {
+          user_id: userId,
+          kind: "minutes",
+          pack_key: pack.key,
+          minutes: pack.minutes,
+          reference,
+          source: "jotbox",
+        },
+      }),
+    });
+  } catch (error) {
+    await query("update billing_checkouts set status = 'failed', updated_at = now() where reference = $1", [reference]);
+    throw error;
+  }
+
+  if (!transaction?.authorization_url) {
+    await query("update billing_checkouts set status = 'failed', updated_at = now() where reference = $1", [reference]);
+    throw new HttpError(502, "Paystack did not return a checkout link. Try again.");
+  }
+
+  const updated = await query(
+    "update billing_checkouts set status = 'open', authorization_url = $2, updated_at = now() where reference = $1 returning *",
+    [reference, transaction.authorization_url],
+  );
+  return updated.rows[0] ?? { reference, pack_key: pack.key, authorization_url: transaction.authorization_url };
+}
+
+async function minutesCheckout(req, res) {
+  assertSameOrigin(req);
+  const { user } = await requireSession(req);
+  const body = await readJson(req, 4_000);
+  const config = billingConfig();
+  const pack = findMinutePack(body?.pack, process.env, config.ngnPerUsd);
+  if (!pack) throw new HttpError(400, "That pack is not available.");
+  const existing = await getSubscription(user.id);
+  if (isEntitled(existing)) {
+    throw new HttpError(409, "Your monthly plan is active. Switch to pay as you go when it ends.");
+  }
+
+  const key = idempotencyKey(req);
+  const row = await openMinutesCheckout(user.id, user.email, req, key, config, pack);
+  sendJson(res, 200, {
+    authorizationUrl: row.authorization_url,
+    reference: row.reference,
+    packKey: row.pack_key,
+    pricing: publicPricing(config),
+  });
+}
+
 async function verify(req, res) {
   assertSameOrigin(req);
   const { user } = await requireSession(req);
@@ -1036,8 +1266,21 @@ async function verify(req, res) {
   if (!sameUser) throw new HttpError(403, "That payment belongs to another account.");
 
   const config = billingConfig();
-  const existing = await getSubscription(user.id);
   const checkout = await getCheckout(reference, user.id);
+  if (metadata.kind === "minutes" || checkout?.plan_key === "minutes") {
+    const purchase = await applyMinutePurchase(transaction, user.id, { config, checkout });
+    if (!purchase.applied && purchase.reason === "not_a_paid_charge") {
+      throw new HttpError(402, "That payment is not a JotBox minute pack.");
+    }
+    sendJson(res, 200, {
+      ...(await statusFor(user.id)),
+      payment: "success",
+      minutes: purchase.minutes ?? 0,
+    });
+    return;
+  }
+
+  const existing = await getSubscription(user.id);
   const applied = await applyVerifiedTransaction(transaction, user.id, {
     planCode: await knownPlanCode(config, checkout?.plan_key || LEGACY_PRO_PLAN_KEY),
     config,
@@ -1339,6 +1582,11 @@ async function applyEvent(event, data, { planCode, config, eventId, eventAt }) {
   const isMoneyEvent = event === "charge.success" || event.startsWith("invoice.");
   const checkout = isMoneyEvent && data?.reference ? await getCheckout(data.reference, userId) : null;
 
+  if (event === "charge.success" && (metadata?.kind === "minutes" || checkout?.plan_key === "minutes")) {
+    const purchase = await applyMinutePurchase(data, userId, { config, checkout });
+    return { applied: purchase.applied, reason: purchase.reason, userId };
+  }
+
   const codePlanKey = await planKeyForCode(eventChargeCode, config);
   if (eventChargeCode && localCode && eventChargeCode !== localCode && !codePlanKey) {
     return { applied: false, reason: "different_plan", userId };
@@ -1542,6 +1790,10 @@ export async function handleBilling(req, res) {
     }
     if (action === "checkout") {
       await checkout(req, res);
+      return;
+    }
+    if (action === "minutes") {
+      await minutesCheckout(req, res);
       return;
     }
     if (action === "verify") {

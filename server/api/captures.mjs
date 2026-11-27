@@ -201,10 +201,11 @@ export async function handleCaptures(req, res) {
     });
     if (!result.ok) {
       const exhausted = result.state.usedSeconds + result.state.reservedSeconds >= result.state.limitSeconds;
-      throw new HttpError(402, overLimitMessage(result.plan, result.state.limitSeconds, exhausted));
+      throw new HttpError(402, overLimitMessage(result.plan, result.state.limitSeconds, exhausted, result.state.mode));
     }
     sendJson(res, 200, {
       plan: result.plan,
+      mode: result.mode,
       reservedSeconds: result.reservation?.seconds ?? 0,
       usedSeconds: result.state.usedSeconds + result.state.reservedSeconds,
       limitSeconds: result.state.limitSeconds,
@@ -303,7 +304,7 @@ export async function handleCaptures(req, res) {
       if (state.usedSeconds + state.reservedSeconds + item.durationSec > state.limitSeconds + OVERAGE_GRACE_SECONDS) {
         throw new HttpError(
           402,
-          overLimitMessage(state.plan, state.limitSeconds, state.usedSeconds >= state.limitSeconds),
+          overLimitMessage(state.plan, state.limitSeconds, state.usedSeconds >= state.limitSeconds, state.mode),
         );
       }
 
@@ -357,7 +358,7 @@ export async function handleCaptures(req, res) {
           [user.id, item.id, Math.ceil(item.durationSec)],
         );
       }
-      await settleQuota(client, user.id, item.id);
+      await settleQuota(client, user.id, item.id, item.durationSec, { wallet: scope.mode === "payg" });
       saved = await client.query(
         "select id, user_id, org_id, department_id, transcript, notes from captures where id = $1 and user_id = $2",
         [item.id, user.id],

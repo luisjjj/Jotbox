@@ -10,6 +10,7 @@ import {
   LogOut,
   RefreshCw,
   ShieldCheck,
+  Wallet,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -17,7 +18,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { IntegrationsCard } from "@/components/IntegrationsCard";
 import { requestCloudSync } from "@/components/CloudSync";
-import { api, type BillingStatus, type CloudUser, type PurchasePlan } from "@/lib/api";
+import { api, type BillingPack, type BillingStatus, type CloudUser, type PurchasePlan } from "@/lib/api";
 import { formatAllowance } from "@/lib/format";
 import { useSessions } from "@/lib/store";
 import { useSync } from "@/lib/syncStore";
@@ -103,6 +104,8 @@ function PlanCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [tab, setTab] = useState<"monthly" | "payg" | null>(null);
+  const [buying, setBuying] = useState<string | null>(null);
   const started = useRef(false);
 
   useEffect(() => {
@@ -130,8 +133,12 @@ function PlanCard() {
           const result = await api.verifyCheckout(reference);
           setBilling(result);
           useUsage.getState().applyStatus(result);
-          if (result.payment === "success" && isPaidPlan(result.plan)) {
+          if (result.payment === "success" && result.minutes) {
+            toast.success(`${result.minutes.toLocaleString("en-NG")} minutes added to your wallet.`);
+          } else if (result.payment === "success" && isPaidPlan(result.plan)) {
             toast.success(`${planName(result.plan)} is active. Thank you.`);
+          } else if (result.payment === "success" && result.mode === "payg") {
+            toast.success("Your minutes are in your wallet.");
           } else {
             toast.error("That payment was not completed.");
           }
@@ -183,6 +190,20 @@ function PlanCard() {
     }
   };
 
+  const buyMinutes = async (pack: BillingPack) => {
+    setBuying(pack.key);
+    setError(null);
+    try {
+      const session = await api.startMinutesCheckout(pack.key);
+      window.location.assign(session.authorizationUrl);
+    } catch (buyError) {
+      const message = errorText(buyError);
+      setError(message);
+      toast.error(message);
+      setBuying(null);
+    }
+  };
+
   const stopRenewal = async () => {
     setConfirmCancel(false);
     setBusy(true);
@@ -219,6 +240,11 @@ function PlanCard() {
   const plan = billing?.plan ?? "free";
   const paid = isPaidPlan(plan);
   const enterprise = plan === "enterprise";
+  const payg = billing?.mode === "payg";
+  const activeTab = tab ?? (paid ? "monthly" : "payg");
+  const packs = billing?.pricing.packs ?? [];
+  const bestPackKey = packs[packs.length - 1]?.key;
+  const walletLeft = billing?.wallet?.balanceSeconds ?? 0;
   const status = billing?.subscription ?? null;
   const canCancel = (plan === "starter" || plan === "power" || plan === "pro") && status?.status === "active";
   const tierPricing =
@@ -239,11 +265,13 @@ function PlanCard() {
     ? "Checking your plan."
     : enterprise
       ? "Enterprise listening is unlimited for your workspace."
-      : paid
-        ? status
-          ? planNote(status)
-          : `${planName(plan)} is active.`
-        : `Free includes ${limitMinutes ?? 100} listening minutes, once, and every note stays yours.`;
+      : payg
+        ? `${formatAllowance(walletLeft)} in your wallet. Minutes never expire.`
+        : paid
+          ? status
+            ? planNote(status)
+            : `${planName(plan)} is active.`
+          : `Free includes ${limitMinutes ?? 100} listening minutes, once, and every note stays yours.`;
 
   return (
     <>
@@ -251,19 +279,25 @@ function PlanCard() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3.5">
             <span className="grid h-11 w-11 flex-none place-items-center rounded-2xl bg-accent-soft text-accent">
-              {paid ? <ShieldCheck className="h-5 w-5" /> : <CreditCard className="h-5 w-5" />}
+              {paid ? (
+                <ShieldCheck className="h-5 w-5" />
+              ) : payg ? (
+                <Wallet className="h-5 w-5" />
+              ) : (
+                <CreditCard className="h-5 w-5" />
+              )}
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-ink">Your plan</h2>
                 <span
                   className={
-                    paid
+                    paid || payg
                       ? "chip border-transparent bg-accent-soft text-accent"
                       : "chip border-line text-muted"
                   }
                 >
-                  {loading ? "Checking" : planName(plan)}
+                  {loading ? "Checking" : payg ? "Pay as you go" : planName(plan)}
                 </span>
               </div>
               <p className="mt-1 max-w-[52ch] text-[13.5px] leading-5 text-muted">{summary}</p>
@@ -277,12 +311,16 @@ function PlanCard() {
                   </div>
                   <p className="mt-1 text-[12.5px] leading-4 text-faint">
                     {left <= 0
-                      ? paid
-                        ? `${planName(plan)} listening is finished for this month. It resets at the start of next month.`
-                        : "Your free minutes are finished. Starter Pro and Power User unlock more listening."
-                      : paid
-                        ? `${formatAllowance(left)} left of ${formatAllowance(usage?.limitSeconds ?? 0)} this month.`
-                        : `${formatAllowance(left)} of free listening left.`}
+                      ? payg
+                        ? "Your wallet is empty. Buy a pack to keep listening."
+                        : paid
+                          ? `${planName(plan)} listening is finished for this month. It resets at the start of next month.`
+                          : "Your free minutes are finished. Starter Pro and Power User unlock more listening."
+                      : payg
+                        ? `${formatAllowance(left)} left in your wallet. You are only charged when a recording saves.`
+                        : paid
+                          ? `${formatAllowance(left)} left of ${formatAllowance(usage?.limitSeconds ?? 0)} this month.`
+                          : `${formatAllowance(left)} of free listening left.`}
                   </p>
                 </div>
               )}
@@ -295,11 +333,10 @@ function PlanCard() {
                   {billing.pricing.currency === "NGN" ? "Naira" : billing.pricing.currency}.
                 </p>
               )}
-              {billing && !paid && (
+              {billing && !paid && !payg && (
                 <p className="mt-1 text-[12.5px] leading-4 text-faint">
                   Starter Pro is {naira.format(billing.pricing.starter.naira)} a month, Power User is{" "}
-                  {naira.format(billing.pricing.power.naira)}. Billed in{" "}
-                  {billing.pricing.currency === "NGN" ? "Naira" : billing.pricing.currency}.
+                  {naira.format(billing.pricing.power.naira)}. Or buy minutes as you go.
                 </p>
               )}
             </div>
@@ -307,27 +344,6 @@ function PlanCard() {
 
           {!loading && billing && (
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-              {!paid && (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm w-full sm:w-auto"
-                    onClick={() => void upgrade("starter")}
-                    disabled={busy || !billing.configured}
-                  >
-                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
-                    Upgrade to Starter Pro
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-line btn-sm w-full sm:w-auto"
-                    onClick={() => void upgrade("power")}
-                    disabled={busy || !billing.configured}
-                  >
-                    Upgrade to Power
-                  </button>
-                </>
-              )}
               {canCancel && (
                 <button
                   type="button"
@@ -397,6 +413,191 @@ function PlanCard() {
           </Link>
         </p>
       </section>
+
+      {!loading && billing && !enterprise && (
+        <section className="card mt-4 p-5 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-[18px] font-semibold tracking-[-0.03em] text-ink">Choose how you pay</h2>
+              <p className="mt-1 text-[13.5px] leading-5 text-muted">
+                Switch anytime. Minutes you already bought stay in your wallet.
+              </p>
+            </div>
+            <div
+              className="inline-flex w-full rounded-xl border border-line bg-raised-2 p-1 sm:w-auto"
+              role="tablist"
+              aria-label="How you pay"
+            >
+              {(["monthly", "payg"] as const).map((option) => {
+                const active = activeTab === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={`flex-1 rounded-lg px-4 py-1.5 text-[13px] transition-colors sm:flex-none ${
+                      active ? "bg-accent font-semibold text-accent-ink" : "font-medium text-muted hover:text-ink"
+                    }`}
+                    onClick={() => setTab(option)}
+                  >
+                    {option === "monthly" ? "Monthly" : "Pay as you go"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {activeTab === "payg" ? (
+            <>
+              <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-soft">
+                <span className="font-medium text-ink">No subscription.</span>
+                <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
+                <span>Minutes never expire.</span>
+                <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
+                <span>You only pay when a recording saves.</span>
+              </div>
+
+              {billing.mode === "monthly" && (
+                <div className="mt-3 rounded-xl border border-line bg-raised-2 px-3 py-2.5 text-[13px] leading-5 text-soft">
+                  You are on {planName(plan)}. Pay as you go turns on when your plan ends.
+                </div>
+              )}
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {packs.map((pack) => {
+                  const best = pack.key === bestPackKey;
+                  return (
+                    <div
+                      key={pack.key}
+                      className={`flex flex-col rounded-2xl border bg-raised p-4 ${
+                        best ? "border-accent shadow-[inset_0_0_0_1px_var(--accent)]" : "border-line"
+                      }`}
+                    >
+                      {best && (
+                        <p className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-accent">Best value</p>
+                      )}
+                      <p
+                        className={`text-[21px] font-semibold tracking-[-0.03em] text-ink ${
+                          best ? "mt-0.5" : ""
+                        }`}
+                      >
+                        {pack.minutes.toLocaleString("en-NG")} min
+                      </p>
+                      <p className="mt-0.5 text-[17px] font-semibold text-ink">{naira.format(pack.naira)}</p>
+                      <p className="mt-0.5 text-[12px] text-faint">{naira.format(pack.perMinuteNaira)} a minute</p>
+                      <ul className="mt-3 space-y-1.5 text-[12.5px] leading-4 text-soft">
+                        {["Never expires", "Live words and full report", "Charged on save"].map((line) => (
+                          <li key={line} className="flex items-start gap-1.5">
+                            <Check className="mt-px h-3.5 w-3.5 flex-none text-accent" />
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        type="button"
+                        className={`btn btn-sm mt-4 w-full ${best ? "btn-primary" : "btn-line"}`}
+                        onClick={() => void buyMinutes(pack)}
+                        disabled={Boolean(buying) || busy || !billing.configured || billing.mode === "monthly"}
+                      >
+                        {buying === pack.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                        Buy {pack.minutes.toLocaleString("en-NG")} minutes
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="mt-3 text-[12px] leading-4 text-faint">
+                Pay as you go covers listening. Branded PDF, AI follow-up drafts, calendar, Jira, and organisation
+                Ask stay on monthly plans.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="mt-5 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+                <p className="text-[14px] font-medium text-ink">Monthly plans</p>
+                <p className="text-[12.5px] text-faint">For people who record most weeks. Cancels anytime.</p>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    key: "starter" as const,
+                    label: "Starter Pro",
+                    usd: billing.pricing.starter.usd,
+                    naira: billing.pricing.starter.naira,
+                    hours: "10 hours a month",
+                    features: ["Branded PDF and AI follow-ups", "Calendar and Jira"],
+                  },
+                  {
+                    key: "power" as const,
+                    label: "Power User",
+                    usd: billing.pricing.power.usd,
+                    naira: billing.pricing.power.naira,
+                    hours: "25 hours a month",
+                    features: ["Everything in Starter Pro", "Best for daily recording"],
+                  },
+                ].map((option) => {
+                  const current = plan === option.key;
+                  return (
+                    <div
+                      key={option.key}
+                      className={`flex flex-col rounded-2xl border bg-raised p-4 sm:p-5 ${
+                        current ? "border-accent shadow-[inset_0_0_0_1px_var(--accent)]" : "border-line"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-[15px] font-semibold text-ink">{option.label}</p>
+                        <span className="chip text-muted">${option.usd}</span>
+                      </div>
+                      <p className="mt-1.5 text-[17px] font-semibold text-ink">
+                        {naira.format(option.naira)} a month
+                      </p>
+                      <p className="mt-0.5 text-[12.5px] text-faint">{option.hours}</p>
+                      <ul className="mt-3 space-y-1.5 text-[12.5px] leading-4 text-soft">
+                        <li className="flex items-start gap-1.5">
+                          <Check className="mt-px h-3.5 w-3.5 flex-none text-accent" />
+                          Resets monthly
+                        </li>
+                        {option.features.map((line) => (
+                          <li key={line} className="flex items-start gap-1.5">
+                            <Check className="mt-px h-3.5 w-3.5 flex-none text-accent" />
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                      {current ? (
+                        <button type="button" className="btn btn-line btn-sm mt-4 w-full" disabled>
+                          Current plan
+                        </button>
+                      ) : paid ? (
+                        <p className="mt-4 text-[12px] text-faint">Manage your plan above.</p>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`btn btn-sm mt-4 w-full ${
+                            option.key === "starter" ? "btn-primary" : "btn-line"
+                          }`}
+                          onClick={() => void upgrade(option.key)}
+                          disabled={busy || !billing.configured}
+                        >
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                          Upgrade to {option.label}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {payg && (
+                <p className="mt-3 text-[12px] leading-4 text-faint">
+                  A monthly plan takes over while it is active. Minutes you already bought stay in your wallet.
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       <ConfirmDialog
         open={confirmCancel}
