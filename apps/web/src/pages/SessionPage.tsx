@@ -40,7 +40,8 @@ import { NoticeDialog } from "@/components/NoticeDialog";
 import { PaywallDialog } from "@/components/Paywall";
 import { PeopleCard } from "@/components/PeopleCard";
 import { ReportLoading } from "@/components/ReportLoading";
-import { SessionAsk } from "@/components/SessionAsk";
+import { SessionAsk, type SessionAskHandle } from "@/components/SessionAsk";
+import { SessionRecipes } from "@/components/SessionRecipes";
 import { ShareDialog } from "@/components/ShareDialog";
 import { StudyShareDialog } from "@/components/StudyShareDialog";
 import { KindBadge } from "@/components/KindBadge";
@@ -49,7 +50,8 @@ import { TranscriptView } from "@/components/TranscriptView";
 import { deleteAudio, loadAudio } from "@/lib/audioStore";
 import { api, type JiraHandoffLink } from "@/lib/api";
 import { buildNotes, studioAvailable } from "@/lib/buildNotes";
-import { copyNotes, downloadMarkdown, printSession } from "@/lib/exportNotes";
+import { actionsChecklist, copyNotes, downloadMarkdown, printSession } from "@/lib/exportNotes";
+import type { FollowUpChannel } from "@/lib/followUp";
 import { downloadSessionPdf } from "@/lib/pdf";
 import { formatClock, isDefaultTitle, notesLookEmpty } from "@/lib/format";
 import { OUTPUT_PRESETS } from "@/lib/presets";
@@ -321,6 +323,8 @@ export default function SessionPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [studyOpen, setStudyOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [followUpChannel, setFollowUpChannel] = useState<FollowUpChannel>("whatsapp");
+  const askRef = useRef<SessionAskHandle>(null);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [pdfPaywall, setPdfPaywall] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
@@ -460,6 +464,36 @@ export default function SessionPage() {
   const openStudy = (format: "note" | "quiz" | "cards") => {
     setStudyFormat(format);
     setStudyOpen(true);
+  };
+
+  const trackRecipe = (recipe: string) => {
+    if (!session) return;
+    if (posthogEnabled) posthog.capture("session_recipe_used", { recipe, session_kind: session.kind });
+  };
+
+  const openFollowUp = (channel: FollowUpChannel) => {
+    trackRecipe(channel === "email" ? "follow_up_email" : "follow_up");
+    setFollowUpChannel(channel);
+    setFollowUpOpen(true);
+  };
+
+  const copyActions = async () => {
+    if (!session) return;
+    const text = actionsChecklist(session);
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      trackRecipe("actions");
+      toast.success("Action list copied");
+    } catch {
+      toast.error("Copy failed. Select the list and copy it.");
+    }
+  };
+
+  const explainSession = () => {
+    if (!session) return;
+    trackRecipe("explain");
+    askRef.current?.ask(OUTPUT_PRESETS[session.kind].explainQuestion);
   };
 
   const resumeJobId = session?.status === "processing" ? session.jobId : undefined;
@@ -823,7 +857,7 @@ export default function SessionPage() {
           <button
             type="button"
             className="icon-btn"
-            onClick={() => setFollowUpOpen(true)}
+            onClick={() => openFollowUp("whatsapp")}
             disabled={!session.notes}
             title="Send the follow-up"
             aria-label="Send the follow-up"
@@ -900,7 +934,18 @@ export default function SessionPage() {
 
       <div className="mt-6 grid gap-7 xl:grid-cols-[minmax(0,1fr)_330px] 2xl:grid-cols-[minmax(0,1fr)_370px] xl:gap-8">
         <div className="min-w-0">
-          {!processing && <SessionAsk session={session} />}
+          {!processing && showNotes && (
+            <SessionRecipes
+              session={session}
+              isStudent={user?.role === "student" && !isSample(session.id)}
+              onFollowUp={() => openFollowUp("email")}
+              onCopyActions={() => void copyActions()}
+              onExplain={explainSession}
+              onStudy={openStudy}
+            />
+          )}
+
+          {!processing && <SessionAsk ref={askRef} session={session} />}
 
           {processing && (
             <div className="space-y-4">
@@ -1515,7 +1560,12 @@ export default function SessionPage() {
           initialFormat={studyFormat}
         />
       )}
-      <FollowUpDialog session={session} open={followUpOpen} onClose={() => setFollowUpOpen(false)} />
+      <FollowUpDialog
+        session={session}
+        open={followUpOpen}
+        onClose={() => setFollowUpOpen(false)}
+        initialChannel={followUpChannel}
+      />
       <JiraHandoffDialog
         session={session}
         open={jiraOpen}

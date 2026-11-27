@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatAllowance, formatClock, isDefaultTitle, notesLookEmpty, notesToMarkdown } from "./format";
-import { sessionSlug } from "./exportNotes";
+import { actionsChecklist, sessionSlug } from "./exportNotes";
 import type { Session } from "./types";
 
 const createdAt = new Date(2026, 10, 13, 9, 12).getTime();
@@ -108,5 +108,17 @@ describe("sessionSlug", () => {
       sessionSlug({ ...session, title: "  Payout / Review, Q4!  " }),
     ).toBe("payout-review-q4");
     expect(sessionSlug({ ...session, title: "!!!" })).toBe("jotbox-notes");
+  });
+});
+
+describe("actionsChecklist", () => {
+  it("writes open and done actions as a checklist with owners", () => {
+    expect(actionsChecklist(session)).toBe(
+      "Action items\n- [ ] Send the merchant note before 4pm (Ada)\n- [x] Re-pull the two failed batches (Chinedu)",
+    );
+  });
+
+  it("returns nothing when there are no actions", () => {
+    expect(actionsChecklist({ ...session, notes: null })).toBe("");
   });
 });

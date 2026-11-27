@@ -1,15 +1,23 @@
-import { useRef, useState, type FormEvent } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState, type FormEvent } from "react";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import clsx from "clsx";
 import { OUTPUT_PRESETS } from "@/lib/presets";
 import { askSession, type AskTurn } from "@/lib/sessionAsk";
 import type { Session } from "@/lib/types";
 
-export function SessionAsk({ session }: { session: Session }) {
+export interface SessionAskHandle {
+  ask: (text: string) => void;
+}
+
+export const SessionAsk = forwardRef<SessionAskHandle, { session: Session }>(function SessionAsk(
+  { session },
+  ref,
+) {
   const [turns, setTurns] = useState<AskTurn[]>([]);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const section = useRef<HTMLElement>(null);
   const preset = OUTPUT_PRESETS[session.kind];
 
   const ask = async (text: string) => {
@@ -33,8 +41,15 @@ export function SessionAsk({ session }: { session: Session }) {
     void ask(question);
   };
 
+  useImperativeHandle(ref, () => ({
+    ask: (text: string) => {
+      section.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      void ask(text);
+    },
+  }));
+
   return (
-    <section className="card mt-5 overflow-hidden" aria-label="Ask this session">
+    <section ref={section} className="card mt-5 overflow-hidden" aria-label="Ask this session">
       <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-accent" />
@@ -107,4 +122,4 @@ export function SessionAsk({ session }: { session: Session }) {
       </form>
     </section>
   );
-}
+});

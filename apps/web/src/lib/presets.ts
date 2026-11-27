@@ -10,6 +10,9 @@ export interface OutputPreset {
   emptyHint: string;
   followUpSubject: string;
   suggestions: string[];
+  // One click from the recipe row sends this to the session chat, so the
+  // wording follows the room instead of sounding like a generic assistant.
+  explainQuestion: string;
 }
 
 export const OUTPUT_PRESETS: Record<SessionKind, OutputPreset> = {
@@ -27,6 +30,7 @@ export const OUTPUT_PRESETS: Record<SessionKind, OutputPreset> = {
       "Who owns the follow-up?",
       "What is still open?",
     ],
+    explainQuestion: "Explain this meeting simply, as if I missed it.",
   },
   seminar: {
     summaryLabel: "Summary",
@@ -42,6 +46,7 @@ export const OUTPUT_PRESETS: Record<SessionKind, OutputPreset> = {
       "Which questions were left open?",
       "What should I follow up on?",
     ],
+    explainQuestion: "Explain the main argument of this seminar simply.",
   },
   lecture: {
     summaryLabel: "In short",
@@ -57,6 +62,7 @@ export const OUTPUT_PRESETS: Record<SessionKind, OutputPreset> = {
       "What did they say about the exam?",
       "Explain the main idea simply.",
     ],
+    explainQuestion: "Explain the key ideas from this lecture simply, as if I am revising.",
   },
   voice: {
     summaryLabel: "The point",
@@ -72,5 +78,6 @@ export const OUTPUT_PRESETS: Record<SessionKind, OutputPreset> = {
       "What did I say I would do?",
       "Give me a short recap.",
     ],
+    explainQuestion: "Give me a simple recap of this note.",
   },
 };
