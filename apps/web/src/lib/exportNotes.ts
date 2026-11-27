@@ -35,6 +35,17 @@ export async function copyNotes(session: Session) {
   await navigator.clipboard.writeText(notesToMarkdown(session));
 }
 
+export function actionsChecklist(session: Session) {
+  const actions = session.notes?.actions ?? [];
+  if (!actions.length) return "";
+  const preset = OUTPUT_PRESETS[session.kind];
+  const lines = actions.map((action) => {
+    const meta = [action.owner, action.due ? `due ${action.due}` : ""].filter(Boolean).join(", ");
+    return `- [${action.done ? "x" : " "}] ${action.text}${meta ? ` (${meta})` : ""}`;
+  });
+  return `${preset.actionsLabel}\n${lines.join("\n")}`;
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")

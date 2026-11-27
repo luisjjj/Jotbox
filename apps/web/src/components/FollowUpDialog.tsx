@@ -24,10 +24,12 @@ export function FollowUpDialog({
   session,
   open,
   onClose,
+  initialChannel = "whatsapp",
 }: {
   session: Session;
   open: boolean;
   onClose: () => void;
+  initialChannel?: FollowUpChannel;
 }) {
   const [channel, setChannel] = useState<FollowUpChannel>("whatsapp");
   const [language, setLanguage] = useState<FollowUpLanguage>("english");
@@ -36,6 +38,11 @@ export function FollowUpDialog({
   const [paywall, setPaywall] = useState(false);
   const { pro, loaded: planLoaded } = usePlan();
   const proUi = pro || !planLoaded;
+
+  useEffect(() => {
+    if (!open) return;
+    setChannel(initialChannel);
+  }, [open, initialChannel]);
 
   useEffect(() => {
     if (!open) return;
