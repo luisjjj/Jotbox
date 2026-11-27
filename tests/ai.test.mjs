@@ -621,6 +621,80 @@ test("notes keep Pidgin flavour for a Pidgin room and read plainly for English",
   assert.ok(english.actions.length > 0);
 });
 
+test("report translation returns the source report in demo mode", async () => {
+  process.env.JOTBOX_AI_MOCK = "1";
+  const report = {
+    title: "",
+    summary: "The room agreed to pause the same-day promise.",
+    highlights: ["The bank acknowledged the file late."],
+    decisions: ["Pause the same-day promise."],
+    blockers: ["The bank window slipped to 4pm."],
+    actions: [{ text: "Send the merchant note", owner: "Ada", due: "2026-11-20" }],
+    followUps: [{ to: "Ada", subject: "Merchant note", body: "Send it before four." }],
+    sections: [{ heading: "What changed", bullets: ["Same-day wording went out."] }],
+  };
+
+  const result = await ai.translateSessionReport({ language: "pcm", report });
+
+  assert.equal(result.provider, "demo");
+  assert.equal(result.summary, report.summary);
+  assert.deepEqual(result.actions, report.actions);
+  assert.equal(result.sections[0].bullets[0], "Same-day wording went out.");
+});
+
+test("report translation asks for the chosen language and keeps item slots", async () => {
+  process.env.GROQ_API_KEY = "test-groq";
+  const calls = [];
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init.body)) });
+    return Response.json({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              title: "",
+              summary: "Ìgbìmọ̀ gbà láti dá ìlérí owó ọjọ́ kan dúró.",
+              highlights: ["Báńkì náà gbà fọ́ọ̀mù náà pẹ́."],
+              decisions: [],
+              blockers: ["", ""],
+              actions: [{ text: "Fi ìwé ránṣẹ́ sí oníṣòwò", owner: "", due: "2026-11-20" }],
+              followUps: [],
+              sections: [{ heading: "Àyípadà", bullets: [] }],
+            }),
+          },
+        },
+      ],
+    });
+  };
+
+  const result = await ai.translateSessionReport({
+    language: "yo",
+    report: {
+      title: "",
+      summary: "The room agreed to pause the same-day promise.",
+      highlights: ["The bank acknowledged the file late.", "Support carried one settlement problem."],
+      decisions: ["Pause the same-day promise."],
+      blockers: ["The bank window slipped to 4pm."],
+      actions: [{ text: "Send the merchant note", owner: "Ada", due: "2026-11-20" }],
+      followUps: [],
+      sections: [{ heading: "What changed", bullets: ["Same-day wording went out."] }],
+    },
+  });
+
+  assert.equal(result.provider, "groq");
+  assert.match(calls[0].body.messages[0].content, /another Nigerian language/);
+  assert.match(calls[0].body.messages[1].content, /Target language: Yoruba/);
+  assert.match(calls[0].body.messages[1].content, /2026-11-20/);
+  assert.equal(result.highlights.length, 1);
+  assert.equal(result.blockers.length, 2);
+  assert.deepEqual(result.actions[0], { text: "Fi ìwé ránṣẹ́ sí oníṣòwò", owner: "", due: "2026-11-20" });
+  assert.equal(result.sections[0].heading, "Àyípadà");
+});
+
+test("report translation refuses a language it does not carry", async () => {
+  await assert.rejects(() => ai.translateSessionReport({ language: "fr", report: {} }), /Choose a language/);
+});
+
 test("notes parse fenced JSON, drop empty items and fail over between models", async () => {
   process.env.GROQ_API_KEY = "test-groq";
   const calls = [];
