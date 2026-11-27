@@ -146,6 +146,45 @@ const TEAM_FEATURES = [
   "Central billing with yearly invoicing",
 ];
 
+const PAYG_PACKS = [
+  {
+    key: "small",
+    minutes: 100,
+    naira: 2_500,
+    perMinute: 25,
+    usd: 2,
+    line: "A few meetings, or one long lecture.",
+    best: false,
+  },
+  {
+    key: "standard",
+    minutes: 250,
+    naira: 5_500,
+    perMinute: 22,
+    usd: 4,
+    line: "A normal week of rooms and calls.",
+    best: false,
+  },
+  {
+    key: "large",
+    minutes: 600,
+    naira: 12_000,
+    perMinute: 20,
+    usd: 9,
+    line: "Heavy weeks and back-to-back rooms.",
+    best: false,
+  },
+  {
+    key: "team",
+    minutes: 1_500,
+    naira: 27_000,
+    perMinute: 18,
+    usd: 19,
+    line: "A month of daily recording.",
+    best: true,
+  },
+];
+
 function LivePidginCard() {
   const [beat, setBeat] = useState(1);
   const [seconds, setSeconds] = useState(24);
@@ -226,6 +265,7 @@ export default function Landing() {
   const { user } = useAuth();
   const signedIn = Boolean(user);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [payMode, setPayMode] = useState<"monthly" | "payg">("monthly");
 
   const appHref = signedIn ? "/app" : "/auth?next=%2Fapp";
   const startHref = signedIn ? "/listen" : "/auth?next=%2Flisten";
@@ -234,6 +274,10 @@ export default function Landing() {
   const accountHref = signedIn ? "/account" : "/auth?next=%2Faccount";
   const starterHref = signedIn ? "/account?plan=starter" : "/auth?next=%2Faccount%3Fplan%3Dstarter";
   const powerHref = signedIn ? "/account?plan=power" : "/auth?next=%2Faccount%3Fplan%3Dpower";
+  const packHref = (key: string) => {
+    const target = `/account?plan=payg&pack=${key}`;
+    return signedIn ? target : `/auth?next=${encodeURIComponent(target)}`;
+  };
   const authHref = "/auth?next=%2Fapp";
 
   useEffect(() => {
@@ -727,11 +771,42 @@ export default function Landing() {
                 Simple plans for every room.
               </h2>
               <p className="mt-3 text-[15px] leading-6 text-muted">
-                Start free. Upgrade when JotBox becomes part of your week.
+                {payMode === "monthly"
+                  ? "Start free. Upgrade when JotBox becomes part of your week."
+                  : "No subscription. Minutes never expire. You only pay when a recording saves."}
               </p>
             </div>
           </Reveal>
 
+          <Reveal delay={80}>
+            <div className="mt-6 flex justify-center">
+              <div
+                className="inline-flex w-full max-w-[360px] rounded-xl border border-line bg-raised p-1 shadow-sm sm:w-auto"
+                role="tablist"
+                aria-label="How you pay"
+              >
+                {(["monthly", "payg"] as const).map((option) => {
+                  const active = payMode === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      className={`flex-1 rounded-lg px-4 py-2 text-[13.5px] transition-colors sm:flex-none ${
+                        active ? "bg-accent font-semibold text-accent-ink" : "font-medium text-muted hover:text-ink"
+                      }`}
+                      onClick={() => setPayMode(option)}
+                    >
+                      {option === "monthly" ? "Monthly" : "Pay as you go"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </Reveal>
+
+          {payMode === "monthly" ? (
           <div className="mx-auto mt-9 grid max-w-[1240px] gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-stretch">
             <Reveal delay={40} className="h-full">
               <div className="card plan-card flex h-full flex-col p-6 sm:p-7">
@@ -855,13 +930,74 @@ export default function Landing() {
               </div>
             </Reveal>
           </div>
+          ) : (
+            <>
+              <div className="mx-auto mt-9 grid max-w-[1240px] gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-stretch">
+                {PAYG_PACKS.map((pack, index) => (
+                  <Reveal key={pack.key} delay={40 + index * 40} className="h-full">
+                    <div
+                      className={`card plan-card relative flex h-full flex-col p-6 sm:p-7 ${
+                        pack.best ? "border-accent" : ""
+                      }`}
+                    >
+                      {pack.best && (
+                        <span className="absolute right-5 top-5 rounded-full bg-accent-soft px-2.5 py-1 text-[11.5px] font-semibold uppercase tracking-[0.1em] text-accent">
+                          Best value
+                        </span>
+                      )}
+                      <p className="text-[15px] font-semibold text-ink">
+                        {pack.minutes.toLocaleString("en-NG")} minutes
+                      </p>
+                      <div className="mt-3 flex items-baseline gap-1.5">
+                        <span className="text-[42px] font-semibold leading-none tracking-[-0.05em] text-ink">
+                          {naira.format(pack.naira)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[12.5px] font-medium text-accent">
+                        {naira.format(pack.perMinute)} a minute, about ${pack.usd}
+                      </p>
+                      <p className="mt-2 text-[14px] leading-5 text-muted">{pack.line}</p>
+                      <ul className="mt-5 flex-1 space-y-2.5">
+                        {["Minutes never expire", "Live words and full report", "Charged only when a recording saves"].map(
+                          (feature) => (
+                            <li key={feature} className="flex items-start gap-2 text-[14px] leading-5 text-soft">
+                              <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-accent" strokeWidth={2.4} />
+                              {feature}
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                      <Link to={packHref(pack.key)} className={`btn mt-6 w-full ${pack.best ? "btn-primary" : "btn-line"}`}>
+                        Buy {pack.minutes.toLocaleString("en-NG")} minutes
+                      </Link>
+                      <p className="mt-2.5 text-center text-[12px] text-faint">One payment. No renewal.</p>
+                    </div>
+                  </Reveal>
+                ))}
+              </div>
 
-          <Reveal delay={120}>
-            <p className="mt-5 text-center text-[12.5px] leading-5 text-faint">
-              Prices shown in US dollars. Starter Pro and Power User are charged in Naira at checkout. Teams can pay
-              yearly and save two months.
-            </p>
-          </Reveal>
+              <Reveal delay={220}>
+                <div className="mx-auto mt-5 max-w-[760px] text-center">
+                  <p className="text-[12.5px] leading-5 text-faint">
+                    Pay as you go covers listening. Branded PDF, AI follow-up drafts, calendar, Jira, and organisation
+                    Ask stay on monthly plans.
+                  </p>
+                  <p className="mt-1.5 text-[12.5px] leading-5 text-faint">
+                    Prices in Naira at checkout. Every new account also gets 100 free minutes to start.
+                  </p>
+                </div>
+              </Reveal>
+            </>
+          )}
+
+          {payMode === "monthly" && (
+            <Reveal delay={120}>
+              <p className="mt-5 text-center text-[12.5px] leading-5 text-faint">
+                Prices shown in US dollars. Starter Pro and Power User are charged in Naira at checkout. Teams can pay
+                yearly and save two months.
+              </p>
+            </Reveal>
+          )}
         </section>
 
         <section id="privacy" className="mx-auto mt-16 max-w-[1320px] scroll-mt-24 px-4 sm:mt-24 sm:px-6 lg:px-8">

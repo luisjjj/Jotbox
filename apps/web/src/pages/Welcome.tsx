@@ -88,6 +88,12 @@ function planIntentFrom(next: string): PurchasePlan | null {
   return intent === "starter" || intent === "power" ? intent : null;
 }
 
+function packIntentFrom(next: string): string | null {
+  const query = next.includes("?") ? next.slice(next.indexOf("?") + 1) : "";
+  const params = new URLSearchParams(query);
+  return params.get("plan") === "payg" ? params.get("pack") ?? "" : null;
+}
+
 function naira(value: number) {
   return `₦${value.toLocaleString("en-NG")}`;
 }
@@ -147,12 +153,14 @@ export default function Welcome() {
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
   const intent = planIntentFrom(next);
+  const packIntent = packIntentFrom(next);
 
   const plan = useUsage((state) => state.plan);
   const usageLoaded = useUsage((state) => state.loaded);
   const configured = useUsage((state) => state.configured);
   const pricing = useUsage((state) => state.pricing);
   const paid = isPaidPlan(plan);
+  const intentPack = packIntent ? pricing?.packs.find((pack) => pack.key === packIntent) ?? null : null;
 
   const [step, setStep] = useState(0);
   const [region, setRegionChoice] = useState<Region | null>(() => getRegion());
@@ -648,9 +656,24 @@ export default function Welcome() {
                         {priceFor(intent).usd}. Finish the payment and onboarding ends without another prompt.
                       </p>
                     </div>
+                  ) : packIntent !== null ? (
+                    <div className="rounded-2xl border border-accent/30 bg-accent-soft p-4 sm:p-5">
+                      <div className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-accent" />
+                        <p className="text-[14.5px] font-semibold text-ink">
+                          {intentPack ? `${intentPack.minutes.toLocaleString("en-NG")} minutes` : "Pay as you go"} is
+                          ready for you
+                        </p>
+                      </div>
+                      <p className="mt-1.5 text-[13px] leading-5 text-muted">
+                        {intentPack
+                          ? `${naira(intentPack.naira)}, about $${intentPack.usd}. Minutes never expire, and you only pay when a recording saves.`
+                          : "Buy minutes when you are ready. They never expire, and you only pay when a recording saves."}
+                      </p>
+                    </div>
                   ) : (
-
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-2">
                       {TIERS.map((tier) => {
                         const price = priceFor(tier.key);
                         return (
@@ -691,7 +714,51 @@ export default function Welcome() {
                           </button>
                         );
                       })}
-                    </div>
+                      </div>
+
+                      {pricing && pricing.packs.length > 0 && (
+                        <div>
+                          <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-faint">
+                            Or pay as you go
+                          </p>
+                          <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
+                            {pricing.packs.map((pack) => (
+                              <button
+                                key={pack.key}
+                                type="button"
+                                disabled={saving || plansBlocked}
+                                onClick={() => void finish(`/account?plan=payg&pack=${pack.key}`)}
+                                className={clsx(
+                                  "rounded-2xl border p-4 text-left transition-colors",
+                                  pack.key === "team"
+                                    ? "border-accent bg-accent-soft hover:border-accent"
+                                    : "border-line bg-raised hover:border-line-strong",
+                                  (saving || plansBlocked) && "opacity-60",
+                                )}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[14.5px] font-semibold text-ink">
+                                    {pack.minutes.toLocaleString("en-NG")} minutes
+                                  </p>
+                                  {pack.key === "team" && (
+                                    <span className="rounded-full bg-accent px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-accent-ink">
+                                      Best value
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="mt-1 text-[20px] font-semibold tracking-[-0.02em] text-ink">
+                                  {naira(pack.naira)}
+                                </p>
+                                <p className="text-[12px] text-faint">₦{pack.perMinuteNaira} a minute</p>
+                                <p className="mt-2 text-[12.5px] leading-5 text-soft">
+                                  One payment. No renewal. Minutes never expire.
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {!paid && plansBlocked && (
@@ -755,7 +822,26 @@ export default function Welcome() {
                   </>
                 )}
 
-                {step === 5 && !paid && !intent && (
+                {step === 5 && !paid && packIntent !== null && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={saving}
+                      onClick={() =>
+                        void finish(`/account?plan=payg${packIntent ? `&pack=${packIntent}` : ""}`)
+                      }
+                    >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                      Continue to payment
+                    </button>
+                    <button type="button" className="btn btn-line" disabled={saving} onClick={() => void finish("/app")}>
+                      Start free instead
+                    </button>
+                  </>
+                )}
+
+                {step === 5 && !paid && !intent && packIntent === null && (
                   <>
                     <button type="button" className="btn btn-line" disabled={saving} onClick={() => void finish(next)}>
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

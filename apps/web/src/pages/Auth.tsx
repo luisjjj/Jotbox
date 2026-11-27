@@ -31,7 +31,15 @@ export default function Auth() {
   const nextQuery = next.includes("?") ? new URLSearchParams(next.slice(next.indexOf("?") + 1)) : null;
   const planIntent = nextQuery?.get("plan");
   const selectedPlan =
-    planIntent === "starter" ? "Starter Pro" : planIntent === "power" ? "Power User" : planIntent === "pro" ? "Pro" : null;
+    planIntent === "starter"
+      ? "Starter Pro"
+      : planIntent === "power"
+        ? "Power User"
+        : planIntent === "payg"
+          ? "Pay as you go"
+          : planIntent === "pro"
+            ? "Pro"
+            : null;
 
   useEffect(() => {
     if (!desktop || loading) return;
