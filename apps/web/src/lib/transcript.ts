@@ -1,9 +1,76 @@
 import type { SttWord, TranscriptLine } from "./types";
 
+// JotBox only writes Latin-script Nigerian languages. A run in another script
+// is a reader hallucination on silence, not room speech.
+const FOREIGN_SCRIPT =
+  /[\p{Script=Devanagari}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}\p{Script=Hebrew}\p{Script=Greek}\p{Script=Cyrillic}\p{Script=Arabic}]/gu;
+const LATIN_SCRIPT = /\p{Script=Latin}/gu;
+const LETTER = /\p{L}/gu;
+const DIGIT = /\p{N}/gu;
+
+// Stock lines that speech readers emit over silence and music. Devanagari,
+// Han, Hangul and Cyrillic lines are already caught by the script screen.
+const FOREIGN_PHRASE =
+  /(?:bunu zaten dedin|altyaz[ıi]|abone ol|izledi[ğg]iniz i[çc]in|te[şs]ekk[üu]rler|terima kasih|salamat sa panonood|gracias por ver|merci d'avoir regard|sous-titres|untertitel|vielen dank|danke f[üu]rs|legendas|obrigado por assistir|subt[íi]tulos|grazie per aver|dzi[ęe]kuj[ęe]|bedankt voor het kijken|tack f[öo]r att|h[ãa]y subscribe|c[ảa]m [ơo]n c[áa]c b[ạa]n|amara\.org)/i;
+
+// A whole line wrapped in brackets or parentheses is an audio-event tag.
+const BRACKET_ONLY = /^(?:\[[^\]]{0,60}\]|\([^)]{0,60}\)|<[^>]{0,60}>)$/;
+const REPEATED_WORD = /^(\p{L}+)(?:\s+\1){3,}$/iu;
+
+// Punctuation that a spoken line can reasonably carry. Anything else counts
+// as noise, so symbol salad cannot pass for speech.
+const SPEECH_SYMBOLS = new Set(
+  ".,!?;:'\"“”‘’()/%$€£₦&-–—".split(""),
+);
+
+function count(text: string, pattern: RegExp) {
+  return text.match(pattern)?.length ?? 0;
+}
+
+function unbalancedBrackets(text: string) {
+  const pairs: [string, string][] = [
+    ["[", "]"],
+    ["{", "}"],
+    ["(", ")"],
+  ];
+  return pairs.some(([open, close]) => count(text, new RegExp(`\\${open}`, "g")) !== count(text, new RegExp(`\\${close}`, "g")));
+}
+
+export function isJunkLine(input: string): boolean {
+  const text = input.replace(/\s+/g, " ").trim();
+  if (!text) return true;
+
+  const letters = count(text, LETTER);
+  const digits = count(text, DIGIT);
+  const foreign = count(text, FOREIGN_SCRIPT);
+  const latin = count(text, LATIN_SCRIPT);
+
+  if (foreign > 0 && (foreign >= 2 || latin === 0)) return true;
+  if (FOREIGN_PHRASE.test(text)) return true;
+  if (BRACKET_ONLY.test(text)) return true;
+  if (unbalancedBrackets(text)) return true;
+  if (REPEATED_WORD.test(text)) return true;
+
+  let junk = 0;
+  for (const char of text) {
+    if (/\s/u.test(char) || /[\p{L}\p{N}]/u.test(char) || SPEECH_SYMBOLS.has(char)) continue;
+    junk += 1;
+  }
+
+  if (!letters) return junk > 0 || digits >= 4;
+  if (junk >= 2 && junk / (letters + digits) >= 0.4) return true;
+  if (letters < 4 && junk >= 1) return true;
+  return false;
+}
+
+export function spokenLines(lines: TranscriptLine[] | undefined): TranscriptLine[] {
+  return (lines ?? []).filter((line) => !isJunkLine(line.text));
+}
+
 export function wordsToLines(words: SttWord[] | undefined, text: string): TranscriptLine[] {
   if (!words?.length) {
     const trimmed = text.trim();
-    if (!trimmed) return [];
+    if (!trimmed || isJunkLine(trimmed)) return [];
     return [{ id: crypto.randomUUID(), text: trimmed, at: 0, speaker: "Speaker 1" }];
   }
 
@@ -19,7 +86,7 @@ export function wordsToLines(words: SttWord[] | undefined, text: string): Transc
       .join(" ")
       .replace(/\s+([,.!?;:])/g, "$1")
       .trim();
-    if (joined) {
+    if (joined && !isJunkLine(joined)) {
       lines.push({
         id: crypto.randomUUID(),
         text: joined,

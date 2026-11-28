@@ -53,6 +53,7 @@ import {
 } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { useSessions } from "@/lib/store";
+import { spokenLines } from "@/lib/transcript";
 import { usePlan } from "@/lib/usageStore";
 
 type Tab = "ask" | "documents" | "workspace" | "audit";
@@ -408,17 +409,17 @@ function SourceDialog({ orgId, sourceId, onClose }: { orgId: string; sourceId: s
                 <p className="text-[14.5px] text-muted">This meeting has no written notes yet.</p>
               )}
 
-              {view.transcript.length > 0 && (
+              {spokenLines(view.transcript).length > 0 && (
                 <div>
                   <h3 className="kicker">{view.document ? "Document text" : "Spoken words"}</h3>
                   <div className="mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-line bg-raised-2 p-3 scroll-quiet">
                     {view.document
-                      ? view.transcript.map((line) => (
+                      ? spokenLines(view.transcript).map((line) => (
                           <p key={line.id} className="py-1.5 text-[14.5px] leading-6 text-soft">
                             {line.text}
                           </p>
                         ))
-                      : view.transcript.map((line) => (
+                      : spokenLines(view.transcript).map((line) => (
                           <p key={line.id} className="py-1 text-[14.5px] leading-5 text-soft">
                             <span className="mr-2 text-[12.5px] tabular-nums text-faint">{formatClock(line.at)}</span>
                             {line.speaker && <span className="mr-1 font-medium text-brass">{line.speaker}:</span>}

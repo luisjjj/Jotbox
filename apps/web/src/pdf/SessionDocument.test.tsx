@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { renderToBuffer } from "@react-pdf/renderer";
+import { extractText, getDocumentProxy } from "unpdf";
 import { describe, expect, it } from "vitest";
 import { SessionDocument } from "@/pdf/SessionDocument";
 import type { Session } from "@/lib/types";
@@ -77,5 +78,34 @@ describe("SessionDocument", () => {
     );
     expect(buffer.subarray(0, 5).toString()).toBe("%PDF-");
     expect(buffer.length).toBeGreaterThan(2_000);
+  });
+
+  it("keeps hallucinated spoken words out of the PDF", async () => {
+    const junk = [
+      "[2 >$>0 ,>$ @$ @ 5>[]",
+      "[ 8M*7M ]",
+      "@d [* M7?/K @ 5>[]",
+      "Bunu zaten dedin.",
+      "आप कैसे हैं",
+    ];
+    const buffer = await renderToBuffer(
+      <SessionDocument
+        session={{
+          ...fullSession,
+          transcript: [
+            { id: "spoken-1", text: "Ah, wetin happen to the Friday payout?", at: 0, speaker: "Ada" },
+            ...junk.map((text, index) => ({ id: `junk-${index}`, text, at: index + 1 })),
+            { id: "spoken-2", text: "E be like the bank dey slow us down.", at: 10, speaker: "Chinedu" },
+          ],
+        }}
+      />,
+    );
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { text } = await extractText(pdf, { mergePages: true });
+    expect(text).toContain("wetin happen to the Friday payout");
+    expect(text).toContain("bank dey slow us down");
+    for (const line of junk) expect(text).not.toContain(line);
+    expect(text).not.toContain("M7?/K");
+    expect(text).not.toContain(">$>");
   });
 });

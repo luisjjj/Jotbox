@@ -82,6 +82,22 @@ describe("notesToMarkdown", () => {
     expect(markdown).toContain("**Ada** (0:00) Ah, wetin happen to the Friday payout?");
     expect(markdown).toContain("(0:12) E be like the bank dey slow us down.");
   });
+
+  it("leaves reader hallucinations out of the spoken words", () => {
+    const markdown = notesToMarkdown({
+      ...session,
+      transcript: [
+        ...session.transcript,
+        { id: "junk-1", text: "[2 >$>0 ,>$ @$ @ 5>[]", at: 143 },
+        { id: "junk-2", text: "Bunu zaten dedin.", at: 579 },
+        { id: "junk-3", text: "आप कैसे हैं", at: 580 },
+      ],
+    });
+    expect(markdown).toContain("Ah, wetin happen to the Friday payout?");
+    expect(markdown).not.toContain("Bunu zaten dedin.");
+    expect(markdown).not.toContain("आप कैसे हैं");
+    expect(markdown).not.toContain("5>[]");
+  });
 });
 
 describe("notesLookEmpty", () => {

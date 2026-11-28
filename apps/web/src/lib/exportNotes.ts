@@ -1,5 +1,6 @@
 import { notesToMarkdown } from "./format";
 import { OUTPUT_PRESETS } from "./presets";
+import { spokenLines } from "./transcript";
 import type { Session } from "./types";
 
 function download(name: string, content: string, type: string) {
@@ -115,9 +116,10 @@ export function printSession(session: Session) {
     parts.push(`<h2>What you jotted</h2><pre class="scratch">${escapeHtml(session.scratch.trim())}</pre>`);
   }
 
-  if (session.transcript.length) {
+  const transcript = spokenLines(session.transcript);
+  if (transcript.length) {
     parts.push(
-      `<h2 class="break">Spoken words</h2><div class="transcript">${session.transcript
+      `<h2 class="break">Spoken words</h2><div class="transcript">${transcript
         .map(
           (line) =>
             `<p><span class="time">${escapeHtml(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { linesFromText, wordsToLines } from "./transcript";
-import type { SttWord } from "./types";
+import { isJunkLine, linesFromText, spokenLines, wordsToLines } from "./transcript";
+import type { SttWord, TranscriptLine } from "./types";
 
 function word(text: string, start: number, end: number, speaker?: number): SttWord {
   return { text, start, end, ...(speaker === undefined ? {} : { speaker }) };
@@ -62,6 +62,73 @@ describe("wordsToLines", () => {
   it("labels an undiarised recording as Speaker 1", () => {
     const lines = wordsToLines([word("Hello", 0, 0.2), word("there", 0.3, 0.5)], "");
     expect(lines[0].speaker).toBe("Speaker 1");
+  });
+});
+
+describe("isJunkLine", () => {
+  it("drops reader hallucinations and symbol salad from the PDF evidence", () => {
+    for (const line of [
+      "[2 >$>0 ,>$ @$ @ 5>[]",
+      "[2 >$>0 * M7?/K @ 5>[]",
+      "@d [* M7?/K @ 5>[]",
+      "[notification @ 5>[]",
+      "[ 8M*7M ]",
+      "|, P. tp...",
+      "Bunu zaten dedin.",
+      "आप कैसे हैं",
+      "सब्सक्राइब करें",
+      "[music playing]",
+      "(inaudible)",
+      "Amara.org",
+    ]) {
+      expect(isJunkLine(line), line).toBe(true);
+    }
+  });
+
+  it("keeps Nigerian languages, Pidgin and ordinary speech", () => {
+    for (const line of [
+      "make we pause the same-day promise until the cutoff hold",
+      "Ẹ káàárọ̀, ṣé àwọn ọmọ wa wà?",
+      "Muna son zuwa makaranta gobe",
+      "Anyị ga-ezute n’abalị a",
+      "Revenue is up 12 percent.",
+      "Ada will send the file at 4pm.",
+      "Use C++ and C# for the parser.",
+    ]) {
+      expect(isJunkLine(line), line).toBe(false);
+    }
+  });
+});
+
+describe("spokenLines", () => {
+  it("hides junk that is already stored in a transcript", () => {
+    const lines: TranscriptLine[] = [
+      { id: "1", text: "We still have fourteen percent pending.", at: 4 },
+      { id: "2", text: "[2 >$>0 ,>$ @$ @ 5>[]", at: 143 },
+      { id: "3", text: "Bunu zaten dedin.", at: 579 },
+      { id: "4", text: "The bank acknowledged the file late.", at: 601 },
+    ];
+    expect(spokenLines(lines).map((line) => line.text)).toEqual([
+      "We still have fourteen percent pending.",
+      "The bank acknowledged the file late.",
+    ]);
+  });
+});
+
+describe("wordsToLines junk screen", () => {
+  it("does not build a line from a hallucinated word run", () => {
+    const words: SttWord[] = [
+      { text: "The", start: 0, end: 0.2 },
+      { text: "bank", start: 0.3, end: 0.5 },
+      { text: "was", start: 0.6, end: 0.8 },
+      { text: "late.", start: 0.9, end: 1.2 },
+      { text: "[2", start: 3, end: 3.2 },
+      { text: ">$>0", start: 3.3, end: 3.5 },
+      { text: "@$", start: 3.6, end: 3.8 },
+      { text: "5>[]", start: 3.9, end: 4.1 },
+    ];
+    const lines = wordsToLines(words, "");
+    expect(lines.map((line) => line.text)).toEqual(["The bank was late."]);
   });
 });
 

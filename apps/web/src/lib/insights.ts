@@ -1,3 +1,4 @@
+import { spokenLines } from "./transcript";
 import type { LiveInsights, Session, TranscriptLine } from "./types";
 
 const DECISION =
@@ -82,7 +83,7 @@ export async function requestInsights(session: Session, existing: LiveInsights):
           title: session.title,
           kind: session.kind,
           notes: session.notes,
-          transcript: session.transcript.map((line) => ({
+          transcript: spokenLines(session.transcript).map((line) => ({
             at: line.at,
             speaker: line.speaker,
             text: line.text,

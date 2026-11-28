@@ -448,6 +448,117 @@ const HALLUCINATIONS = [
   /^(?:you|uh|um|hmm|mm)[.!]?$/i,
 ];
 
+// JotBox only writes Latin-script Nigerian languages. A run in another script
+// is a reader hallucination on silence, not room speech. Devanagari covers
+// Hindi, which is the most common stray language in our recordings.
+const FOREIGN_SCRIPT =
+  /[\p{Script=Devanagari}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}\p{Script=Hebrew}\p{Script=Greek}\p{Script=Cyrillic}\p{Script=Arabic}]/gu;
+const LATIN_SCRIPT = /\p{Script=Latin}/gu;
+const LETTER = /\p{L}/gu;
+const DIGIT = /\p{N}/gu;
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+
+// Stock lines that speech readers emit over silence and music. Scripts like
+// Devanagari, Han, Hangul and Cyrillic are already caught above.
+const FOREIGN_PHRASE =
+  /(?:bunu zaten dedin|altyaz[ıi]|abone ol|izledi[ğg]iniz i[çc]in|te[şs]ekk[üu]rler|terima kasih|salamat sa panonood|gracias por ver|merci d'avoir regard|sous-titres|untertitel|vielen dank|danke f[üu]rs|legendas|obrigado por assistir|subt[íi]tulos|grazie per aver|dzi[ęe]kuj[ęe]|bedankt voor het kijken|tack f[öo]r att|h[ãa]y subscribe|c[ảa]m [ơo]n c[áa]c b[ạa]n|amara\.org)/i;
+
+// A whole line wrapped in brackets or parentheses is an audio-event tag.
+const BRACKET_ONLY = /^(?:\[[^\]]{0,60}\]|\([^)]{0,60}\)|<[^>]{0,60}>)$/;
+const REPEATED_WORD = /^(\p{L}+)(?:\s+\1){3,}$/iu;
+
+// Punctuation a spoken line can reasonably carry. Anything else counts as
+// noise, so symbol salad cannot pass for speech.
+const SPEECH_SYMBOLS = new Set(".,!?;:'\"“”‘’()/%$€£₦&-–—".split(""));
+
+function countMatches(text, pattern) {
+  return text.match(pattern)?.length ?? 0;
+}
+
+function unbalancedBrackets(text) {
+  const pairs = [
+    ["[", "]"],
+    ["{", "}"],
+    ["(", ")"],
+  ];
+  return pairs.some(
+    ([open, close]) =>
+      countMatches(text, new RegExp(`\\${open}`, "g")) !== countMatches(text, new RegExp(`\\${close}`, "g")),
+  );
+}
+
+export function lineIsJunk(input) {
+  const text = cleanWord(input);
+  if (!text) return true;
+  if (HALLUCINATIONS.some((pattern) => pattern.test(text))) return true;
+
+  const letters = countMatches(text, LETTER);
+  const digits = countMatches(text, DIGIT);
+  const foreign = countMatches(text, FOREIGN_SCRIPT);
+  const latin = countMatches(text, LATIN_SCRIPT);
+
+  if (foreign > 0 && (foreign >= 2 || latin === 0)) return true;
+  if (FOREIGN_PHRASE.test(text)) return true;
+  if (BRACKET_ONLY.test(text)) return true;
+  if (unbalancedBrackets(text)) return true;
+  if (REPEATED_WORD.test(text)) return true;
+
+  let junk = 0;
+  for (const char of text) {
+    if (/\s/u.test(char) || WORD_CHAR.test(char) || SPEECH_SYMBOLS.has(char)) continue;
+    junk += 1;
+  }
+
+  if (!letters) return junk > 0 || digits >= 4;
+  if (junk >= 2 && junk / (letters + digits) >= 0.4) return true;
+  if (letters < 4 && junk >= 1) return true;
+  return false;
+}
+
+export function dropJunkText(text) {
+  return String(text ?? "")
+    .split(/\n+/)
+    .map((line) => cleanWord(line))
+    .filter((line) => line && !lineIsJunk(line))
+    .join("\n");
+}
+
+const WORD_RUN_LIMIT = 16;
+const WORD_GAP_SECONDS = 0.75;
+
+// Scribe returns words without segments, so a hallucination on silence arrives
+// as an ordinary run of words. Split runs on a pause, a speaker change or a
+// sentence end, then drop the runs that are not speech.
+export function dropJunkWordRuns(words) {
+  if (!Array.isArray(words) || !words.length) return Array.isArray(words) ? words : [];
+  const kept = [];
+  let run = [];
+  const flush = () => {
+    if (!run.length) return;
+    if (!lineIsJunk(run.map((word) => word.text).join(" "))) kept.push(...run);
+    run = [];
+  };
+  for (const word of words) {
+    const previous = run[run.length - 1];
+    if (previous) {
+      const gap = Number(word.start) - Number(previous.end);
+      const speakerChanged =
+        word.speaker !== undefined && previous.speaker !== undefined && word.speaker !== previous.speaker;
+      if (
+        speakerChanged ||
+        (Number.isFinite(gap) && gap >= WORD_GAP_SECONDS) ||
+        /[.!?]["')\]]?$/.test(previous.text) ||
+        run.length >= WORD_RUN_LIMIT
+      ) {
+        flush();
+      }
+    }
+    run.push(word);
+  }
+  flush();
+  return kept;
+}
+
 function dedupeRepeats(text) {
   let out = cleanWord(text);
   for (let pass = 0; pass < 3; pass += 1) {
@@ -461,8 +572,7 @@ function dedupeRepeats(text) {
 }
 
 function segmentIsHallucination(segment) {
-  const text = cleanWord(segment?.text);
-  return !text || HALLUCINATIONS.some((pattern) => pattern.test(text));
+  return lineIsJunk(segment?.text);
 }
 
 function speechTokens(text) {
@@ -492,7 +602,7 @@ export function tidyTranscript(text) {
   const lines = String(text ?? "")
     .split(/\n+/)
     .map((line) => dedupeRepeats(line))
-    .filter((line) => line && !HALLUCINATIONS.some((pattern) => pattern.test(line)));
+    .filter((line) => !lineIsJunk(line));
   const kept = [];
   for (const line of lines) {
     const previous = kept[kept.length - 1];
@@ -515,7 +625,7 @@ function sttThreshold(name, fallback) {
 function segmentIsNoise(segment) {
   const text = cleanWord(segment?.text);
   if (!text) return true;
-  if (HALLUCINATIONS.some((pattern) => pattern.test(text))) return true;
+  if (lineIsJunk(text)) return true;
 
   const noSpeech = Number(segment?.no_speech_prob);
   const logprob = Number(segment?.avg_logprob);
@@ -628,6 +738,17 @@ export function normalizeTranscription(data, provider, options = {}) {
     text = segments.map((segment) => cleanWord(segment?.text)).filter(Boolean).join(" ");
   }
   if (!text) text = words.map((word) => word.text).join(" ");
+
+  if (!segments.length && words.length) {
+    const screened = dropJunkWordRuns(words);
+    if (screened.length !== words.length) {
+      words = screened;
+      text = words.map((word) => word.text).join(" ");
+    }
+  } else if (!words.length && text) {
+    text = dropJunkText(text);
+  }
+
   text = dedupeRepeats(text);
   if (HALLUCINATIONS.some((pattern) => pattern.test(text)) || segmentRecitesPrompt({ text }, prompt)) {
     text = "";

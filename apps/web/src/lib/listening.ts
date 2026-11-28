@@ -1,3 +1,4 @@
+import { isJunkLine } from "./transcript";
 import type { Participant, SessionKind, TranscriptLine } from "./types";
 
 export type FocusMode = "off" | "balanced" | "strict";
@@ -170,8 +171,7 @@ export function isNoiseLine(text: string) {
   const clean = text.replace(/\s+/g, " ").trim();
   if (!clean) return true;
   if (NOISE.test(clean)) return true;
-  if (/^[^\p{L}\p{N}]+$/u.test(clean)) return true;
-  return /^(\w+)(?:\s+\1){3,}$/i.test(clean);
+  return isJunkLine(clean);
 }
 
 function withoutSpeaker(text: string) {
