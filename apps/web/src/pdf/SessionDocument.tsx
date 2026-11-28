@@ -2,6 +2,7 @@ import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { formatClock } from "@/lib/format";
 import { OUTPUT_PRESETS } from "@/lib/presets";
+import { spokenLines } from "@/lib/transcript";
 import type { Session, SessionKind } from "@/lib/types";
 
 const KIND_LABEL: Record<SessionKind, string> = {
@@ -175,6 +176,8 @@ export function SessionDocument({ session }: { session: Session }) {
     return value;
   };
 
+  const transcript = spokenLines(session.transcript);
+
   const jottings = session.scratch.trim() ? (
     <View style={styles.note} wrap={false}>
       <Label first>What you jotted</Label>
@@ -183,12 +186,12 @@ export function SessionDocument({ session }: { session: Session }) {
   ) : null;
 
   const source =
-    session.transcript.length > 0 ? (
+    transcript.length > 0 ? (
       <View break>
         <Label first>The source</Label>
         {jottings}
         <Label>Spoken words</Label>
-        {session.transcript.map((line) => (
+        {transcript.map((line) => (
           <View key={line.id} style={styles.transcriptLine} wrap={false}>
             <Text style={styles.time}>{formatClock(line.at)}</Text>
             <Text style={styles.lineText}>

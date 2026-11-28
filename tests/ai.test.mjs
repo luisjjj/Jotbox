@@ -527,6 +527,113 @@ test("transcript cleanup collapses recognition loops and drops repeated lines", 
   assert.equal(ai.tidyTranscript("[music]\nWe agreed on 4pm"), "We agreed on 4pm");
 });
 
+test("hindi, foreign and symbol-salad lines are treated as hallucinations", () => {
+  for (const line of [
+    "[2 >$>0 ,>$ @$ @ 5>[]",
+    "[ 8M*7M ]",
+    "[2 >$>0 * M7?/K @ 5>[]",
+    "@d [* M7?/K @ 5>[]",
+    "[notification @ 5>[]",
+    "|, P. tp...",
+    "Bunu zaten dedin.",
+    "आप कैसे हैं",
+    "सब्सक्राइब करें",
+    "[music playing]",
+    "(inaudible)",
+    "Amara.org",
+  ]) {
+    assert.equal(ai.lineIsJunk(line), true, line);
+  }
+
+  for (const line of [
+    "make we pause the same-day promise until the cutoff hold",
+    "Ẹ káàárọ̀, ṣé àwọn ọmọ wa wà?",
+    "Muna son zuwa makaranta gobe",
+    "Anyị ga-ezute n’abalị a",
+    "Revenue is up 12 percent.",
+    "Ada will send the file at 4pm.",
+    "Use C++ and C# for the parser.",
+  ]) {
+    assert.equal(ai.lineIsJunk(line), false, line);
+  }
+});
+
+test("transcript cleanup drops hallucinated lines from a saved transcript", () => {
+  const text = [
+    "We still have fourteen percent of Friday sitting in pending.",
+    "[2 >$>0 ,>$ @$ @ 5>[]",
+    "Bunu zaten dedin.",
+    "आप कैसे हैं",
+    "[ 8M*7M ]",
+    "The bank acknowledged the file late.",
+  ].join("\n");
+  assert.equal(
+    ai.tidyTranscript(text),
+    "We still have fourteen percent of Friday sitting in pending.\nThe bank acknowledged the file late.",
+  );
+});
+
+test("a Scribe transcript drops hallucinated word runs and keeps the room", () => {
+  const word = (text, start) => ({ word: text, start, end: start + 0.25, speaker: 0 });
+  const result = ai.normalizeTranscription(
+    {
+      text:
+        "We pause the same-day promise. [2 >$>0 ,$ @$ @ 5>[] Bunu zaten dedin. The bank acknowledged the file late.",
+      words: [
+        word("We", 0),
+        word("pause", 0.3),
+        word("the", 0.6),
+        word("same-day", 0.9),
+        word("promise.", 1.2),
+        word("[2", 3),
+        word(">$>0", 3.2),
+        word(",$", 3.4),
+        word("@$", 3.6),
+        word("@", 3.8),
+        word("5>[]", 4),
+        word("Bunu", 6.4),
+        word("zaten", 6.6),
+        word("dedin.", 6.8),
+        word("The", 9.2),
+        word("bank", 9.4),
+        word("acknowledged", 9.6),
+        word("the", 9.8),
+        word("file", 10),
+        word("late.", 10.2),
+      ],
+    },
+    "elevenlabs",
+  );
+
+  assert.equal(result.text, "We pause the same-day promise. The bank acknowledged the file late.");
+  assert.deepEqual(
+    result.words.map((item) => item.text),
+    ["We", "pause", "the", "same-day", "promise.", "The", "bank", "acknowledged", "the", "file", "late."],
+  );
+});
+
+test("a live Scribe chunk also loses a hallucinated run", () => {
+  const word = (text, start) => ({ word: text, start, end: start + 0.25 });
+  const result = ai.normalizeTranscription(
+    {
+      text: "make we pause 🙏 [ 8M*7M ]",
+      words: [
+        word("make", 0),
+        word("we", 0.3),
+        word("pause", 0.6),
+        word("[", 2),
+        word("8M*7M", 2.2),
+        word("]", 2.4),
+      ],
+    },
+    "elevenlabs",
+    { live: true },
+  );
+
+  assert.equal(result.text, "make we pause");
+  assert.deepEqual(result.words.map((item) => item.text), ["make", "we", "pause"]);
+});
+
 test("segment speakers are copied onto words when a provider diarizes", () => {
   const result = ai.normalizeTranscription(
     {

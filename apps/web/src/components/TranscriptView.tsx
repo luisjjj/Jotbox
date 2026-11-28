@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import clsx from "clsx";
 import { formatClock } from "@/lib/format";
+import { isJunkLine, spokenLines } from "@/lib/transcript";
 import type { TranscriptLine } from "@/lib/types";
 
 interface TranscriptViewProps {
@@ -22,6 +23,8 @@ export function TranscriptView({
 }: TranscriptViewProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const stuckRef = useRef(true);
+  const visible = spokenLines(lines);
+  const shownInterim = interim && !isJunkLine(interim) ? interim : "";
 
   useEffect(() => {
     if (!live || !stuckRef.current) return;
@@ -33,7 +36,7 @@ export function TranscriptView({
     return () => cancelAnimationFrame(frame);
   }, [lines, interim, live]);
 
-  if (!lines.length && !interim) {
+  if (!visible.length && !shownInterim) {
     return (
       <div className={clsx("grid min-h-[9rem] place-items-center px-4 text-center", className)}>
         <p className="max-w-[15rem] text-[15px] leading-6 text-faint">{emptyLabel}</p>
@@ -52,8 +55,8 @@ export function TranscriptView({
       aria-live={live ? "polite" : "off"}
       aria-label="Spoken words"
     >
-      {lines.map((line, index) => {
-        const previous = lines[index - 1];
+      {visible.map((line, index) => {
+        const previous = visible[index - 1];
         const showSpeaker = Boolean(line.speaker) && line.speaker !== previous?.speaker;
         return (
           <div key={line.id} className="transcript-line">
@@ -80,12 +83,12 @@ export function TranscriptView({
           </div>
         );
       })}
-      {interim && (
+      {shownInterim && (
         <div className="transcript-line">
           <div className="transcript-time">
             <span className="live-dot" />
           </div>
-          <p className="pt-0.5 text-[15.5px] italic leading-[1.6] text-faint">{interim}</p>
+          <p className="pt-0.5 text-[15.5px] italic leading-[1.6] text-faint">{shownInterim}</p>
         </div>
       )}
     </div>

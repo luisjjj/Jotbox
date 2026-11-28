@@ -9,6 +9,7 @@ import { SessionRow } from "@/components/SessionRow";
 import { KIND_META } from "@/lib/format";
 import { loadSampleSessions } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
+import { spokenLines } from "@/lib/transcript";
 import type { SessionKind } from "@/lib/types";
 
 const FILTERS: Array<{ value: "all" | SessionKind; label: string }> = [
@@ -47,7 +48,7 @@ export default function Library() {
           session.notes?.summary ?? "",
           session.scratch,
           session.notes?.highlights.join(" ") ?? "",
-          session.transcript.map((line) => line.text).join(" "),
+          spokenLines(session.transcript).map((line) => line.text).join(" "),
         ]
           .join(" ")
           .toLowerCase();

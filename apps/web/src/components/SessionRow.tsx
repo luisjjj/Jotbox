@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatClock, formatWhen, KIND_META } from "@/lib/format";
 import { isSample } from "@/lib/seed";
+import { spokenLines } from "@/lib/transcript";
 import type { Session } from "@/lib/types";
 import { KindDot, KindTile } from "./KindBadge";
 
@@ -32,7 +33,8 @@ export function SessionStatusChip({ session }: { session: Session }) {
 function previewFor(session: Session) {
   if (session.notes?.summary) return session.notes.summary;
   if (session.scratch.trim()) return session.scratch.trim();
-  if (session.transcript.length) return session.transcript[0].text;
+  const first = spokenLines(session.transcript)[0];
+  if (first) return first.text;
   return KIND_META[session.kind].hint;
 }
 

@@ -106,6 +106,16 @@ describe("off-topic and noise lines", () => {
     expect(isOffTopic("[applause]", context(), "off")).toBe(true);
   });
 
+  it("treats live reader hallucinations as noise in every mode", () => {
+    expect(isNoiseLine("[2 >$>0 ,>$ @$ @ 5>[]")).toBe(true);
+    expect(isNoiseLine("[ 8M*7M ]")).toBe(true);
+    expect(isNoiseLine("Bunu zaten dedin.")).toBe(true);
+    expect(isNoiseLine("आप कैसे हैं")).toBe(true);
+    expect(isOffTopic("[notification @ 5>[]", context(), "off")).toBe(true);
+    expect(isNoiseLine("Muna son zuwa makaranta gobe")).toBe(false);
+    expect(isNoiseLine("Make we pause the same-day promise.")).toBe(false);
+  });
+
   it("drops clear side talk in balanced mode, even behind a speaker label", () => {
     expect(isOffTopic("Speaker 1: Can somebody share the wifi password?", context(), "balanced")).toBe(true);
     expect(isOffTopic("Ada: What is for lunch today?", context(), "balanced")).toBe(true);

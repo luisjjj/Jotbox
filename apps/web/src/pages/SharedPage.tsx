@@ -7,6 +7,7 @@ import { KindBadge } from "@/components/KindBadge";
 import { api, ApiError, type PublicShare } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { OUTPUT_PRESETS } from "@/lib/presets";
+import { spokenLines } from "@/lib/transcript";
 
 function dueLabel(due: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return due;
@@ -79,6 +80,7 @@ export default function SharedPage() {
 
   const notes = capture.notes;
   const preset = OUTPUT_PRESETS[capture.kind];
+  const transcript = spokenLines(capture.transcript);
 
   return (
     <div className="min-h-dvh bg-paper">
@@ -259,11 +261,11 @@ export default function SharedPage() {
           </div>
         )}
 
-        {capture.transcript.length > 0 && (
+        {transcript.length > 0 && (
           <section className="mt-10 border-t border-line pt-6">
             <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-faint">Spoken words</h2>
             <div className="mt-3 space-y-3">
-              {capture.transcript.map((line) => (
+              {transcript.map((line) => (
                 <div key={line.id} className="flex gap-3">
                   <span className="w-10 flex-none pt-0.5 text-right text-[11.5px] tabular-nums text-faint">
                     {formatClock(line.at)}

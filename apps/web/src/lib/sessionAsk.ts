@@ -1,4 +1,5 @@
 import { formatClock } from "./format";
+import { spokenLines } from "./transcript";
 import type { Session, SessionNotes, TranscriptLine } from "./types";
 
 export interface AskTurn {
@@ -46,7 +47,7 @@ export function localAnswer(question: string, session: Pick<Session, "transcript
     };
   }
 
-  const ranked = session.transcript
+  const ranked = spokenLines(session.transcript)
     .map((line) => ({ line, score: scoreLine(line, terms) }))
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -111,7 +112,7 @@ export async function askSession(input: {
           kind: session.kind,
           scratch: session.scratch.slice(0, 8_000),
           notes: session.notes,
-          transcript: session.transcript.map((line) => ({
+          transcript: spokenLines(session.transcript).map((line) => ({
             at: line.at,
             speaker: line.speaker,
             text: line.text,

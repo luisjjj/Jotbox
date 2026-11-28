@@ -1,5 +1,6 @@
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns";
 import { OUTPUT_PRESETS } from "./presets";
+import { spokenLines } from "./transcript";
 import type { Session, SessionKind, SessionNotes, TranscriptLine } from "./types";
 
 export const KIND_META: Record<SessionKind, { label: string; hint: string }> = {
@@ -50,7 +51,7 @@ export function isDefaultTitle(title: string, kind: SessionKind) {
 }
 
 export function transcriptText(lines: TranscriptLine[]) {
-  return lines
+  return spokenLines(lines)
     .map((line) => (line.speaker ? `${line.speaker}: ${line.text}` : line.text))
     .join("\n");
 }
@@ -98,9 +99,10 @@ export function notesToMarkdown(session: Session) {
   if (session.scratch.trim()) {
     lines.push("## What you jotted", "", session.scratch.trim(), "");
   }
-  if (session.transcript.length) {
+  const transcript = spokenLines(session.transcript);
+  if (transcript.length) {
     lines.push("## Spoken words", "");
-    for (const line of session.transcript) {
+    for (const line of transcript) {
       const stamp = formatClock(line.at);
       lines.push(line.speaker ? `**${line.speaker}** (${stamp}) ${line.text}` : `(${stamp}) ${line.text}`, "");
     }

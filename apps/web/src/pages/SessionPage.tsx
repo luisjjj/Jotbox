@@ -66,7 +66,7 @@ import {
 } from "@/lib/reportTranslation";
 import { isSample } from "@/lib/seed";
 import { useSessions } from "@/lib/store";
-import { linesFromText } from "@/lib/transcript";
+import { linesFromText, spokenLines } from "@/lib/transcript";
 import type { FollowUpDraft, Session, SessionNotes, TranscriptLine } from "@/lib/types";
 import { ensurePro, refreshUsage, usePlan } from "@/lib/usageStore";
 import { useEngine } from "@/engine/SessionEngine";
@@ -688,7 +688,7 @@ export default function SessionPage() {
   };
 
   const openTranscriptEditor = () => {
-    setDraft(session.transcript.map((line) => line.text).join("\n"));
+    setDraft(spokenLines(session.transcript).map((line) => line.text).join("\n"));
     setEditing(true);
   };
 
